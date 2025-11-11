@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root { --hud-bg: rgba(0,0,0,.55); }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
     .muted{opacity:.8}
@@ -113,7 +114,7 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // ===== Crono principal (informativo) =====
+    // ===== Crono principal (visual) =====
     let startMS=null, stopMS=null, running=false, currentRunner=null; // {id,name,order}
     setInterval(()=>{
       const nameText = currentRunner?.name || '—';
@@ -142,7 +143,7 @@
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp,
-        collection, query, orderBy, getDocs, runTransaction
+        collection, query, orderBy, getDocs
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -165,7 +166,6 @@
         const reloadOrdered = async ()=>{
           const snap = await getDocs(query(partsCol, orderBy('order','asc')));
           participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-          return participants;
         };
 
         // Crear evento si no existe
@@ -178,54 +178,41 @@
           .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
           .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
 
-        // ----------- TRANSACCIONES -----------
-        const txStartNext = async ()=>{
-          return runTransaction(db, async (tx)=>{
-            const snap = await tx.get(query(partsCol, orderBy('order','asc')));
-            const list = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-            const nxt  = list.find(p=>!p.startClientMS && !p.startTS);
-            if(!nxt) return null;
-            tx.update(nxt.ref, { startTS:serverTimestamp(), startClientMS: Date.now(), stopTS:null, stopClientMS:null });
-            return { id:nxt.id, name:nxt.name, order:nxt.order, startClientMS: Date.now() };
-          });
-        };
+        // ------- INICIO y FIN (sin transacciones) -------
+        async function startNext(){
+          await reloadOrdered();
+          const p = nextToStart(); if(!p) return null;
+          await updateDoc(p.ref,{ startTS:serverTimestamp(), startClientMS: Date.now(), stopTS:null, stopClientMS:null });
+          return { id:p.id, name:p.name, order:p.order, startClientMS: Date.now() };
+        }
+        async function stopEarliest(){
+          await reloadOrdered();
+          const run = runningSorted();
+          const p = run[0]; if(!p) return null;
+          await updateDoc(p.ref,{ stopTS:serverTimestamp(), stopClientMS: Date.now() });
+          return { id:p.id, name:p.name, order:p.order, stopClientMS: Date.now() };
+        }
+        // -------------------------------------------------
 
-        const txStopEarliest = async ()=>{
-          return runTransaction(db, async (tx)=>{
-            const snap = await tx.get(query(partsCol, orderBy('order','asc')));
-            const list = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-            // FIFO real: el que tenga start y aún no tenga stop, con menor startClientMS/TS
-            const running = list
-              .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
-              .sort((a,b)=>( (a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)) ));
-            const cur = running[0];
-            if(!cur) return null; // META no toca nada si no hay nadie corriendo
-            // marca stop sólo si sigue sin stop (idempotente)
-            tx.update(cur.ref, { stopTS:serverTimestamp(), stopClientMS: Date.now() });
-            return { id:cur.id, name:cur.name, order:cur.order, stopClientMS: Date.now() };
-          });
-        };
-        // -------------------------------------
-
-        // SNAPSHOT: NO se auto-inicia en META; sólo refleja estado
+        // SNAPSHOT: refleja estado, NO auto–arranca en META
         onSnapshot(partsCol, async ()=>{
           await reloadOrdered();
 
-          const running = runningSorted();
-          const nextOne = nextToStart();
+          const runningArr = runningSorted();
+          const nextOne    = nextToStart();
 
-          if(running.length>0){
-            const first = running[0];
-            const start = (first.startClientMS ?? tsToMillis(first.startTS) ?? Date.now());
-            startLocal(start, { id:first.id, name:first.name, order:first.order }); // muestra el primero en curso
+          if(runningArr.length>0){
+            const first = runningArr[0];
+            const ms = (first.startClientMS ?? tsToMillis(first.startTS) ?? Date.now());
+            startLocal(ms, { id:first.id, name:first.name, order:first.order });
             $('runnerName').textContent = first.name || '—';
           } else {
-            // No hay nadie corriendo -> parada visual; NO iniciar al "next"
             if(running) stopLocal();
             $('runnerName').textContent = nextOne?.name || '—';
           }
 
           hudNext.textContent = 'Siguiente: ' + (nextOne?.name || '—');
+
           const hasStart = participants.some(p=>p.startClientMS||p.startTS);
           const hasStop  = participants.some(p=>p.stopClientMS||p.stopTS);
           tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
@@ -233,12 +220,12 @@
 
         // Botones
         btnStart.onclick = async ()=>{
-          const r = await txStartNext(); // SALIDA decide el siguiente
+          const r = await startNext(); // SALIDA decide el siguiente
           if(r){ startLocal(r.startClientMS, {id:r.id,name:r.name,order:r.order}); lastAction.textContent='Inicio: '+r.name; }
           else { lastAction.textContent='No hay siguiente para iniciar.'; }
         };
         btnStop.onclick  = async ()=>{
-          const r = await txStopEarliest(); // META para al que va primero
+          const r = await stopEarliest(); // META para al primero en curso (FIFO)
           if(r){ stopLocal(r.stopClientMS); lastAction.textContent='Fin: '+r.name; }
           else { lastAction.textContent='No hay participante en curso.'; }
         };
@@ -263,10 +250,10 @@
         const trigger = async ()=>{
           if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
           if(mode==='start'){
-            const r=await txStartNext(); // SALIDA inicia al siguiente (no auto–arranque en META)
+            const r=await startNext(); // SALIDA inicia al siguiente
             if(r){ startLocal(r.startClientMS, {id:r.id,name:r.name,order:r.order}); }
           } else {
-            const r=await txStopEarliest(); // META para al primero en curso
+            const r=await stopEarliest(); // META para al primero en curso
             if(r){ stopLocal(r.stopClientMS); }
           }
         };
@@ -304,7 +291,9 @@
         function renderRunningList(){
           if(!participants.length) { runningList.innerHTML='—'; return; }
           const now = Date.now();
-          const runningArr = runningSorted();
+          const runningArr = participants
+            .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
+            .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
           if(!runningArr.length){ runningList.innerHTML='—'; return; }
           runningList.innerHTML = runningArr.map(p=>{
             const st = (p.startClientMS ?? tsToMillis(p.startTS) ?? now);
