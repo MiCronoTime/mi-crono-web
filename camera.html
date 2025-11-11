@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono Web — Cámara</title>
+  <title>Mi Crono Web — Cámara (Diagnóstico)</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     video, canvas { width:100%; border-radius:16px; }
@@ -12,6 +12,9 @@
     .stage { position:relative; }
     .hint { margin-top:8px; font-size: 13px; color:#64748b; }
     .debug { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; white-space: pre-wrap; }
+    .warn { background:#fffbe6; border:1px solid #fde68a; padding:10px; border-radius:12px; }
+    .ok { color:#065f46; }
+    .err { color:#b91c1c; }
   </style>
 </head>
 <body class="wrap">
@@ -21,43 +24,60 @@
   </header>
 
   <main class="grid one">
+    <!-- Aviso si falta el code -->
+    <section class="card warn" id="noCodeBox" style="display:none">
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y entra por “Usar este código” o “Unirse”.
+    </section>
+
     <section class="card">
-      <button id="btnEnableCam" class="btn primary block">Activar cámara</button>
-      <div class="hint">Si no ves imagen, ábrelo en Safari con HTTPS y pulsa el botón.</div>
+      <div class="row">
+        <button id="btnEnableCam" class="btn primary">Activar cámara</button>
+        <button id="btnForce" class="btn">Forzar acción</button>
+        <a id="btnResult" class="btn" href="#">Ver resultado</a>
+      </div>
+      <div class="hint">iOS: abre en Safari con HTTPS y pulsa “Activar cámara”.</div>
 
       <div class="stage" style="margin-top:10px;">
         <video id="video" playsinline muted></video>
         <canvas id="canvas" hidden></canvas>
         <div id="overlay" class="overlay" style="display:none;">MOVIMIENTO DETECTADO</div>
       </div>
-
-      <div class="row" style="margin-top:10px;">
-        <button id="btnForce" class="btn primary">Forzar acción</button>
-        <a id="btnResult" class="btn" href="#">Ver resultado</a>
-      </div>
-      <small class="muted">Coloca el móvil estable apuntando al corredor.</small>
+      <small class="muted">Coloca el móvil estable. Si no hay imagen, es normal hasta dar permisos.</small>
     </section>
 
-    <!-- Panel de Depuración -->
+    <!-- Paneles de diagnóstico -->
+    <section class="card">
+      <h2>Estado</h2>
+      <div>Firebase: <span id="fbState">—</span></div>
+      <div>Evento: <span id="evState">—</span></div>
+      <div>Última acción: <span id="lastAction">—</span></div>
+    </section>
+
     <section class="card">
       <h2>Depuración</h2>
       <div class="debug" id="debugDoc">Doc: (sin datos)</div>
       <div class="debug" id="lastError">Error: (sin errores)</div>
+      <div class="row" style="margin-top:8px">
+        <button id="testWriteStart" class="btn">Test escribir INICIO</button>
+        <button id="testWriteStop" class="btn">Test escribir FIN</button>
+        <button id="testRead" class="btn">Test leer DOC</button>
+      </div>
     </section>
   </main>
 
-  <!-- Utilidades comunes -->
+  <!-- Utilidades -->
   <script src="js/app.js"></script>
-  <!-- Firebase como MÓDULO (OBLIGATORIO) -->
+  <!-- Firebase como MÓDULO -->
   <script type="module" src="js/firebase.js"></script>
 
-  <!-- Lógica de cámara + Firestore -->
   <script>
-    // Helpers de app.js
-    const getParam = window.getParam;
-    const tsToMillis = window.tsToMillis;
+    // === Utilidades expuestas por app.js
+    const getParam       = window.getParam;
+    const tsToMillis     = window.tsToMillis;
+    const formatDuration = window.formatDuration;
+    const fmtTS          = window.fmtTS;
 
-    // Helpers expuestos por firebase.js (cargado como módulo)
+    // === Helpers expuestos por firebase.js (cargado como módulo)
     const getEventDocRef  = window.getEventDocRef;
     const getDoc          = window.getDoc;
     const setDoc          = window.setDoc;
@@ -65,57 +85,112 @@
     const onSnapshot      = window.onSnapshot;
     const serverTimestamp = window.serverTimestamp;
 
-    // Elementos UI
+    // === Referencias UI
     const title       = document.getElementById('title');
     const tag         = document.getElementById('tag');
     const btnEnable   = document.getElementById('btnEnableCam');
     const btnForce    = document.getElementById('btnForce');
     const btnResult   = document.getElementById('btnResult');
-    const overlay     = document.getElementById('overlay');
-    const video       = document.getElementById('video');
-    const canvas      = document.getElementById('canvas');
-    const ctx         = canvas.getContext('2d', {willReadFrequently:true});
     const debugDocEl  = document.getElementById('debugDoc');
     const lastErrorEl = document.getElementById('lastError');
+    const fbStateEl   = document.getElementById('fbState');
+    const evStateEl   = document.getElementById('evState');
+    const lastAction  = document.getElementById('lastAction');
+    const noCodeBox   = document.getElementById('noCodeBox');
 
-    // Parámetros de URL
+    const video  = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx    = canvas.getContext('2d', { willReadFrequently:true });
+
+    // === Parámetros
     const code = (getParam('code')||'').toUpperCase();
     const mode = (getParam('mode')||'start'); // start | finish
     title.textContent = `Modo ${mode==='start'?'SALIDA':'META'}`;
     tag.textContent   = `Evento ${code || '—'}`;
-    btnResult.href    = `result.html?code=${encodeURIComponent(code)}`;
 
-    // Ref al doc de evento
+    // === Estados visibles
+    fbStateEl.textContent = window.__firebaseLoaded ? "OK" : "ERROR";
+    fbStateEl.className   = window.__firebaseLoaded ? "ok" : "err";
+
+    if(!code){
+      noCodeBox.style.display = '';
+      evStateEl.textContent = "SIN CÓDIGO";
+      evStateEl.className = "err";
+    } else {
+      evStateEl.textContent = code;
+      evStateEl.className = "ok";
+    }
+
+    // === Resultado: forzar navegación por JS (por si href no hace efecto)
+    btnResult.addEventListener('click', (e) => {
+      e.preventDefault();
+      const url = `result.html?code=${encodeURIComponent(code)}`;
+      window.location.href = url;
+    });
+
+    // === Firestore: crear doc si no existe
     const eventRef = getEventDocRef(code);
-
-    // Crea doc si no existe
     (async () => {
-      if (!code) { alert('Código de evento vacío.'); return; }
+      if (!code) return;
       try {
         const snap = await getDoc(eventRef);
         if(!snap.exists()){
           await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS: null, stopTS: null }, { merge: true });
+          lastAction.textContent = "Doc creado";
+        } else {
+          lastAction.textContent = "Doc existente";
         }
       } catch (e) {
-        lastErrorEl.textContent = 'Error creando doc: ' + (e && (e.code || e.message || e));
+        lastErrorEl.textContent = 'Error creando/leyendo doc: ' + (e && (e.code || e.message || e));
       }
     })();
 
-    // Escucha cambios (estado y depuración)
+    // === Live snapshot
     onSnapshot(eventRef, (s) => {
       const d = s.data() || {};
       const hasStart = !!d.startTS || !!d.startClientMS;
       const hasStop  = !!d.stopTS  || !!d.stopClientMS;
-      tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
+      tag.textContent = `Evento ${code || '—'} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
       debugDocEl.textContent = 'Doc: ' + JSON.stringify(d, null, 2);
     }, (err) => {
       lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
     });
 
-    // Cámara (iOS-friendly)
+    // === Tests de Firestore (sin cámara)
+    document.getElementById('testWriteStart').onclick = async () => {
+      try {
+        await setDoc(eventRef, { startTS: serverTimestamp(), startClientMS: Date.now(), stopTS: null, stopClientMS: null }, { merge: true });
+        lastAction.textContent = "Test INICIO escrito";
+        alert("Test INICIO escrito");
+      } catch (e) {
+        lastErrorEl.textContent = 'Error testWriteStart: ' + (e && (e.code || e.message || e));
+        alert(lastErrorEl.textContent);
+      }
+    };
+    document.getElementById('testWriteStop').onclick = async () => {
+      try {
+        await setDoc(eventRef, { stopTS: serverTimestamp(), stopClientMS: Date.now() }, { merge: true });
+        lastAction.textContent = "Test FIN escrito";
+        alert("Test FIN escrito");
+      } catch (e) {
+        lastErrorEl.textContent = 'Error testWriteStop: ' + (e && (e.code || e.message || e));
+        alert(lastErrorEl.textContent);
+      }
+    };
+    document.getElementById('testRead').onclick = async () => {
+      try {
+        const snap = await getDoc(eventRef);
+        alert("Leído:\n" + JSON.stringify(snap.data(), null, 2));
+      } catch (e) {
+        lastErrorEl.textContent = 'Error testRead: ' + (e && (e.code || e.message || e));
+        alert(lastErrorEl.textContent);
+      }
+    };
+
+    // === Cámara (iOS-friendly) — solo tras pulsar
     async function startCamera(){
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-        alert('Este navegador no soporta cámara. Abre la web en Safari (iOS) con HTTPS.');
+        alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.');
         return;
       }
       const constraintsList = [
@@ -131,7 +206,7 @@
         } catch (e) { lastErr = e; }
       }
       if(!stream){
-        alert('No se pudo abrir la cámara. Revisa Ajustes > Safari > Cámara (Permitir) y usa HTTPS.\nDetalle: ' + (lastErr && (lastErr.name + ': ' + lastErr.message)));
+        alert('No se pudo abrir la cámara. Ajustes > Safari > Cámara (Permitir) y usa HTTPS.\nDetalle: ' + (lastErr && (lastErr.name + ': ' + lastErr.message)));
         return;
       }
       try {
@@ -140,14 +215,16 @@
         video.srcObject = stream;
         await new Promise((res)=>{ if (video.readyState >= 2) return res(); video.onloadedmetadata = () => res(); });
         await video.play();
-        btnEnable.style.display = 'none';
+        btnEnable.textContent = "Cámara activada";
+        btnEnable.disabled = true;
+        lastAction.textContent = "Cámara OK";
       } catch(e){
-        alert('La vista previa no pudo iniciarse. Recarga en Safari.\n' + e);
+        alert('Vista previa no pudo iniciarse.\n' + e);
       }
     }
     btnEnable.onclick = startCamera;
 
-    // Detección simple de movimiento
+    // === Detección (se mantiene, por si la cámara funciona)
     let prev = null, coolDown = false;
     function detectMovement(){
       if(video.readyState < 2) return;
@@ -156,7 +233,6 @@
       canvas.width = w; canvas.height = h;
       ctx.drawImage(video, 0, 0, w, h);
       const frame = ctx.getImageData(0,0,w,h);
-
       let moved = false;
       if(prev){
         const step = 4*8; let diffCount = 0, sample = 0;
@@ -172,39 +248,33 @@
       prev = frame;
 
       if(moved && !coolDown){
-        overlay.style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
         triggerAction();
         coolDown = true;
-        setTimeout(()=>{ overlay.style.display='none'; coolDown=false; }, 1200);
+        setTimeout(()=>{ document.getElementById('overlay').style.display='none'; coolDown=false; }, 1200);
       }
     }
     setInterval(detectMovement, 140);
 
-    // Forzar acción / marcar tiempo
+    // === Forzar acción (marca en Firestore sin cámara)
     async function triggerAction(){
       if(!code){ alert('Código de evento vacío.'); return; }
       try{
-        const now = Date.now(); // marca cliente por si serverTimestamp tarda
+        const now = Date.now();
         if(mode==='start'){
-          await setDoc(eventRef, {
-            startTS: serverTimestamp(),
-            startClientMS: now,
-            stopTS: null,
-            stopClientMS: null
-          }, { merge: true });
-          alert('Inicio marcado (enviado a Firestore).');
+          await setDoc(eventRef, { startTS: serverTimestamp(), startClientMS: now, stopTS: null, stopClientMS: null }, { merge: true });
+          lastAction.textContent = "Inicio marcado";
+          alert('Inicio marcado');
         }else{
-          await setDoc(eventRef, {
-            stopTS: serverTimestamp(),
-            stopClientMS: now
-          }, { merge: true });
-          alert('Fin marcado (enviado a Firestore).');
+          await setDoc(eventRef, { stopTS: serverTimestamp(), stopClientMS: now }, { merge: true });
+          lastAction.textContent = "Fin marcado";
+          alert('Fin marcado');
         }
         lastErrorEl.textContent = '';
       }catch(e){
         console.error(e);
         lastErrorEl.textContent = 'Error Firestore: ' + (e && (e.code || e.message || e));
-        alert('No se pudo escribir en Firestore. Revisa firebaseConfig y Reglas.\n' + (e && (e.code || e.message || e)));
+        alert('No se pudo escribir en Firestore.\n' + (e && (e.code || e.message || e)));
       }
     }
     btnForce.onclick = triggerAction;
