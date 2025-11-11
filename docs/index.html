@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Inicio</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1>Mi Crono Web</h1>
+    <p class="tag">Cronometraje con dos móviles — gratis y sin instalaciones</p>
+  </header>
+
+  <main class="grid one">
+    <section class="card">
+      <h2>Crear evento</h2>
+      <div class="row">
+        <input id="newCode" placeholder="Ejemplo: TEST1" value="TEST1"/>
+        <button class="btn primary" id="btnCopy">Copiar código</button>
+      </div>
+      <small class="muted">Comparte el código con el móvil de salida y el de meta.</small>
+    </section>
+
+    <section class="card">
+      <h2>Unirse a un evento</h2>
+      <div class="row">
+        <input id="joinCode" placeholder="Introduce código (ej. TEST1)" value="TEST1"/>
+        <a id="btnJoin" class="btn primary">Unirse</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Cómo funciona</h2>
+      <p>Usa dos móviles: uno en <b>SALIDA</b> (inicia) y otro en <b>META</b> (detiene). Ambos con el mismo código de evento.</p>
+      <div class="badge">100% web • HTTPS • iOS/Android</div>
+    </section>
+  </main>
+
+  <footer>© Mi Crono Web</footer>
+
+  <script>
+    const $ = (s)=>document.querySelector(s);
+    $('#btnCopy').onclick = ()=>{
+      const v = $('#newCode').value.trim().toUpperCase() || 'TEST1';
+      navigator.clipboard?.writeText(v); alert('Código copiado: '+v);
+    };
+    $('#btnJoin').onclick = ()=>{
+      const code = ($('#joinCode').value||'').trim().toUpperCase();
+      if(!code){ alert('Introduce un código'); return; }
+      location.href = 'join.html?code='+encodeURIComponent(code);
+    };
+  </script>
+</body>
+</html>
