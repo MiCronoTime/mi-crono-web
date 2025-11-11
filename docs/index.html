@@ -6,8 +6,15 @@
   <title>Mi Crono — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    :root{--bg:#0b1020;--card:#ffffff;--text:#0b1220;--muted:#667;--pri:#2f6dfc}
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f5f7fb;color:var(--text)}
+    :root{
+      --bg1:#eef3ff; --bg2:#f9fbff; --card:#ffffff; --text:#0b1220; --muted:#667; --pri:#2f6dfc;
+      --border:#e2e7f5;
+    }
+    body{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: linear-gradient(180deg,var(--bg1),var(--bg2));
+      color:var(--text);
+    }
     .wrap{max-width:980px;margin:0 auto;padding:16px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
     .brand{display:flex;gap:10px;align-items:center}
@@ -16,14 +23,13 @@
     .grid{display:grid;gap:16px}
     .two{grid-template-columns:1fr}
     @media(min-width:900px){.two{grid-template-columns:1fr 1fr}}
-    .card{background:var(--card);border:1px solid #e7e9f2;border-radius:16px;padding:18px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(16,24,40,.04)}
     h2{margin:.3rem 0 10px 0}
     label{display:block;margin:8px 0 6px;font-weight:600}
     input,textarea{width:100%;padding:12px 14px;border:1px solid #dde1ee;border-radius:12px;background:#fbfcff}
     textarea{min-height:130px}
     .row{display:flex;gap:8px;flex-wrap:wrap}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;
-         border:1px solid #dbe0f0;background:#f3f5ff;text-decoration:none;color:#102;cursor:pointer}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid #dbe0f0;background:#f3f5ff;text-decoration:none;color:#102;cursor:pointer}
     .btn.primary{background:var(--pri);color:#fff;border-color:var(--pri)}
     .muted{color:var(--muted)}
     .ok{color:#0a7a0a;font-weight:600}
@@ -45,7 +51,7 @@
 
       <label for="names">Participantes (uno por línea, en orden de salida)</label>
       <textarea id="names" placeholder="Corredor 1&#10;Corredor 2&#10;Corredor 3"></textarea>
-      <div class="help">Puedes editar nombres después, pero el orden se usa para mostrar la parrilla.</div>
+      <div class="help">El orden se usa como parrilla y para decidir el orden de llegada.</div>
 
       <div class="row" style="margin-top:10px">
         <button id="btnCreate" class="btn primary">Guardar evento</button>
@@ -69,7 +75,7 @@
         <a id="joinFinish" class="btn">🏁 META</a>
         <a id="joinResult" class="btn">📄 Resultado</a>
       </div>
-      <div class="help">Tip: abre SALIDA en la salida, y META en la línea de llegada. Ambos con el mismo código.</div>
+      <div class="help">Abre SALIDA en salida y META en llegada. Ambos con el mismo código.</div>
     </section>
   </main>
 
