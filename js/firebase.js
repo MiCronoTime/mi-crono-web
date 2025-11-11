@@ -5,7 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 /**
- * Configuración REAL de tu proyecto (pegada tal cual nos pasaste):
+ * Configuración REAL de tu proyecto (tal cual nos pasaste):
  */
 const firebaseConfig = {
   apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
@@ -18,8 +18,16 @@ const firebaseConfig = {
 };
 
 // Inicializa Firebase y Firestore
-const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+let app, db;
+try {
+  app = initializeApp(firebaseConfig);
+  db  = getFirestore(app);
+  console.log("Firebase OK");
+  window.__firebaseLoaded = true;
+} catch (e) {
+  console.error("Firebase init ERROR:", e);
+  window.__firebaseLoaded = false;
+}
 
 // Helpers expuestos en window (para usarlos desde scripts no-modulares)
 window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
