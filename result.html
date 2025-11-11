@@ -7,16 +7,16 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>.big{font-size:42px;font-weight:700;letter-spacing:.5px}</style>
 
-  <!-- 🔵 Firebase incrustado (MÓDULO) -->
+  <!-- Firebase por CDN (MÓDULO) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
       authDomain: "mi-crono-web.firebaseapp.com",
       projectId: "mi-crono-web",
-      storageBucket: "mi-crono-web.firebasestorage.app",
+      storageBucket: "mi-crono-web.appspot.com",
       messagingSenderId: "803218040641",
       appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
       measurementId: "G-Z2Q6WQX450"
@@ -28,7 +28,6 @@
       window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
       window.getDoc          = getDoc;
       window.onSnapshot      = onSnapshot;
-      window.serverTimestamp = serverTimestamp;
       window.__firebaseReady = true;
     } catch (e) {
       window.__firebaseReady = false;
@@ -59,14 +58,14 @@
 
   <script type="module">
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    const code = (getParam('code')||'').toUpperCase();
+    document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
+
     const two = (n)=> String(n).padStart(2,'0');
     const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
       const m=Math.floor(t/60000), s=Math.floor((t%60000)/1000), cs=Math.floor((t%1000)/10);
       return `${two(m)}:${two(s)}.${two(cs)}`; };
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
-
-    const code = (getParam('code')||'').toUpperCase();
-    document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
 
     const lastErrorEl = document.getElementById('lastError');
     if (!window.__firebaseReady) {
@@ -95,11 +94,11 @@
         const snap = await getDoc(eventRef);
         const d = snap.data() || {};
         const start = tsToMillis(d.startTS) ?? d.startClientMS ?? '';
-        const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
-        const dur   = (start && stop) ? (stop - start) : '';
+        theStop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
+        const dur   = (start && theStop) ? (theStop - start) : '';
         const rows = [
           ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
-          [code, start||'', stop||'', dur||'', start?new Date(start).toISOString():'', stop?new Date(stop).toISOString():'', dur?formatDuration(dur):'']
+          [code, start||'', theStop||'', dur||'', start?new Date(start).toISOString():'', theStop?new Date(theStop).toISOString():'', dur?formatDuration(dur):'']
         ];
         const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
         const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
