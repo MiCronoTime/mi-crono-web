@@ -6,17 +6,36 @@
   <title>Mi Crono — Cámara</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
+    :root { --hud:bg: rgba(0,0,0,.55); }
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
+    .muted{opacity:.8}
     .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
-    .stage{position:relative;margin-top:10px}
-    video{width:100%;max-height:55vh;background:#000;border-radius:12px}
-    .overlay{position:absolute;top:12px;left:12px;padding:6px 10px;background:#0008;color:#fff;border-radius:8px;display:none}
+
+    .stage{position:relative;margin-top:10px;border-radius:14px;overflow:hidden}
+    video{width:100%;background:#000;display:block}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none}
+    .hud{
+      position:absolute;left:12px;right:12px;top:12px;
+      background:var(--hud:bg);color:#fff;border-radius:14px;
+      padding:10px 14px;font-weight:600;backdrop-filter:blur(4px)
+    }
+    .timer{
+      position:absolute;left:12px;right:12px;bottom:12px;
+      background:var(--hud:bg);color:#fff;border-radius:22px;
+      padding:18px 22px;font-size:42px;font-weight:800;
+      text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)
+    }
+    .panel{
+      margin-top:12px;background:var(--hud:bg);color:#fff;border-radius:14px;padding:12px 14px
+    }
+    .row.gap > *{margin-right:8px}
+    input[type=range]{width:100%}
   </style>
 </head>
 <body class="wrap">
   <header class="top">
-    <h1 id="title">Modo Cámara</h1>
+    <h1 id="title">Modo cámara</h1>
     <p class="tag" id="tag">Conectando…</p>
   </header>
 
@@ -26,17 +45,29 @@
     </section>
 
     <section class="card">
-      <div class="row">
+      <div class="row gap">
         <button id="btnEnableCam" class="btn primary">Activar cámara</button>
         <button id="btnStart" class="btn">Marcar INICIO</button>
         <button id="btnStop" class="btn">Marcar FIN</button>
         <a id="btnResult" class="btn" href="#">Ver resultado</a>
       </div>
-      <small class="muted">iOS: Safari + HTTPS + permitir acceso a Cámara (Ajustes &gt; Safari &gt; Cámara &gt; Permitir).</small>
+      <small class="muted">iOS: Safari + HTTPS + permitir acceso a Cámara (Ajustes → Safari → Cámara → Permitir).</small>
 
       <div class="stage">
         <video id="video" playsinline muted></video>
-        <div id="overlay" class="overlay">CÁMARA ACTIVA</div>
+        <canvas id="overlay" class="overlay"></canvas>
+
+        <!-- HUD superior -->
+        <div class="hud" id="hudTop">Ronda 1 — Listo</div>
+
+        <!-- Crono inferior -->
+        <div class="timer" id="timerText">00:00.000</div>
+      </div>
+
+      <!-- Panel de sensibilidad -->
+      <div class="panel">
+        <div style="margin-bottom:6px">Sensibilidad:</div>
+        <input id="sens" type="range" min="1" max="100" value="25"/>
       </div>
     </section>
 
@@ -57,50 +88,56 @@
 
   <!-- ÚNICO script -->
   <script type="module">
-    // Estado por defecto
-    window.__firebaseReady=false; window.__firebaseError=null;
+    // ---------- Utilidades UI ----------
+    const $ = (id)=>document.getElementById(id);
+    const fmt = (ms)=> {
+      ms = Math.max(0, Math.floor(ms||0));
+      const m = Math.floor(ms/60000);
+      const s = Math.floor((ms%60000)/1000);
+      const cs = Math.floor(ms%1000);
+      const two = (n)=> String(n).padStart(2,'0');
+      const three = (n)=> String(n).padStart(3,'0');
+      return `${two(m)}:${two(s)}.${three(cs)}`;
+    };
 
-    // -------- Parámetros --------
-    const getParam=(k)=> new URL(location.href).searchParams.get(k);
+    // ---------- Parámetros ----------
+    const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
+    const mode=(getParam('mode')||'start'); // start|finish
 
-    // -------- UI refs --------
-    const fbStateEl=document.getElementById('fbState');
-    const evStateEl=document.getElementById('evState');
-    const tag=document.getElementById('tag');
-    const lastErrorEl=document.getElementById('lastError');
-    const lastAction=document.getElementById('lastAction');
-    const btnEnableCam=document.getElementById('btnEnableCam');
-    const btnStart=document.getElementById('btnStart');
-    const btnStop=document.getElementById('btnStop');
-    const btnResult=document.getElementById('btnResult');
-    const video=document.getElementById('video');
-    const overlay=document.getElementById('overlay');
+    // ---------- Refs ----------
+    const fbState=$('fbState'), evState=$('evState'), tag=$('tag');
+    const lastErrorEl=$('lastError'), lastAction=$('lastAction');
+    const title=$('title'), timerText=$('timerText'), hudTop=$('hudTop');
+    const btnEnable=$('btnEnableCam'), btnStart=$('btnStart'), btnStop=$('btnStop'), btnResult=$('btnResult');
+    const video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const octx = overlay.getContext('2d', { willReadFrequently:true });
 
+    title.textContent = `Modo ${mode==='start'?'SALIDA':'META'}`;
+    tag.textContent   = `Evento ${code||'—'}`;
+
+    // ---------- Estado Firebase ----------
+    window.__firebaseReady=false; window.__firebaseError=null;
     function paintFirebase(){
-      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
-      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
-      if(!window.__firebaseReady){
-        const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError)) || 'sin detalle';
-        lastErrorEl.textContent = `Init Firebase: ${msg}`;
-      } else {
-        lastErrorEl.textContent = '—';
-      }
+      fbState.textContent = window.__firebaseReady ? "OK" : "ERROR";
+      fbState.className   = window.__firebaseReady ? "ok" : "err";
+      lastErrorEl.textContent = window.__firebaseReady ? '—' :
+        ('Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||String(window.__firebaseError)) || 'sin detalle'));
     }
 
-    // Código de evento
-    if(!code){ document.getElementById('noCodeBox').style.display=''; evStateEl.textContent='SIN CÓDIGO'; evStateEl.className='err'; }
-    else { evStateEl.textContent=code; evStateEl.className='ok'; tag.textContent=`Evento ${code}`; }
+    // ---------- Validar código ----------
+    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
+    else { evState.textContent=code; evState.className='ok'; }
 
-    // Enlace a resultado
+    // ---------- Navegar a resultados ----------
     btnResult.addEventListener('click',(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; });
 
-    // -------- Inicializa Firebase (CDN) --------
-    let db, eventRef;
+    // ---------- Firebase (CDN) ----------
+    let db, eventRef, startMS=null, running=false, stopMS=null;
     try{
-      const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
+      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } =
-        await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
         apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
@@ -114,80 +151,154 @@
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       db = getFirestore(app);
 
-      window.__firebaseReady = true; paintFirebase();
+      window.__firebaseReady=true; paintFirebase();
 
       if(code){
         eventRef = doc(db, "events", code);
-
-        // Crea si no existe
+        // Crear doc si no existe
         try{
-          const s=await getDoc(eventRef);
-          if(!s.exists()){
+          const snap=await getDoc(eventRef);
+          if(!snap.exists()){
             await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
             lastAction.textContent='Doc creado';
-          } else { lastAction.textContent='Doc existente'; }
-        }catch(e){ lastErrorEl.textContent='Error creando doc: '+(e.message||e); }
+          } else {
+            lastAction.textContent='Doc existente';
+            const d=snap.data()||{};
+            startMS = d.startClientMS ?? null;
+            stopMS  = d.stopClientMS  ?? null;
+            running = !!startMS && !stopMS;
+          }
+        }catch(e){ lastErrorEl.textContent='Error creando/leyendo doc: '+(e.message||e); }
 
-        // Suscripción a cambios (para ver estado)
+        // Suscripción para mostrar estado
         onSnapshot(eventRef,(snap)=>{
-          const d = snap.data() || {};
+          const d = snap.data()||{};
           const hasStart=!!d.startTS||!!d.startClientMS;
           const hasStop =!!d.stopTS ||!!d.stopClientMS;
           tag.textContent=`Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
         });
-
-        // Acciones
-        btnStart.onclick = async ()=>{
-          try{
-            await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true});
-            lastAction.textContent='Inicio marcado'; alert('Inicio marcado');
-          }catch(e){ lastErrorEl.textContent='Error INICIO: '+(e.message||e); }
-        };
-        btnStop.onclick = async ()=>{
-          try{
-            await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:Date.now()},{merge:true});
-            lastAction.textContent='Fin marcado'; alert('Fin marcado');
-          }catch(e){ lastErrorEl.textContent='Error FIN: '+(e.message||e); }
-        };
       }
     }catch(e){
       window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
     }
     paintFirebase();
 
-    // -------- Cámara (solo cuando pulsan el botón) --------
-    btnEnableCam.onclick = async ()=>{
+    // ---------- Cronómetro local ----------
+    function startTimer(){
+      if(running) return;
+      startMS = Date.now();
+      stopMS = null;
+      running = true;
+      lastAction.textContent='Crono iniciado';
+      hudTop.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono en marcha';
+    }
+    function stopTimer(){
+      if(!running) return;
+      stopMS = Date.now();
+      running = false;
+      lastAction.textContent='Crono detenido';
+      hudTop.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono detenido';
+    }
+    setInterval(()=>{
+      if(running) timerText.textContent = fmt(Date.now() - startMS);
+      else if(startMS && stopMS) timerText.textContent = fmt(stopMS - startMS);
+      else timerText.textContent = '00:00.000';
+    }, 34); // ~30fps
+
+    // ---------- Acciones Firestore ----------
+    async function writeStart(){
+      if(!eventRef) return;
+      await setDoc(eventRef,{startTS:firebase.firestore?firebase.firestore.FieldValue.serverTimestamp():undefined,startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true})
+      .catch(()=>setDoc(eventRef,{startTS:null,startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true}));
+    }
+    async function writeStop(){
+      if(!eventRef) return;
+      await setDoc(eventRef,{stopTS:firebase.firestore?firebase.firestore.FieldValue.serverTimestamp():undefined,stopClientMS:Date.now()},{merge:true})
+      .catch(()=>setDoc(eventRef,{stopTS:null,stopClientMS:Date.now()},{merge:true}));
+    }
+
+    btnStart.onclick = async ()=>{ startTimer(); try{ await writeStart(); }catch(e){ lastErrorEl.textContent='Error INICIO: '+(e.message||e); } };
+    btnStop.onclick  = async ()=>{ stopTimer();  try{ await writeStop();  }catch(e){ lastErrorEl.textContent='Error FIN: '+(e.message||e); } };
+
+    // ---------- Cámara ----------
+    btnEnable.onclick = async ()=>{
       try{
         if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
           alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
         }
-        // Preferir trasera; probar varios constraints para iOS
         const tries = [
           { video:{ facingMode:{ ideal:'environment' } }, audio:false },
           { video:{ facingMode:'environment' }, audio:false },
           { video:true, audio:false }
         ];
-        let stream=null, lastErr=null;
-        for(const c of tries){
-          try{ stream = await navigator.mediaDevices.getUserMedia(c); if(stream) break; }catch(e){ lastErr=e; }
-        }
-        if(!stream){
-          alert('No se pudo abrir la cámara.\n' + (lastErr && (lastErr.name+': '+lastErr.message)));
-          return;
-        }
-        // iOS: playsinline y muted para evitar fullscreen/auto-pause
-        video.setAttribute('playsinline','true');
-        video.muted = true;
-        video.srcObject = stream;
+        let stream=null,lastErr=null;
+        for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }catch(e){ lastErr=e; } }
+        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr && (lastErr.name+': '+lastErr.message))); return; }
+
+        video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
         await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
         await video.play();
-        overlay.style.display='block';
-        btnEnableCam.textContent='Cámara activada';
-        btnEnableCam.disabled = true;
-      }catch(e){
-        alert('No se pudo iniciar la vista de cámara.\n'+(e && (e.message||e)));
-      }
+        btnEnable.textContent='Cámara activada'; btnEnable.disabled=true;
+
+        // Comienza render overlay/detección
+        requestAnimationFrame(loop);
+      }catch(e){ alert('No se pudo iniciar la cámara.\n'+(e && (e.message||e))); }
     };
+
+    // ---------- Detección de cruce entre líneas ----------
+    let prev=null, cool=false;
+    function loop(){
+      const w = overlay.width  = video.videoWidth  || 0;
+      const h = overlay.height = video.videoHeight || 0;
+      if(w && h){
+        // ROI: franja central (dos líneas rojas)
+        const roiWidth = Math.round(w * 0.08); // 8% de ancho
+        const roiCenter= Math.round(w * 0.5);
+        const x1 = roiCenter - Math.round(roiWidth/2);
+        const x2 = roiCenter + Math.round(roiWidth/2);
+
+        // Dibujar líneas y sombreado
+        octx.clearRect(0,0,w,h);
+        octx.fillStyle='rgba(255,0,0,.3)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+
+        // Tomar frame actual
+        const tmp = document.createElement('canvas');
+        tmp.width=w; tmp.height=h;
+        const tctx=tmp.getContext('2d',{willReadFrequently:true});
+        tctx.drawImage(video,0,0,w,h);
+        const frame=tctx.getImageData(x1,0,roiWidth,h); // solo ROI
+        let moved=false;
+
+        if(prev && prev.width===roiWidth && prev.height===h){
+          // Sensibilidad: 1-100 ⇒ umbral y % de pixeles que deben cambiar
+          const sensV = Number(sens.value);              // 1..100
+          const thr   = 20 + Math.round((100-sensV)*1.2);// 20..140 (menos = más sensible)
+          const pct   = 0.04 + (100-sensV)*0.0006;       // 4%..10% píxeles distintos
+
+          let diff=0, total=0;
+          for(let i=0;i<frame.data.length;i+=16){ // muestreo
+            const r=frame.data[i], g=frame.data[i+1], b=frame.data[i+2];
+            const r2=prev.data[i], g2=prev.data[i+1], b2=prev.data[i+2];
+            const d = Math.abs(r-r2)+Math.abs(g-g2)+Math.abs(b-b2);
+            if(d>thr) diff++; total++;
+          }
+          moved = (diff/Math.max(1,total)) > pct;
+        }
+        prev=frame;
+
+        // Si detecta cruce en ROI ⇒ dispara según modo (con 1.2s de cooldown)
+        if(moved && !cool){
+          cool=true; setTimeout(()=>cool=false, 1200);
+          if(mode==='start'){ startTimer(); writeStart().catch(()=>{}); }
+          else { stopTimer(); writeStop().catch(()=>{}); }
+          // Pequeño flash
+          octx.fillStyle='rgba(0,255,0,.25)'; octx.fillRect(0,0,w,h);
+          setTimeout(()=>{ /* se desvanece con el siguiente clearRect */ }, 120);
+        }
+      }
+      requestAnimationFrame(loop);
+    }
   </script>
 </body>
 </html>
