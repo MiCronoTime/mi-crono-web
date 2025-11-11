@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diag Firebase</title>
+<link rel="stylesheet" href="styles.css">
+<main class="wrap">
+  <h1>Diagnóstico Firebase</h1>
+  <p id="status">Cargando…</p>
+  <pre id="err" class="card debug"></pre>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+const statusEl = document.getElementById('status');
+const errEl = document.getElementById('err');
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
+  authDomain: "mi-crono-web.firebaseapp.com",
+  projectId: "mi-crono-web",
+  storageBucket: "mi-crono-web.appspot.com",
+  messagingSenderId: "803218040641",
+  appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
+  measurementId: "G-Z2Q6WQX450"
+};
+
+try {
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  statusEl.textContent = "Firebase inicializado ✅ — probando escritura…";
+
+  const ref = doc(db, "events", "DIAG");
+  await setDoc(ref, { pingAt: serverTimestamp() }, { merge: true });
+  const snap = await getDoc(ref);
+  statusEl.textContent = "Firestore OK ✅ — " + JSON.stringify(snap.data());
+} catch (e) {
+  statusEl.textContent = "❌ ERROR al iniciar/usar Firebase";
+  errEl.textContent = (e && (e.code || e.message || e)) + "";
+}
+</script>
