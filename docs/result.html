@@ -3,30 +3,32 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono Web — Resultado</title>
+  <title>Mi Crono — Resultado</title>
   <link rel="stylesheet" href="styles.css"/>
 
-  <!-- Firebase por CDN -->
+  <!-- Firebase por CDN (MÓDULO) -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
+    // Config TU proyecto (con storageBucket corregido a appspot.com)
     const firebaseConfig = {
-      apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
-      authDomain: "mi-crono-web.firebaseapp.com",
-      projectId: "mi-crono-web",
-      storageBucket: "mi-crono-web.appspot.com",
-      messagingSenderId: "803218040641",
-      appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
-      measurementId: "G-Z2Q6WQX450"
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
     };
 
     try {
-      const app = initializeApp(firebaseConfig);
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
+
       window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
       window.getDoc          = getDoc;
       window.onSnapshot      = onSnapshot;
+
       window.__firebaseReady = true;
     } catch (e) {
       window.__firebaseReady = false;
@@ -34,13 +36,13 @@
     }
   </script>
 
-  <style>.big{font-size:42px;font-weight:700;letter-spacing:.5px}</style>
+  <style>
+    .big{font-size:42px;font-weight:700;letter-spacing:.5px}
+    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
+  </style>
 </head>
 <body class="wrap">
-  <header class="top">
-    <h1>Resultado</h1>
-    <p class="tag" id="subtitle"></p>
-  </header>
+  <header class="top"><h1>Resultado</h1><p class="tag" id="subtitle"></p></header>
 
   <main class="grid one">
     <section class="card">
@@ -48,10 +50,9 @@
       <p id="details" class="muted"></p>
       <div class="row">
         <button id="btnCSV" class="btn">Exportar CSV</button>
-        <a id="btnBack" class="btn" href="index.html">Nuevo evento</a>
+        <a class="btn" href="index.html">Nuevo evento</a>
       </div>
     </section>
-
     <section class="card">
       <h2>Depuración</h2>
       <div class="debug" id="lastError"></div>
@@ -60,7 +61,7 @@
 
   <script type="module">
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
-    const code = (getParam('code')||'').toUpperCase();
+    const code=(getParam('code')||'').toUpperCase();
     document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
 
     const two = (n)=> String(n).padStart(2,'0');
@@ -108,10 +109,6 @@
         a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
       }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
     };
-
-    window.addEventListener('error', (e)=>{
-      lastErrorEl.textContent = 'JS error: ' + (e && (e.message || e.filename));
-    });
   </script>
 </body>
 </html>
