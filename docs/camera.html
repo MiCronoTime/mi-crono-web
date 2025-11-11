@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Cámara</title>
+  <link rel="stylesheet" href="styles.css"/>
+
+  <!-- Firebase incrustado por CDN (MÓDULO) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
+      authDomain: "mi-crono-web.firebaseapp.com",
+      projectId: "mi-crono-web",
+      storageBucket: "mi-crono-web.appspot.com",
+      messagingSenderId: "803218040641",
+      appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
+      measurementId: "G-Z2Q6WQX450"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      // Helpers expuestos:
+      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+      window.getDoc          = getDoc;
+      window.setDoc          = setDoc;
+      window.onSnapshot      = onSnapshot;
+      window.serverTimestamp = serverTimestamp;
+      window.__firebaseReady = true;
+    } catch (e) {
+      window.__firebaseReady = false;
+      window.__firebaseError = e;
+    }
+  </script>
+
+  <style>
+    .overlay { position:absolute; top:12px; left:12px; padding:6px 10px; background:#0008; color:#fff; border-radius:8px; display:none; }
+    .stage { position:relative; margin-top:10px; }
+  </style>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1 id="title">Modo</h1>
+    <p class="tag" id="tag">Conectando…</p>
+  </header>
+
+  <main class="grid one">
+    <section class="card warn" id="noCodeBox" style="display:none">
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y entra por “Unirse”.
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <button id="btnEnableCam" class="btn primary">Activar cámara</button>
+        <button id="btnForce" class="btn">Forzar acción</button>
+        <a id="btnResult" class="btn" href="#">Ver resultado</a>
+      </div>
+      <small class="muted">iOS: usa Safari con HTTPS y permite el acceso a Cámara.</small>
+
+      <div class="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="canvas" hidden></canvas>
+        <div id="overlay" class="overlay">MOVIMIENTO DETECTADO</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Estado</h2>
+      <div>Firebase: <span id="fbState">—</span></div>
+      <div>Evento: <span id="evState">—</span></div>
+      <div>Última acción: <span id="lastAction">—</span></div>
+    </section>
+
+    <section class="card">
+      <h2>Depuración</h2>
+      <div class="debug" id="debugDoc">Doc: (sin datos)</div>
+      <div class="debug" id="lastError">Error: (sin errores)</div>
+      <div class="row" style="margin-top:8px">
+        <button id="testWriteStart" class="btn">Test escribir INICIO</button>
+        <button id="testWriteStop" class="btn">Test escribir FIN</button>
+        <button id="testRead" class="btn">Test leer DOC</button>
+      </div>
+    </section>
+  </main>
+
+  <footer><a class="linklike" href="join.html">⇦ Cambiar código/modo</a></footer>
+
+  <script>
+    // Utilidades
+    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+
+    // UI
+    const title=document.getElementById('title'), tag=document.getElementById('tag');
+    const fbStateEl=document.getElementById('fbState'), evStateEl=document.getElementById('evState');
+    const lastErrorEl=document.getElementById('lastError'), lastAction=document.getElementById('lastAction');
+    const debugDocEl=document.getElementById('debugDoc');
+    const btnResult=document.getElementById('btnResult'), btnEnable=document.getElementById('btnEnableCam'), btnForce=document.getElementById('btnForce');
+    const video=document.getElementById('video'), canvas=document.getElementById('canvas'), overlay=document.getElementById('overlay');
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+
+    const code=(getParam('code')||'').toUpperCase();
+    const mode=(getParam('mode')||'start'); // start | finish
+    title.textContent = `Modo ${mode==='start'?'SALIDA':'META'}`;
+    tag.textContent   = `Evento ${code || '—'}`;
+
+    fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
+    fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
+    if(!window.__firebaseReady){ lastErrorEl.textContent = 'Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError)); }
+
+    if(!code){ document.getElementById('noCodeBox').style.display=''; evStateEl.textContent='SIN CÓDIGO'; evStateEl.className='err'; }
+    else { evStateEl.textContent=code; evStateEl.className='ok'; }
+
+    // Navegar a resultado
+    btnResult.addEventListener('click', (e)=>{ e.preventDefault(); location.href = `result.html?code=${encodeURIComponent(code)}`; });
+
+    if(window.__firebaseReady && code){
+      const getEventDocRef=window.getEventDocRef, getDoc=window.getDoc, setDoc=window.setDoc, onSnapshot=window.onSnapshot, serverTimestamp=window.serverTimestamp;
+      const eventRef=getEventDocRef(code);
+
+      (async()=>{ // crea doc si no existe
+        try{
+          const snap=await getDoc(eventRef);
+          if(!snap.exists()){
+            await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
+            lastAction.textContent='Doc creado';
+          } else { lastAction.textContent='Doc existente'; }
+        }catch(e){ lastErrorEl.textContent='Error creando/leyendo doc: '+(e && (e.code||e.message||e)); }
+      })();
+
+      onSnapshot(eventRef,(s)=>{
+        const d=s.data()||{};
+        const hasStart=!!d.startTS||!!d.startClientMS, hasStop=!!d.stopTS||!!d.stopClientMS;
+        tag.textContent=`Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
+        debugDocEl.textContent='Doc: '+JSON.stringify(d,null,2);
+      },(err)=>{ lastErrorEl.textContent='Error snapshot: '+(err && (err.code||err.message||err)); });
+
+      // Tests sin cámara
+      document.getElementById('testWriteStart').onclick=async()=>{
+        try{ await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true});
+             lastAction.textContent='Test INICIO escrito'; alert('Test INICIO escrito'); }
+        catch(e){ lastErrorEl.textContent='Error testWriteStart: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
+      };
+      document.getElementById('testWriteStop').onclick=async()=>{
+        try{ await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:Date.now()},{merge:true});
+             lastAction.textContent='Test FIN escrito'; alert('Test FIN escrito'); }
+        catch(e){ lastErrorEl.textContent='Error testWriteStop: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
+      };
+      document.getElementById('testRead').onclick=async()=>{
+        try{ const snap=await getDoc(eventRef); alert('Leído:\n'+JSON.stringify(snap.data(),null,2)); }
+        catch(e){ lastErrorEl.textContent='Error testRead: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
+      };
+
+      // Cámara (iOS-friendly: necesita click)
+      btnEnable.onclick = async ()=>{
+        if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+          alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
+        }
+        const list=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+        let stream=null,lastErr=null;
+        for(const c of list){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+        if(!stream){ alert('No se pudo abrir la cámara. Ajustes > Safari > Cámara (Permitir) + HTTPS.\n'+(lastErr && (lastErr.name+': '+lastErr.message))); return; }
+        try{
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
+          await video.play(); btnEnable.textContent='Cámara activada'; btnEnable.disabled=true; lastAction.textContent='Cámara OK';
+        }catch(e){ alert('Vista previa no pudo iniciarse.\n'+e); }
+      };
+
+      // Forzar acción (marca inicio/fin)
+      btnForce.onclick = async ()=>{
+        try{
+          const now=Date.now();
+          if(mode==='start'){
+            await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:now,stopTS:null,stopClientMS:null},{merge:true});
+            lastAction.textContent='Inicio marcado'; alert('Inicio marcado');
+          }else{
+            await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:now},{merge:true});
+            lastAction.textContent='Fin marcado'; alert('Fin marcado');
+          }
+          lastErrorEl.textContent='';
+        }catch(e){ lastErrorEl.textContent='Error Firestore: '+(e && (e.code||e.message||e)); alert('No se pudo escribir en Firestore.\n'+(e && (e.code||e.message||e))); }
+      };
+
+      // Detección sencilla (si hay cámara)
+      let prev=null,coolDown=false;
+      setInterval(()=>{
+        if(video.readyState<2) return;
+        const w=video.videoWidth,h=video.videoHeight; if(!w||!h) return;
+        canvas.width=w; canvas.height=h;
+        ctx.drawImage(video,0,0,w,h); const frame=ctx.getImageData(0,0,w,h);
+        let moved=false;
+        if(prev){
+          const step=32; let diff=0,sample=0;
+          for(let i=0;i<frame.data.length;i+=step){
+            const d=Math.abs(frame.data[i]-prev.data[i])+Math.abs(frame.data[i+1]-prev.data[i+1])+Math.abs(frame.data[i+2]-prev.data[i+2]);
+            if(d>60) diff++; sample++;
+          }
+          moved=(diff/Math.max(1,sample))>0.12;
+        }
+        prev=frame;
+        if(moved && !coolDown){
+          overlay.style.display='block'; btnForce.click();
+          coolDown=true; setTimeout(()=>{ overlay.style.display='none'; coolDown=false; },1200);
+        }
+      },140);
+    }
+
+    // Mostrar errores JS
+    window.addEventListener('error',(e)=>{ lastErrorEl.textContent='JS error: '+(e && (e.message||e.filename)); });
+  </script>
+</body>
+</html>
