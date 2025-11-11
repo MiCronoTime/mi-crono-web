@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diag CDN Firebase</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial,sans-serif;padding:16px}
+  .ok{color:#0a7a0a;font-weight:600} .err{color:#b00020;font-weight:600}
+  code{background:#f6f6f6;padding:2px 6px;border-radius:6px}
+</style>
+
+<h1>Diagnóstico CDN Firebase</h1>
+<div id="modStatus">🔎 Cargando módulos...</div>
+<div id="fbStatus">—</div>
+<pre id="detail" style="white-space:pre-wrap;background:#f6f6f6;padding:10px;border-radius:8px"></pre>
+
+<script type="module">
+  const mod = document.getElementById('modStatus');
+  const fb  = document.getElementById('fbStatus');
+  const det = document.getElementById('detail');
+
+  function show(el, ok, msg){
+    el.className = ok ? 'ok' : 'err';
+    el.textContent = (ok ? '✅ ' : '❌ ') + msg;
+  }
+
+  try {
+    // 1) ¿Carga el módulo desde gstatic?
+    const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const { getFirestore } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+    show(mod, true, 'Módulos ES de Firebase cargan desde gstatic correctamente');
+
+    // 2) ¿Tu config inicializa?
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    show(fb, true, 'Firebase inicializado (app + Firestore OK)');
+    det.textContent = 'App name: ' + app.name + '\nProjectId: ' + app.options.projectId;
+  } catch (e) {
+    show(mod, false, 'Fallo al cargar/ejecutar módulo Firebase');
+    show(fb, false, 'Firebase NO inicializado');
+    det.textContent = (e && (e.message || String(e))) || 'Error desconocido';
+  }
+</script>
