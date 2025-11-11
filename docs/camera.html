@@ -16,12 +16,9 @@
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud-bg);color:#fff;border-radius:14px;padding:10px 14px;font-weight:600;backdrop-filter:blur(4px)}
     .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud-bg);color:#fff;border-radius:22px;padding:18px 22px;font-size:42px;font-weight:800;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
-    .panel{margin-top:12px;background:var(--hud-bg);color:#fff;border-radius:14px;padding:12px 14px}
     .row.gap > *{margin-right:8px}
     input[type=range]{width:100%}
-    textarea{width:100%;height:120px;border-radius:10px;padding:10px;font-family:inherit}
-    .small{font-size:12px}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef;color:#123}
   </style>
 </head>
 <body class="wrap">
@@ -32,7 +29,7 @@
 
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
-      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y entra por “Unirse”.
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y crea/únete a un evento.
     </section>
 
     <section class="card">
@@ -47,24 +44,18 @@
       <div class="stage" id="stage">
         <video id="video" playsinline muted></video>
         <canvas id="overlay" class="overlay"></canvas>
-        <div class="hud" id="hudTop"><span id="hudStatus">Listo</span> • <span id="hudNext" class="pill">Siguiente: —</span></div>
+
+        <div class="hud" id="hudTop">
+          <span id="hudStatus">Listo</span>
+          • <span id="hudNext" class="pill">Siguiente: —</span>
+        </div>
         <div class="timer" id="timerText">00:00.000 — <span id="runnerName">—</span></div>
       </div>
 
-      <div class="panel">
-        <div class="row gap" style="align-items:center;margin-bottom:6px">
-          <div style="flex:1">Sensibilidad (detector en la franja roja):</div>
-          <input id="sens" type="range" min="1" max="100" value="25" style="flex:2"/>
-        </div>
-        <details>
-          <summary><b>Participantes del evento</b> (añade/edita aquí — uno por línea, orden = posición)</summary>
-          <p class="small muted">Ejemplo:<br>Corredor 1<br>Corredor 2<br>Corredor 3</p>
-          <textarea id="namesBox" placeholder="Un nombre por línea…"></textarea>
-          <div class="row gap" style="margin-top:8px">
-            <button id="btnSaveNames" class="btn">Guardar participantes</button>
-            <button id="btnLoadNames" class="btn">Cargar participantes</button>
-          </div>
-        </details>
+      <div class="card" style="margin-top:12px">
+        <label>Sensibilidad detector (franja roja)</label>
+        <input id="sens" type="range" min="1" max="100" value="25"/>
+        <small class="muted">Más a la derecha = más sensible.</small>
       </div>
     </section>
 
@@ -81,7 +72,7 @@
     </section>
   </main>
 
-  <footer><a class="linklike" href="join.html">⇦ Cambiar código</a></footer>
+  <footer><a class="linklike" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
     // ===== Utils & UI =====
@@ -91,20 +82,20 @@
     const fmt = (ms)=>{ ms=Math.max(0,Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const getParam=(k)=> new URL(location.href).searchParams.get(k);
+
+    const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    // UI refs
     const title=$('title'), tag=$('tag'), hudStatus=$('hudStatus'), hudNext=$('hudNext'), timerText=$('timerText'), runnerName=$('runnerName');
     const fbState=$('fbState'), evState=$('evState'), lastErrorEl=$('lastError'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnStart=$('btnStart'), btnStop=$('btnStop'), btnResult=$('btnResult');
-    const namesBox=$('namesBox'), btnSaveNames=$('btnSaveNames'), btnLoadNames=$('btnLoadNames');
-    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'); const octx=overlay.getContext('2d',{willReadFrequently:true});
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const octx=overlay.getContext('2d',{willReadFrequently:true});
 
     title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`; tag.textContent=`Evento ${code||'—'}`;
 
-    // Firebase state
+    // ===== Estado =====
     window.__firebaseReady=false; window.__firebaseError=null;
     const paintFirebase=()=>{ fbState.textContent=window.__firebaseReady?'OK':'ERROR';
       fbState.className=window.__firebaseReady?'ok':'err';
@@ -114,28 +105,44 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Crono (independiente de cámara)
+    // ===== Crono (independiente de cámara) =====
     let startMS=null, stopMS=null, running=false, currentRunner=null; // {id,name,order}
     setInterval(()=>{
-      if(running && startMS){ timerText.innerHTML = fmt(Date.now()-startMS) + ' — <span>'+ (currentRunner?.name || '—') + '</span>'; }
-      else if(startMS && stopMS){ timerText.innerHTML = fmt(stopMS-startMS) + ' — <span>'+ (currentRunner?.name || '—') + '</span>'; }
-      else { timerText.innerHTML = '00:00.000 — <span>'+ (currentRunner?.name || '—') + '</span>'; }
+      const nameText = currentRunner?.name || '—';
+      if(running && startMS){ timerText.innerHTML = fmt(Date.now()-startMS) + ' — <span>'+ nameText +'</span>'; }
+      else if(startMS && stopMS){ timerText.innerHTML = fmt(stopMS-startMS) + ' — <span>'+ nameText +'</span>'; }
+      else { timerText.innerHTML = '00:00.000 — <span>'+ nameText +'</span>'; }
     }, 33);
 
-    const startLocal= (ms, runner)=>{ if(running) return; startMS=ms||Date.now(); stopMS=null; running=true; currentRunner=runner||currentRunner; hudStatus.textContent='Crono en marcha'; };
-    const stopLocal = (ms)=>{ if(!running) return; stopMS=ms||Date.now(); running=false; hudStatus.textContent='Crono detenido'; };
+    const startLocal = (ms, runner)=>{
+      if(running) return;
+      startMS = ms || Date.now(); stopMS=null; running=true; currentRunner = runner || currentRunner;
+      hudStatus.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono en marcha';
+    };
+    const stopLocal = (ms)=>{
+      if(!running) return;
+      stopMS = ms || Date.now(); running=false;
+      hudStatus.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono detenido';
+    };
 
-    // Firebase (CDN) + modelo participantes
+    // ===== Firebase (CDN) =====
     let db, eventRef, partsCol;
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
+
+    // Helpers de participantes (cliente, sin where==null)
+    const getAllParticipantsOrdered = async (colRef, orderByFn)=>{
+      const snap = await orderByFn(); // función que ya devuelve snapshot ordenado
+      return snap.docs.map(d => ({ id:d.id, ref:d.ref, ...d.data() }));
+    };
 
     try{
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp,
-        collection, query, where, orderBy, limit, getDocs
+        collection, query, orderBy, getDocs
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
+      // --- Config Firebase ---
       const firebaseConfig = {
         apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
         authDomain: "mi-crono-time-888b7.firebaseapp.com",
@@ -153,94 +160,56 @@
         eventRef = doc(db,'events',code);
         partsCol = collection(eventRef,'participants');
 
-        // Crear evento si no existe
+        // Crea evento si no existe
         const s=await getDoc(eventRef);
         if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-        // Helpers participación
-        const pid = (i)=> 'p'+String(i).padStart(3,'0');
+        // Funciones de avance (selección en cliente)
+        const listOrdered = async ()=> await getDocs(query(partsCol, orderBy('order','asc')));
 
-        const loadNextLabels = async ()=>{
-          // Siguiente sin inicio
-          const q1=query(partsCol, where('startClientMS','==',null), orderBy('order','asc'), limit(1));
-          let snap=await getDocs(q1);
-          if(!snap.empty){ hudNext.textContent='Siguiente: '+snap.docs[0].data().name; }
-          else{
-            // si todos iniciados, ver si hay alguno en curso
-            const q2=query(partsCol, where('startClientMS','!=',null), where('stopClientMS','==',null), orderBy('order','asc'), limit(1));
-            snap=await getDocs(q2);
-            if(!snap.empty) hudNext.textContent='En curso: '+snap.docs[0].data().name; else hudNext.textContent='Completado';
-          }
-        };
-
-        // Guardar participantes (sobreescribe)
-        btnSaveNames.onclick = async ()=>{
-          const names = namesBox.value.split('\n').map(s=>s.trim()).filter(Boolean);
-          if(!names.length){ alert('Añade al menos un nombre (uno por línea)'); return; }
-          // Para simplificar: reseteamos colección (sobrescritura por ID)
-          const batchWrites = names.map((name,idx)=> setDoc(doc(partsCol,pid(idx+1)),{
-            order: idx+1, name, startTS:null, startClientMS:null, stopTS:null, stopClientMS:null
-          },{merge:true}));
-          await Promise.all(batchWrites);
-          lastAction.textContent='Participantes guardados ('+names.length+')';
-          await loadNextLabels();
-          alert('Participantes guardados');
-        };
-
-        // Cargar participantes en el textarea
-        btnLoadNames.onclick = async ()=>{
-          const ql=query(partsCol, orderBy('order','asc'));
-          const snap=await getDocs(ql);
-          namesBox.value = snap.docs.map(d=>d.data().name).join('\n');
-          alert('Participantes cargados ('+snap.size+')');
-        };
-
-        // ===== LÓGICA SALIDA/META =====
         const markStartNext = async ()=>{
-          // Primer participante sin inicio
-          const q=query(partsCol, where('startClientMS','==',null), orderBy('order','asc'), limit(1));
-          const snap=await getDocs(q);
-          if(snap.empty) return null;
-          const docu=snap.docs[0]; const d=docu.data();
-          await updateDoc(docu.ref, { startTS:serverTimestamp(), startClientMS:Date.now(), stopTS:null, stopClientMS:null });
-          return { id: docu.id, name:d.name, order:d.order };
+          const list = await getAllParticipantsOrdered(partsCol, listOrdered);
+          const next = list.find(p => !p.startClientMS && !p.startTS);
+          if(!next){ lastAction.textContent='No hay siguiente participante.'; return null; }
+          await updateDoc(next.ref,{ startTS:serverTimestamp(), startClientMS:Date.now(), stopTS:null, stopClientMS:null });
+          return { id:next.id, name:next.name, order:next.order };
         };
         const markStopCurrent = async ()=>{
-          // Primer participante con inicio y sin fin
-          const q=query(partsCol, where('startClientMS','!=',null), where('stopClientMS','==',null), orderBy('order','asc'), limit(1));
-          const snap=await getDocs(q);
-          if(snap.empty) return null;
-          const docu=snap.docs[0]; const d=docu.data();
-          await updateDoc(docu.ref, { stopTS:serverTimestamp(), stopClientMS:Date.now() });
-          return { id: docu.id, name:d.name, order:d.order };
+          const list = await getAllParticipantsOrdered(partsCol, listOrdered);
+          const cur  = list.find(p => (p.startClientMS||p.startTS) && !p.stopClientMS && !p.stopTS);
+          if(!cur){ lastAction.textContent='No hay participante en curso.'; return null; }
+          await updateDoc(cur.ref,{ stopTS:serverTimestamp(), stopClientMS:Date.now() });
+          return { id:cur.id, name:cur.name, order:cur.order };
         };
 
-        // Suscripción para sincronizar crono y “siguiente”
+        // Suscripción: META ve correr el crono aunque no active cámara
         onSnapshot(partsCol, async ()=>{
-          // ¿hay alguien corriendo?
-          const qRun=query(partsCol, where('startClientMS','!=',null), where('stopClientMS','==',null), orderBy('order','asc'), limit(1));
-          const s1=await getDocs(qRun);
-          if(!s1.empty){
-            const d=s1.docs[0].data();
-            startLocal(d.startClientMS, {id:s1.docs[0].id, name:d.name, order:d.order});
+          const snap = await listOrdered();
+          const list = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+          const runningOne = list.find(p => (p.startClientMS||p.startTS) && !p.stopClientMS && !p.stopTS);
+          const nextOne    = list.find(p => !p.startClientMS && !p.startTS);
+
+          if(runningOne){
+            const ms = (tsToMillis(runningOne.startTS) ?? runningOne.startClientMS ?? Date.now());
+            startLocal(ms, { id:runningOne.id, name:runningOne.name, order:runningOne.order });
+            runnerName.textContent = runningOne.name || '—';
           } else {
-            // ¿acabado el actual?
             if(running) stopLocal();
+            runnerName.textContent = nextOne?.name || '—';
           }
-          await loadNextLabels();
-        });
+          hudNext.textContent = 'Siguiente: ' + (nextOne?.name || '—');
+
+          // Etiquetas de cabecera
+          const hasStart = !!runningOne || !!list.find(p=>p.startClientMS||p.startTS);
+          const hasStop  = !!list.find(p=>p.stopClientMS||p.stopTS);
+          tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+        },(err)=>{ lastErrorEl.textContent='Snapshot: '+(err.code||err.message||err); });
 
         // Botones manuales de respaldo
-        btnStart.onclick = async ()=>{
-          const r = await markStartNext();
-          if(r){ startLocal(Date.now(), r); lastAction.textContent='Inicio: '+r.name; }
-        };
-        btnStop.onclick = async ()=>{
-          const r = await markStopCurrent();
-          if(r){ stopLocal(Date.now()); lastAction.textContent='Fin: '+r.name; }
-        };
+        btnStart.onclick = async ()=>{ const r=await markStartNext(); if(r){ startLocal(Date.now(), r); lastAction.textContent='Inicio: '+r.name; } };
+        btnStop.onclick  = async ()=>{ const r=await markStopCurrent(); if(r){ stopLocal(Date.now()); lastAction.textContent='Fin: '+r.name; } };
 
-        // ===== Cámara + detección (disparo automático) =====
+        // ===== Cámara + detección (para disparo automático) =====
         btnEnable.onclick = async ()=>{
           try{
             if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -255,7 +224,7 @@
           }catch(e){ alert('Error cámara: '+(e?.message||e)); }
         };
 
-        // Detección por franja central
+        // Detector por franja central
         let prev=null, armed=true;
         const trigger = async ()=>{
           if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
@@ -272,12 +241,13 @@
 
           const vw=video.videoWidth, vh=video.videoHeight;
           if(vw && vh){
-            const scaleX = vw / stage.clientWidth, scaleY = vh / stage.clientHeight;
+            const scaleX = vw / stage.clientWidth;
             const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
             const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
             const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
             const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
             const frame=tctx.getImageData(sx,0,sw,vh);
+
             if(prev && prev.width===sw && prev.height===vh){
               const sensV=Number(sens.value); const thr=20+Math.round((100-sensV)*1.2); const pct=0.04+(100-sensV)*0.0006;
               let diff=0,total=0;
@@ -291,9 +261,6 @@
           }
           requestAnimationFrame(loop);
         }
-
-        // Estado inicial de etiquetas “Siguiente”
-        (async()=>{ await btnLoadNames.onclick?.(); await loadNextLabels(); })();
       }
     }catch(e){ window.__firebaseError=e; window.__firebaseReady=false; paintFirebase(); }
     paintFirebase();
