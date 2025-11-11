@@ -6,33 +6,51 @@
   <title>Mi Crono — Resultado</title>
   <link rel="stylesheet" href="styles.css"/>
 
+  <!-- Pre-chequeo CDN -->
+  <script>
+    (async () => {
+      try {
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+        window.__cdnOK = true;
+      } catch (e) {
+        window.__cdnOK = false;
+        window.__cdnErr = e;
+      }
+    })();
+  </script>
+
   <!-- Firebase por CDN (MÓDULO) -->
   <script type="module">
-    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
-
-    // Config TU proyecto (con storageBucket corregido a appspot.com)
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-
-    try {
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
-
-      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
-      window.getDoc          = getDoc;
-      window.onSnapshot      = onSnapshot;
-
-      window.__firebaseReady = true;
-    } catch (e) {
+    if (window.__cdnOK === false) {
       window.__firebaseReady = false;
-      window.__firebaseError = e;
+      window.__firebaseError = new Error('No se pudo cargar Firebase desde gstatic (posible bloqueador).');
+    } else {
+      try {
+        const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
+        const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+          authDomain: "mi-crono-time-888b7.firebaseapp.com",
+          projectId: "mi-crono-time-888b7",
+          storageBucket: "mi-crono-time-888b7.appspot.com",
+          messagingSenderId: "379025900327",
+          appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+        };
+
+        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        const db  = getFirestore(app);
+
+        window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+        window.getDoc          = getDoc;
+        window.onSnapshot      = onSnapshot;
+
+        window.__firebaseReady = true;
+        window.__firebaseError = null;
+      } catch (e) {
+        window.__firebaseReady = false;
+        window.__firebaseError = e;
+      }
     }
   </script>
 
@@ -72,43 +90,47 @@
 
     const lastErrorEl = document.getElementById('lastError');
     if (!window.__firebaseReady) {
-      lastErrorEl.textContent = 'Init Firebase error: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError));
+      const hint = (window.__cdnOK===false) ? '\nPista: gstatic bloqueado. Desactiva bloqueadores de contenido y recarga.' : '';
+      const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError));
+      lastErrorEl.textContent = 'Init Firebase error: ' + (msg || 'desconocido') + hint;
     }
 
-    const getEventDocRef  = window.getEventDocRef;
-    const getDoc          = window.getDoc;
-    const onSnapshot      = window.onSnapshot;
+    if (window.__firebaseReady && code) {
+      const getEventDocRef  = window.getEventDocRef;
+      const getDoc          = window.getDoc;
+      const onSnapshot      = window.onSnapshot;
 
-    const eventRef = getEventDocRef(code);
-    onSnapshot(eventRef, (snap) => {
-      const d = snap.data() || {};
-      const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
-      const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
-      const dur   = (start && stop) ? (stop - start) : null;
-      document.getElementById('time').textContent = dur!=null ? formatDuration(dur) : '--:--.--';
-      document.getElementById('details').textContent =
-        `Inicio: ${start?new Date(start).toLocaleTimeString(): '—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
-    }, (err)=>{
-      lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
-    });
-
-    document.getElementById('btnCSV').onclick = async () => {
-      try{
-        const snap = await getDoc(eventRef);
+      const eventRef = getEventDocRef(code);
+      onSnapshot(eventRef, (snap) => {
         const d = snap.data() || {};
-        const start = tsToMillis(d.startTS) ?? d.startClientMS ?? '';
-        const theStop = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
-        const dur   = (start && theStop) ? (theStop - start) : '';
-        const rows = [
-          ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
-          [code, start||'', theStop||'', dur||'', start?new Date(start).toISOString():'', theStop?new Date(theStop).toISOString():'', dur?formatDuration(dur):'']
-        ];
-        const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
-        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
-      }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
-    };
+        const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
+        const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+        const dur   = (start && stop) ? (stop - start) : null;
+        document.getElementById('time').textContent = dur!=null ? formatDuration(dur) : '--:--.--';
+        document.getElementById('details').textContent =
+          `Inicio: ${start?new Date(start).toLocaleTimeString(): '—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
+      }, (err)=>{
+        lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
+      });
+
+      document.getElementById('btnCSV').onclick = async () => {
+        try{
+          const snap = await getDoc(eventRef);
+          const d = snap.data() || {};
+          const start = tsToMillis(d.startTS) ?? d.startClientMS ?? '';
+          const theStop = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
+          const dur   = (start && theStop) ? (theStop - start) : '';
+          const rows = [
+            ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
+            [code, start||'', theStop||'', dur||'', start?new Date(start).toISOString():'', theStop?new Date(theStop).toISOString():'', dur?formatDuration(dur):'']
+          ];
+          const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
+          const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+          a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
+        }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
+      };
+    }
   </script>
 </body>
 </html>
