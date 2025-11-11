@@ -126,4 +126,68 @@
             await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
             lastAction.textContent='Doc creado';
           } else { lastAction.textContent='Doc existente'; }
-        }catch(e){ lastErrorEl.textCon
+        }catch(e){ lastErrorEl.textContent='Error creando doc: '+(e.message||e); }
+
+        // Suscripción a cambios (para ver estado)
+        onSnapshot(eventRef,(snap)=>{
+          const d = snap.data() || {};
+          const hasStart=!!d.startTS||!!d.startClientMS;
+          const hasStop =!!d.stopTS ||!!d.stopClientMS;
+          tag.textContent=`Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
+        });
+
+        // Acciones
+        btnStart.onclick = async ()=>{
+          try{
+            await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true});
+            lastAction.textContent='Inicio marcado'; alert('Inicio marcado');
+          }catch(e){ lastErrorEl.textContent='Error INICIO: '+(e.message||e); }
+        };
+        btnStop.onclick = async ()=>{
+          try{
+            await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:Date.now()},{merge:true});
+            lastAction.textContent='Fin marcado'; alert('Fin marcado');
+          }catch(e){ lastErrorEl.textContent='Error FIN: '+(e.message||e); }
+        };
+      }
+    }catch(e){
+      window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
+    }
+    paintFirebase();
+
+    // -------- Cámara (solo cuando pulsan el botón) --------
+    btnEnableCam.onclick = async ()=>{
+      try{
+        if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+          alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
+        }
+        // Preferir trasera; probar varios constraints para iOS
+        const tries = [
+          { video:{ facingMode:{ ideal:'environment' } }, audio:false },
+          { video:{ facingMode:'environment' }, audio:false },
+          { video:true, audio:false }
+        ];
+        let stream=null, lastErr=null;
+        for(const c of tries){
+          try{ stream = await navigator.mediaDevices.getUserMedia(c); if(stream) break; }catch(e){ lastErr=e; }
+        }
+        if(!stream){
+          alert('No se pudo abrir la cámara.\n' + (lastErr && (lastErr.name+': '+lastErr.message)));
+          return;
+        }
+        // iOS: playsinline y muted para evitar fullscreen/auto-pause
+        video.setAttribute('playsinline','true');
+        video.muted = true;
+        video.srcObject = stream;
+        await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
+        await video.play();
+        overlay.style.display='block';
+        btnEnableCam.textContent='Cámara activada';
+        btnEnableCam.disabled = true;
+      }catch(e){
+        alert('No se pudo iniciar la vista de cámara.\n'+(e && (e.message||e)));
+      }
+    };
+  </script>
+</body>
+</html>
