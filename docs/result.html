@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — Resultado</title>
+  <title>Mi Crono — Resultado (Smoke)</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     .big{font-size:42px;font-weight:700;letter-spacing:.5px}
-    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
+    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
   </style>
 </head>
 <body class="wrap">
@@ -17,51 +17,40 @@
 
   <main class="grid one">
     <section class="card">
+      <div>Firebase: <span id="fbState">—</span></div>
       <div class="big" id="time">--:--.--</div>
       <p id="details" class="muted"></p>
-      <div class="row">
-        <button id="btnCSV" class="btn">Exportar CSV</button>
-        <a class="btn" href="index.html">Nuevo evento</a>
-      </div>
-    </section>
-    <section class="card">
-      <h2>Estado</h2>
-      <div>Firebase: <span id="fbState">—</span></div>
     </section>
     <section class="card">
       <h2>Depuración</h2>
-      <div class="debug" id="lastError"></div>
+      <div class="debug" id="lastError">—</div>
     </section>
   </main>
 
   <script type="module">
-    // Estado por defecto
     window.__firebaseReady=false; window.__firebaseError=null;
 
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
-
-    const fbStateEl=document.getElementById('fbState');
-    const lastErrorEl=document.getElementById('lastError');
-
-    function paintFirebase(){
-      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
-      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
-      if(!window.__firebaseReady){
-        const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError)) || 'sin detalle';
-        const hint = ' • Si usas iPhone: desactiva bloqueadores de contenido para esta web (gstatic).';
-        lastErrorEl.textContent = `Init Firebase error: ${msg}${hint}`;
-      } else {
-        lastErrorEl.textContent = '—';
-      }
-    }
+    const fbStateEl=document.getElementById('fbState'), lastErrorEl=document.getElementById('lastError');
 
     const two = (n)=> String(n).padStart(2,'0');
     const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
       const m=Math.floor(t/60000), s=Math.floor((t%60000)/1000), cs=Math.floor((t%1000)/10);
       return `${two(m)}:${two(s)}.${two(cs)}`; };
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
+
+    function paintFirebase(){
+      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
+      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
+      if(!window.__firebaseReady){
+        const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError)) || 'sin detalle';
+        lastErrorEl.textContent = `Init Firebase error: ${msg}`;
+      } else {
+        lastErrorEl.textContent = '—';
+      }
+    }
 
     try{
       const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
@@ -79,11 +68,10 @@
 
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
+      window.__firebaseReady=true; paintFirebase();
 
-      window.__firebaseReady = true; paintFirebase();
-
-      const eventRef = doc(db,"events",(code||"").toUpperCase());
-      onSnapshot(eventRef, (snap) => {
+      const eventRef = doc(db, "events", code);
+      onSnapshot(eventRef, (snap)=>{
         const d = snap.data() || {};
         const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
         const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
@@ -91,34 +79,13 @@
         document.getElementById('time').textContent = dur!=null ? formatDuration(dur) : '--:--.--';
         document.getElementById('details').textContent =
           `Inicio: ${start?new Date(start).toLocaleTimeString(): '—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
-      }, (err)=>{
-        lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
-      });
-
-      document.getElementById('btnCSV').onclick = async () => {
-        try{
-          const snap = await getDoc(eventRef);
-          const d = snap.data() || {};
-          const start = tsToMillis(d.startTS) ?? d.startClientMS ?? '';
-          const theStop = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
-          const dur   = (start && theStop) ? (theStop - start) : '';
-          const rows = [
-            ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
-            [code, start||'', theStop||'', dur||'', start?new Date(start).toISOString():'', theStop?new Date(theStop).toISOString():'', dur?formatDuration(dur):'']
-          ];
-          const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
-          const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-          const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-          a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
-        }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
-      };
+      }, (err)=>{ lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err)); });
 
     }catch(e){
       window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
     }
 
     paintFirebase();
-    window.addEventListener('error',(e)=>{ lastErrorEl.textContent='JS error: '+(e && (e.message||e.filename)); });
   </script>
 </body>
 </html>
