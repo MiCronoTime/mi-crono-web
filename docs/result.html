@@ -3,24 +3,40 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — Resultado (Smoke)</title>
+  <title>Mi Crono — Resultado</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    .big{font-size:42px;font-weight:700;letter-spacing:.5px}
+    .big{font-size:38px;font-weight:800;letter-spacing:.5px}
+    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left}
+    th{background:#fafafa}
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
-    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
   </style>
+  <!-- jsPDF para generar PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body class="wrap">
-  <header class="top"><h1>Resultado</h1><p class="tag" id="subtitle"></p></header>
+  <header class="top"><h1>Resultados</h1><p class="tag" id="subtitle"></p></header>
 
   <main class="grid one">
     <section class="card">
       <div>Firebase: <span id="fbState">—</span></div>
-      <div class="big" id="time">--:--.--</div>
-      <p id="details" class="muted"></p>
+      <div class="big" id="overall">—</div>
+      <p class="muted" id="details">—</p>
+      <div class="row" style="margin-top:6px">
+        <button id="btnPDF" class="btn">Descargar PDF</button>
+        <a class="btn" href="index.html">Nuevo evento</a>
+      </div>
+
+      <h2 style="margin-top:14px">Participantes</h2>
+      <table id="tbl">
+        <thead><tr><th>#</th><th>Nombre</th><th>Tiempo</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
     </section>
+
     <section class="card">
       <h2>Depuración</h2>
       <div class="debug" id="lastError">—</div>
@@ -30,15 +46,21 @@
   <script type="module">
     window.__firebaseReady=false; window.__firebaseError=null;
 
-    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
-    const fbStateEl=document.getElementById('fbState'), lastErrorEl=document.getElementById('lastError');
+
+    const fbStateEl=document.getElementById('fbState');
+    const lastErrorEl=document.getElementById('lastError');
+    const tbody=document.getElementById('tbody');
+    const overall=document.getElementById('overall');
+    const details=document.getElementById('details');
 
     const two = (n)=> String(n).padStart(2,'0');
-    const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
-      const m=Math.floor(t/60000), s=Math.floor((t%60000)/1000), cs=Math.floor((t%1000)/10);
-      return `${two(m)}:${two(s)}.${two(cs)}`; };
+    const three = (n)=> String(n).padStart(3,'0');
+    const fmt = (ms)=>{ ms=Math.max(0, Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
 
     function paintFirebase(){
@@ -47,14 +69,12 @@
       if(!window.__firebaseReady){
         const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError)) || 'sin detalle';
         lastErrorEl.textContent = `Init Firebase error: ${msg}`;
-      } else {
-        lastErrorEl.textContent = '—';
-      }
+      } else lastErrorEl.textContent='—';
     }
 
     try{
       const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
-      const { getFirestore, doc, getDoc, onSnapshot } =
+      const { getFirestore, doc, getDoc, collection, query, orderBy, getDocs, onSnapshot } =
         await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
 
       const firebaseConfig = {
@@ -70,16 +90,75 @@
       const db  = getFirestore(app);
       window.__firebaseReady=true; paintFirebase();
 
-      const eventRef = doc(db, "events", code);
+      const eventRef = doc(db,"events",code);
+      const partsCol = collection(eventRef,"participants");
+
+      // Global start/stop para “overall”
       onSnapshot(eventRef, (snap)=>{
-        const d = snap.data() || {};
+        const d=snap.data()||{};
         const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
         const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
-        const dur   = (start && stop) ? (stop - start) : null;
-        document.getElementById('time').textContent = dur!=null ? formatDuration(dur) : '--:--.--';
-        document.getElementById('details').textContent =
-          `Inicio: ${start?new Date(start).toLocaleTimeString(): '—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
-      }, (err)=>{ lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err)); });
+        overall.textContent = (start && stop) ? fmt(stop-start) : '—';
+        details.textContent =
+          `Inicio: ${start?new Date(start).toLocaleTimeString():'—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${(start&&stop)?fmt(stop-start):'—'}`;
+      });
+
+      // Tabla de participantes
+      async function loadTable(){
+        const q = query(partsCol, orderBy('order','asc'));
+        const snap = await getDocs(q);
+        tbody.innerHTML='';
+        snap.forEach(docu=>{
+          const d=docu.data();
+          const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
+          const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+          const dur   = (start && stop) ? (stop - start) : null;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${d.order||''}</td><td>${d.name||''}</td><td>${dur!=null?fmt(dur):'—'}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+      await loadTable();
+
+      // Botón PDF
+      document.getElementById('btnPDF').onclick = async ()=>{
+        await loadTable(); // refresca
+        const rows=[['#','Nombre','Tiempo']];
+        [...tbody.querySelectorAll('tr')].forEach(tr=>{
+          const tds=[...tr.children].map(td=>td.textContent);
+          rows.push(tds);
+        });
+
+        const { jsPDF } = window.jspdf;
+        const docPdf = new jsPDF({unit:'pt', format:'a4'});
+        const lineH = 20;
+        let y = 50;
+
+        docPdf.setFontSize(16);
+        docPdf.text(`Mi Crono — Resultados (${code})`, 40, y); y+=30;
+        docPdf.setFontSize(10);
+        docPdf.text(`Generado: ${new Date().toLocaleString()}`, 40, y); y+=20;
+
+        // Cabecera tabla
+        docPdf.setFontSize(12);
+        const colX=[40, 80, 360]; // #, Nombre, Tiempo
+        docPdf.text('#', colX[0], y);
+        docPdf.text('Nombre', colX[1], y);
+        docPdf.text('Tiempo', colX[2], y);
+        y+=12; docPdf.line(40,y, 550,y); y+=10;
+
+        // Filas
+        docPdf.setFontSize(12);
+        rows.slice(1).forEach(r=>{
+          docPdf.text(String(r[0]||''), colX[0], y);
+          docPdf.text(String(r[1]||''), colX[1], y);
+          docPdf.text(String(r[2]||''), colX[2], y);
+          y+=lineH;
+          if(y>780){ docPdf.addPage(); y=50; }
+        });
+
+        docPdf.save(`resultado_${code}.pdf`);
+      };
 
     }catch(e){
       window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
