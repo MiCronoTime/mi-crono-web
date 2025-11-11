@@ -31,13 +31,41 @@ async function initCameraPage(){
   });
 
   // Cámara
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' }, audio:false });
+  const btnEnableCam = document.getElementById('btnEnableCam');
+
+  async function startCamera(){
+    // Ajustes recomendados para iOS
+    const constraintsList = [
+      { video: { facingMode: { ideal: 'environment' }}, audio:false },
+      { video: { facingMode: 'environment' }, audio:false },
+      { video: true, audio:false }
+    ];
+
+    let stream = null;
+    for (const c of constraintsList) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(c);
+        if (stream) break;
+      } catch (e) {
+        // Intenta el siguiente constraint
+      }
+    }
+
+    if (!stream) {
+      alert('No se pudo acceder a la cámara. Revisa que Safari tenga permiso de Cámara para este sitio en Ajustes > Safari > Cámara (Permitir) y vuelve a abrir la página en Safari con HTTPS.');
+      return;
+    }
+
+    video.setAttribute('playsinline', 'true'); // iOS
+    video.muted = true; // iOS requiere muted para autoplay del preview
     video.srcObject = stream;
     await video.play();
-  }catch(e){
-    alert('No se pudo acceder a la cámara. Revisa permisos / https.');
+
+    // Oculta el botón al tener cámara
+    btnEnableCam.style.display = 'none';
   }
+
+  btnEnableCam.onclick = startCamera;
 
   // Detección simple por diferencia de frames
   let prev = null;
