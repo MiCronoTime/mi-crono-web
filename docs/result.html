@@ -14,7 +14,6 @@
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
   </style>
-  <!-- jsPDF para generar PDF -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
 <body class="wrap">
@@ -116,7 +115,7 @@
           tbody.appendChild(tr);
         });
 
-        // "Overall": desde el primer start hasta el último stop (si existen)
+        // Overall = del primer start al último stop
         const starts = rows.map(r=>r.start).filter(Boolean);
         const stops  = rows.map(r=>r.stop).filter(Boolean);
         const minStart = starts.length? Math.min(...starts) : null;
@@ -129,7 +128,6 @@
 
       await render();
 
-      // PDF
       document.getElementById('btnPDF').onclick = async ()=>{
         const rows = await loadParticipants();
         const { jsPDF } = window.jspdf;
@@ -141,7 +139,6 @@
         docPdf.setFontSize(10);
         docPdf.text(`Generado: ${new Date().toLocaleString()}`, 40, y); y+=10;
 
-        // Overall
         const starts = rows.map(r=>r.start).filter(Boolean);
         const stops  = rows.map(r=>r.stop).filter(Boolean);
         const minStart = starts.length? Math.min(...starts) : null;
@@ -149,22 +146,19 @@
         const overallText = (minStart&&maxStop)? fmt(maxStop-minStart) : '—';
         y+=18; docPdf.setFontSize(12); docPdf.text(`Tiempo total: ${overallText}`, 40, y); y+=16;
 
-        // Cabecera tabla
-        const colX=[40, 80, 360]; // #, Nombre, Tiempo
+        const colX=[40, 80, 360];
         docPdf.setFontSize(12);
         docPdf.text('#', colX[0], y);
         docPdf.text('Nombre', colX[1], y);
         docPdf.text('Tiempo', colX[2], y);
         y+=12; docPdf.line(40,y, 550,y); y+=10;
 
-        // Filas
         docPdf.setFontSize(12);
         rows.forEach(r=>{
           docPdf.text(String(r.order||''), colX[0], y);
           docPdf.text(String(r.name||''),  colX[1], y);
           docPdf.text(String(r.dur!=null?fmt(r.dur):'—'), colX[2], y);
-          y+=20;
-          if(y>780){ docPdf.addPage(); y=50; }
+          y+=20; if(y>780){ docPdf.addPage(); y=50; }
         });
 
         docPdf.save(`resultado_${code}.pdf`);
@@ -173,7 +167,6 @@
     }catch(e){
       window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
     }
-
     paintFirebase();
   </script>
 </body>
