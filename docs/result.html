@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Resultado</title>
+  <link rel="stylesheet" href="styles.css"/>
+
+  <!-- Firebase por CDN -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
+      authDomain: "mi-crono-web.firebaseapp.com",
+      projectId: "mi-crono-web",
+      storageBucket: "mi-crono-web.appspot.com",
+      messagingSenderId: "803218040641",
+      appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
+      measurementId: "G-Z2Q6WQX450"
+    };
+
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+      window.getDoc          = getDoc;
+      window.onSnapshot      = onSnapshot;
+      window.__firebaseReady = true;
+    } catch (e) {
+      window.__firebaseReady = false;
+      window.__firebaseError = e;
+    }
+  </script>
+
+  <style>.big{font-size:42px;font-weight:700;letter-spacing:.5px}</style>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1>Resultado</h1>
+    <p class="tag" id="subtitle"></p>
+  </header>
+
+  <main class="grid one">
+    <section class="card">
+      <div class="big" id="time">--:--.--</div>
+      <p id="details" class="muted"></p>
+      <div class="row">
+        <button id="btnCSV" class="btn">Exportar CSV</button>
+        <a id="btnBack" class="btn" href="index.html">Nuevo evento</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Depuración</h2>
+      <div class="debug" id="lastError"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    const code = (getParam('code')||'').toUpperCase();
+    document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
+
+    const two = (n)=> String(n).padStart(2,'0');
+    const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
+      const m=Math.floor(t/60000), s=Math.floor((t%60000)/1000), cs=Math.floor((t%1000)/10);
+      return `${two(m)}:${two(s)}.${two(cs)}`; };
+    const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
+
+    const lastErrorEl = document.getElementById('lastError');
+    if (!window.__firebaseReady) {
+      lastErrorEl.textContent = 'Init Firebase error: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError));
+    }
+
+    const getEventDocRef  = window.getEventDocRef;
+    const getDoc          = window.getDoc;
+    const onSnapshot      = window.onSnapshot;
+
+    const eventRef = getEventDocRef(code);
+    onSnapshot(eventRef, (snap) => {
+      const d = snap.data() || {};
+      const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
+      const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+      const dur   = (start && stop) ? (stop - start) : null;
+      document.getElementById('time').textContent = dur!=null ? formatDuration(dur) : '--:--.--';
+      document.getElementById('details').textContent =
+        `Inicio: ${start?new Date(start).toLocaleTimeString(): '—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
+    }, (err)=>{
+      lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
+    });
+
+    document.getElementById('btnCSV').onclick = async () => {
+      try{
+        const snap = await getDoc(eventRef);
+        const d = snap.data() || {};
+        const start = tsToMillis(d.startTS) ?? d.startClientMS ?? '';
+        const theStop = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
+        const dur   = (start && theStop) ? (theStop - start) : '';
+        const rows = [
+          ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
+          [code, start||'', theStop||'', dur||'', start?new Date(start).toISOString():'', theStop?new Date(theStop).toISOString():'', dur?formatDuration(dur):'']
+        ];
+        const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
+      }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
+    };
+
+    window.addEventListener('error', (e)=>{
+      lastErrorEl.textContent = 'JS error: ' + (e && (e.message || e.filename));
+    });
+  </script>
+</body>
+</html>
