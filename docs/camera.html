@@ -42,7 +42,7 @@
         <button id="btnStop" class="btn">Marcar FIN</button>
         <a id="btnResult" class="btn" href="#">Ver resultado</a>
       </div>
-      <small class="muted">iOS: Safari + HTTPS + permitir Cámara (Ajustes → Safari → Cámara → Permitir).</small>
+      <small class="muted">iOS: Safari + HTTPS + permitir Cámara.</small>
 
       <div class="stage" id="stage">
         <video id="video" playsinline muted></video>
@@ -63,7 +63,7 @@
 
       <div class="card list">
         <h3>En curso</h3>
-        <div id="runningList"></div>
+        <div id="runningList">—</div>
       </div>
     </section>
 
@@ -120,7 +120,6 @@
       if(running && startMS){ timerText.innerHTML = fmt(Date.now()-startMS) + ' — <span>'+ nameText +'</span>'; }
       else if(startMS && stopMS){ timerText.innerHTML = fmt(stopMS-startMS) + ' — <span>'+ nameText +'</span>'; }
       else { timerText.innerHTML = '00:00.000 — <span>'+ nameText +'</span>'; }
-      // refresco de lista "en curso"
       renderRunningList();
     }, 80);
 
@@ -143,7 +142,7 @@
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp,
-        collection, query, orderBy, getDocs
+        collection, query, orderBy, getDocs, runTransaction
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -163,60 +162,86 @@
         eventRef = doc(db,'events',code);
         partsCol = collection(eventRef,'participants');
 
-        const listOrdered = async ()=>{
+        const reloadOrdered = async ()=>{
           const snap = await getDocs(query(partsCol, orderBy('order','asc')));
           participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
           return participants;
         };
 
-        // crear evento si no existe
+        // Crear evento si no existe
         const s=await getDoc(eventRef);
         if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-        // helpers para SALIDA/META (selección en cliente)
+        // Helpers SALIDA/META (selección local con snapshot)
         const nextToStart = ()=> participants.find(p=>!p.startClientMS && !p.startTS);
-        const earliestRunning = ()=> {
-          const running = participants.filter(p=>(p.startClientMS||p.startTS) && !p.stopClientMS && !p.stopTS);
-          running.sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
-          return running[0] || null;
+        const runningSorted = ()=> participants
+          .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
+          .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
+
+        // ----------- TRANSACCIONES -----------
+        const txStartNext = async ()=>{
+          return runTransaction(db, async (tx)=>{
+            const snap = await tx.get(query(partsCol, orderBy('order','asc')));
+            const list = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
+            const nxt  = list.find(p=>!p.startClientMS && !p.startTS);
+            if(!nxt) return null;
+            tx.update(nxt.ref, { startTS:serverTimestamp(), startClientMS: Date.now(), stopTS:null, stopClientMS:null });
+            return { id:nxt.id, name:nxt.name, order:nxt.order, startClientMS: Date.now() };
+          });
         };
 
-        const markStartNext = async ()=>{
-          const p = nextToStart(); if(!p) return null;
-          await updateDoc(p.ref,{ startTS:serverTimestamp(), startClientMS:Date.now(), stopTS:null, stopClientMS:null });
-          return { id:p.id, name:p.name, order:p.order };
+        const txStopEarliest = async ()=>{
+          return runTransaction(db, async (tx)=>{
+            const snap = await tx.get(query(partsCol, orderBy('order','asc')));
+            const list = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
+            // FIFO real: el que tenga start y aún no tenga stop, con menor startClientMS/TS
+            const running = list
+              .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
+              .sort((a,b)=>( (a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)) ));
+            const cur = running[0];
+            if(!cur) return null; // META no toca nada si no hay nadie corriendo
+            // marca stop sólo si sigue sin stop (idempotente)
+            tx.update(cur.ref, { stopTS:serverTimestamp(), stopClientMS: Date.now() });
+            return { id:cur.id, name:cur.name, order:cur.order, stopClientMS: Date.now() };
+          });
         };
-        const markStopEarliest = async ()=>{
-          const p = earliestRunning(); if(!p) return null;
-          await updateDoc(p.ref,{ stopTS:serverTimestamp(), stopClientMS:Date.now() });
-          return { id:p.id, name:p.name, order:p.order };
-        };
+        // -------------------------------------
 
-        // Suscripción: sincroniza estado + “en curso”
+        // SNAPSHOT: NO se auto-inicia en META; sólo refleja estado
         onSnapshot(partsCol, async ()=>{
-          await listOrdered();
-          const runningOne = earliestRunning();
-          const nextOne    = nextToStart();
+          await reloadOrdered();
 
-          if(runningOne){
-            const ms = (tsToMillis(runningOne.startTS) ?? runningOne.startClientMS ?? Date.now());
-            startLocal(ms, { id:runningOne.id, name:runningOne.name, order:runningOne.order });
-            $('runnerName').textContent = runningOne.name || '—';
+          const running = runningSorted();
+          const nextOne = nextToStart();
+
+          if(running.length>0){
+            const first = running[0];
+            const start = (first.startClientMS ?? tsToMillis(first.startTS) ?? Date.now());
+            startLocal(start, { id:first.id, name:first.name, order:first.order }); // muestra el primero en curso
+            $('runnerName').textContent = first.name || '—';
           } else {
+            // No hay nadie corriendo -> parada visual; NO iniciar al "next"
             if(running) stopLocal();
             $('runnerName').textContent = nextOne?.name || '—';
           }
 
           hudNext.textContent = 'Siguiente: ' + (nextOne?.name || '—');
-
           const hasStart = participants.some(p=>p.startClientMS||p.startTS);
           const hasStop  = participants.some(p=>p.stopClientMS||p.stopTS);
           tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
         },(err)=>{ lastErrorEl.textContent='Snapshot: '+(err.code||err.message||err); });
 
         // Botones
-        btnStart.onclick = async ()=>{ const r=await markStartNext(); if(r){ startLocal(Date.now(), r); lastAction.textContent='Inicio: '+r.name; } };
-        btnStop.onclick  = async ()=>{ const r=await markStopEarliest(); if(r){ stopLocal(Date.now()); lastAction.textContent='Fin: '+r.name; } };
+        btnStart.onclick = async ()=>{
+          const r = await txStartNext(); // SALIDA decide el siguiente
+          if(r){ startLocal(r.startClientMS, {id:r.id,name:r.name,order:r.order}); lastAction.textContent='Inicio: '+r.name; }
+          else { lastAction.textContent='No hay siguiente para iniciar.'; }
+        };
+        btnStop.onclick  = async ()=>{
+          const r = await txStopEarliest(); // META para al que va primero
+          if(r){ stopLocal(r.stopClientMS); lastAction.textContent='Fin: '+r.name; }
+          else { lastAction.textContent='No hay participante en curso.'; }
+        };
 
         // ===== Cámara + detección =====
         btnEnable.onclick = async ()=>{
@@ -237,8 +262,13 @@
         let prev=null, armed=true;
         const trigger = async ()=>{
           if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
-          if(mode==='start'){ const r=await markStartNext(); if(r){ startLocal(Date.now(), r); } }
-          else { const r=await markStopEarliest(); if(r){ stopLocal(Date.now()); } }
+          if(mode==='start'){
+            const r=await txStartNext(); // SALIDA inicia al siguiente (no auto–arranque en META)
+            if(r){ startLocal(r.startClientMS, {id:r.id,name:r.name,order:r.order}); }
+          } else {
+            const r=await txStopEarliest(); // META para al primero en curso
+            if(r){ stopLocal(r.stopClientMS); }
+          }
         };
 
         function loop(){
@@ -274,11 +304,9 @@
         function renderRunningList(){
           if(!participants.length) { runningList.innerHTML='—'; return; }
           const now = Date.now();
-          const running = participants
-            .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
-            .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
-          if(!running.length){ runningList.innerHTML='—'; return; }
-          runningList.innerHTML = running.map(p=>{
+          const runningArr = runningSorted();
+          if(!runningArr.length){ runningList.innerHTML='—'; return; }
+          runningList.innerHTML = runningArr.map(p=>{
             const st = (p.startClientMS ?? tsToMillis(p.startTS) ?? now);
             return `<div class="runner"><div>${p.order}. ${p.name}</div><div class="time">${fmt(now - st)}</div></div>`;
           }).join('');
