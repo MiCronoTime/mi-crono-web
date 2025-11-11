@@ -19,6 +19,9 @@
     .row.gap > *{margin-right:8px}
     input[type=range]{width:100%}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef;color:#123}
+    .list{margin-top:12px}
+    .runner{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e8e8f0;border-radius:10px;background:#fff;margin-bottom:6px}
+    .runner .time{font-weight:700}
   </style>
 </head>
 <body class="wrap">
@@ -57,6 +60,11 @@
         <input id="sens" type="range" min="1" max="100" value="25"/>
         <small class="muted">Más a la derecha = más sensible.</small>
       </div>
+
+      <div class="card list">
+        <h3>En curso</h3>
+        <div id="runningList"></div>
+      </div>
     </section>
 
     <section class="card">
@@ -87,7 +95,7 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    const title=$('title'), tag=$('tag'), hudStatus=$('hudStatus'), hudNext=$('hudNext'), timerText=$('timerText'), runnerName=$('runnerName');
+    const title=$('title'), tag=$('tag'), hudStatus=$('hudStatus'), hudNext=$('hudNext'), timerText=$('timerText'), runnerName=$('runnerName'), runningList=$('runningList');
     const fbState=$('fbState'), evState=$('evState'), lastErrorEl=$('lastError'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnStart=$('btnStart'), btnStop=$('btnStop'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
@@ -105,14 +113,16 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // ===== Crono (independiente de cámara) =====
+    // ===== Crono principal (informativo) =====
     let startMS=null, stopMS=null, running=false, currentRunner=null; // {id,name,order}
     setInterval(()=>{
       const nameText = currentRunner?.name || '—';
       if(running && startMS){ timerText.innerHTML = fmt(Date.now()-startMS) + ' — <span>'+ nameText +'</span>'; }
       else if(startMS && stopMS){ timerText.innerHTML = fmt(stopMS-startMS) + ' — <span>'+ nameText +'</span>'; }
       else { timerText.innerHTML = '00:00.000 — <span>'+ nameText +'</span>'; }
-    }, 33);
+      // refresco de lista "en curso"
+      renderRunningList();
+    }, 80);
 
     const startLocal = (ms, runner)=>{
       if(running) return;
@@ -126,14 +136,8 @@
     };
 
     // ===== Firebase (CDN) =====
-    let db, eventRef, partsCol;
+    let db, eventRef, partsCol, participants=[];
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
-
-    // Helpers de participantes (cliente, sin where==null)
-    const getAllParticipantsOrdered = async (colRef, orderByFn)=>{
-      const snap = await orderByFn(); // función que ya devuelve snapshot ordenado
-      return snap.docs.map(d => ({ id:d.id, ref:d.ref, ...d.data() }));
-    };
 
     try{
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
@@ -142,7 +146,6 @@
         collection, query, orderBy, getDocs
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-      // --- Config Firebase ---
       const firebaseConfig = {
         apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
         authDomain: "mi-crono-time-888b7.firebaseapp.com",
@@ -160,56 +163,62 @@
         eventRef = doc(db,'events',code);
         partsCol = collection(eventRef,'participants');
 
-        // Crea evento si no existe
+        const listOrdered = async ()=>{
+          const snap = await getDocs(query(partsCol, orderBy('order','asc')));
+          participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
+          return participants;
+        };
+
+        // crear evento si no existe
         const s=await getDoc(eventRef);
         if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-        // Funciones de avance (selección en cliente)
-        const listOrdered = async ()=> await getDocs(query(partsCol, orderBy('order','asc')));
+        // helpers para SALIDA/META (selección en cliente)
+        const nextToStart = ()=> participants.find(p=>!p.startClientMS && !p.startTS);
+        const earliestRunning = ()=> {
+          const running = participants.filter(p=>(p.startClientMS||p.startTS) && !p.stopClientMS && !p.stopTS);
+          running.sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
+          return running[0] || null;
+        };
 
         const markStartNext = async ()=>{
-          const list = await getAllParticipantsOrdered(partsCol, listOrdered);
-          const next = list.find(p => !p.startClientMS && !p.startTS);
-          if(!next){ lastAction.textContent='No hay siguiente participante.'; return null; }
-          await updateDoc(next.ref,{ startTS:serverTimestamp(), startClientMS:Date.now(), stopTS:null, stopClientMS:null });
-          return { id:next.id, name:next.name, order:next.order };
+          const p = nextToStart(); if(!p) return null;
+          await updateDoc(p.ref,{ startTS:serverTimestamp(), startClientMS:Date.now(), stopTS:null, stopClientMS:null });
+          return { id:p.id, name:p.name, order:p.order };
         };
-        const markStopCurrent = async ()=>{
-          const list = await getAllParticipantsOrdered(partsCol, listOrdered);
-          const cur  = list.find(p => (p.startClientMS||p.startTS) && !p.stopClientMS && !p.stopTS);
-          if(!cur){ lastAction.textContent='No hay participante en curso.'; return null; }
-          await updateDoc(cur.ref,{ stopTS:serverTimestamp(), stopClientMS:Date.now() });
-          return { id:cur.id, name:cur.name, order:cur.order };
+        const markStopEarliest = async ()=>{
+          const p = earliestRunning(); if(!p) return null;
+          await updateDoc(p.ref,{ stopTS:serverTimestamp(), stopClientMS:Date.now() });
+          return { id:p.id, name:p.name, order:p.order };
         };
 
-        // Suscripción: META ve correr el crono aunque no active cámara
+        // Suscripción: sincroniza estado + “en curso”
         onSnapshot(partsCol, async ()=>{
-          const snap = await listOrdered();
-          const list = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-          const runningOne = list.find(p => (p.startClientMS||p.startTS) && !p.stopClientMS && !p.stopTS);
-          const nextOne    = list.find(p => !p.startClientMS && !p.startTS);
+          await listOrdered();
+          const runningOne = earliestRunning();
+          const nextOne    = nextToStart();
 
           if(runningOne){
             const ms = (tsToMillis(runningOne.startTS) ?? runningOne.startClientMS ?? Date.now());
             startLocal(ms, { id:runningOne.id, name:runningOne.name, order:runningOne.order });
-            runnerName.textContent = runningOne.name || '—';
+            $('runnerName').textContent = runningOne.name || '—';
           } else {
             if(running) stopLocal();
-            runnerName.textContent = nextOne?.name || '—';
+            $('runnerName').textContent = nextOne?.name || '—';
           }
+
           hudNext.textContent = 'Siguiente: ' + (nextOne?.name || '—');
 
-          // Etiquetas de cabecera
-          const hasStart = !!runningOne || !!list.find(p=>p.startClientMS||p.startTS);
-          const hasStop  = !!list.find(p=>p.stopClientMS||p.stopTS);
+          const hasStart = participants.some(p=>p.startClientMS||p.startTS);
+          const hasStop  = participants.some(p=>p.stopClientMS||p.stopTS);
           tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
         },(err)=>{ lastErrorEl.textContent='Snapshot: '+(err.code||err.message||err); });
 
-        // Botones manuales de respaldo
+        // Botones
         btnStart.onclick = async ()=>{ const r=await markStartNext(); if(r){ startLocal(Date.now(), r); lastAction.textContent='Inicio: '+r.name; } };
-        btnStop.onclick  = async ()=>{ const r=await markStopCurrent(); if(r){ stopLocal(Date.now()); lastAction.textContent='Fin: '+r.name; } };
+        btnStop.onclick  = async ()=>{ const r=await markStopEarliest(); if(r){ stopLocal(Date.now()); lastAction.textContent='Fin: '+r.name; } };
 
-        // ===== Cámara + detección (para disparo automático) =====
+        // ===== Cámara + detección =====
         btnEnable.onclick = async ()=>{
           try{
             if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -224,12 +233,12 @@
           }catch(e){ alert('Error cámara: '+(e?.message||e)); }
         };
 
-        // Detector por franja central
+        // Detección por franja central
         let prev=null, armed=true;
         const trigger = async ()=>{
           if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
           if(mode==='start'){ const r=await markStartNext(); if(r){ startLocal(Date.now(), r); } }
-          else { const r=await markStopCurrent(); if(r){ stopLocal(Date.now()); } }
+          else { const r=await markStopEarliest(); if(r){ stopLocal(Date.now()); } }
         };
 
         function loop(){
@@ -260,6 +269,19 @@
             prev=frame;
           }
           requestAnimationFrame(loop);
+        }
+
+        function renderRunningList(){
+          if(!participants.length) { runningList.innerHTML='—'; return; }
+          const now = Date.now();
+          const running = participants
+            .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
+            .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
+          if(!running.length){ runningList.innerHTML='—'; return; }
+          runningList.innerHTML = running.map(p=>{
+            const st = (p.startClientMS ?? tsToMillis(p.startTS) ?? now);
+            return `<div class="runner"><div>${p.order}. ${p.name}</div><div class="time">${fmt(now - st)}</div></div>`;
+          }).join('');
         }
       }
     }catch(e){ window.__firebaseError=e; window.__firebaseReady=false; paintFirebase(); }
