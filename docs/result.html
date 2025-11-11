@@ -74,7 +74,7 @@
 
     try{
       const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
-      const { getFirestore, doc, getDoc, collection, query, orderBy, getDocs, onSnapshot } =
+      const { getFirestore, doc, collection, query, orderBy, getDocs } =
         await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
 
       const firebaseConfig = {
@@ -93,55 +93,65 @@
       const eventRef = doc(db,"events",code);
       const partsCol = collection(eventRef,"participants");
 
-      // Global start/stop para “overall”
-      onSnapshot(eventRef, (snap)=>{
-        const d=snap.data()||{};
-        const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
-        const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
-        overall.textContent = (start && stop) ? fmt(stop-start) : '—';
-        details.textContent =
-          `Inicio: ${start?new Date(start).toLocaleTimeString():'—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${(start&&stop)?fmt(stop-start):'—'}`;
-      });
-
-      // Tabla de participantes
-      async function loadTable(){
-        const q = query(partsCol, orderBy('order','asc'));
-        const snap = await getDocs(q);
-        tbody.innerHTML='';
-        snap.forEach(docu=>{
-          const d=docu.data();
-          const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
-          const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+      async function loadParticipants(){
+        const snap = await getDocs(query(partsCol, orderBy('order','asc')));
+        const rows = snap.docs.map(d=>{
+          const x=d.data();
+          const start = tsToMillis(x.startTS) ?? x.startClientMS ?? null;
+          const stop  = tsToMillis(x.stopTS)  ?? x.stopClientMS  ?? null;
           const dur   = (start && stop) ? (stop - start) : null;
-          const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${d.order||''}</td><td>${d.name||''}</td><td>${dur!=null?fmt(dur):'—'}</td>`;
+          return { order:x.order||0, name:x.name||'', start, stop, dur };
+        });
+        return rows;
+      }
+
+      async function render(){
+        const rows = await loadParticipants();
+
+        // Tabla
+        tbody.innerHTML='';
+        rows.forEach(r=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML = `<td>${r.order}</td><td>${r.name}</td><td>${r.dur!=null?fmt(r.dur):'—'}</td>`;
           tbody.appendChild(tr);
         });
+
+        // "Overall": desde el primer start hasta el último stop (si existen)
+        const starts = rows.map(r=>r.start).filter(Boolean);
+        const stops  = rows.map(r=>r.stop).filter(Boolean);
+        const minStart = starts.length? Math.min(...starts) : null;
+        const maxStop  = stops.length?  Math.max(...stops)  : null;
+
+        overall.textContent = (minStart && maxStop) ? fmt(maxStop-minStart) : '—';
+        details.textContent =
+          `Inicio: ${minStart?new Date(minStart).toLocaleTimeString():'—'} | Fin: ${maxStop?new Date(maxStop).toLocaleTimeString():'—'} | Duración: ${(minStart&&maxStop)?fmt(maxStop-minStart):'—'}`;
       }
-      await loadTable();
 
-      // Botón PDF
+      await render();
+
+      // PDF
       document.getElementById('btnPDF').onclick = async ()=>{
-        await loadTable(); // refresca
-        const rows=[['#','Nombre','Tiempo']];
-        [...tbody.querySelectorAll('tr')].forEach(tr=>{
-          const tds=[...tr.children].map(td=>td.textContent);
-          rows.push(tds);
-        });
-
+        const rows = await loadParticipants();
         const { jsPDF } = window.jspdf;
         const docPdf = new jsPDF({unit:'pt', format:'a4'});
-        const lineH = 20;
-        let y = 50;
 
+        let y=50;
         docPdf.setFontSize(16);
-        docPdf.text(`Mi Crono — Resultados (${code})`, 40, y); y+=30;
+        docPdf.text(`Mi Crono — Resultados (${code})`, 40, y); y+=24;
         docPdf.setFontSize(10);
-        docPdf.text(`Generado: ${new Date().toLocaleString()}`, 40, y); y+=20;
+        docPdf.text(`Generado: ${new Date().toLocaleString()}`, 40, y); y+=10;
+
+        // Overall
+        const starts = rows.map(r=>r.start).filter(Boolean);
+        const stops  = rows.map(r=>r.stop).filter(Boolean);
+        const minStart = starts.length? Math.min(...starts) : null;
+        const maxStop  = stops.length?  Math.max(...stops)  : null;
+        const overallText = (minStart&&maxStop)? fmt(maxStop-minStart) : '—';
+        y+=18; docPdf.setFontSize(12); docPdf.text(`Tiempo total: ${overallText}`, 40, y); y+=16;
 
         // Cabecera tabla
-        docPdf.setFontSize(12);
         const colX=[40, 80, 360]; // #, Nombre, Tiempo
+        docPdf.setFontSize(12);
         docPdf.text('#', colX[0], y);
         docPdf.text('Nombre', colX[1], y);
         docPdf.text('Tiempo', colX[2], y);
@@ -149,11 +159,11 @@
 
         // Filas
         docPdf.setFontSize(12);
-        rows.slice(1).forEach(r=>{
-          docPdf.text(String(r[0]||''), colX[0], y);
-          docPdf.text(String(r[1]||''), colX[1], y);
-          docPdf.text(String(r[2]||''), colX[2], y);
-          y+=lineH;
+        rows.forEach(r=>{
+          docPdf.text(String(r.order||''), colX[0], y);
+          docPdf.text(String(r.name||''),  colX[1], y);
+          docPdf.text(String(r.dur!=null?fmt(r.dur):'—'), colX[2], y);
+          y+=20;
           if(y>780){ docPdf.addPage(); y=50; }
         });
 
