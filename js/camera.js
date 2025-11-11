@@ -25,12 +25,16 @@ async function initCameraPage(){
   }
 
   // Estado conexión
-  onSnapshot(eventRef, (s)=>{
-    const d = s.data()||{};
-    const hasStart = !!d.startTS;
-    const hasStop  = !!d.stopTS;
-    tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
-  });
+onSnapshot(eventRef, (s)=>{
+  const d = s.data()||{};
+  const hasStart = !!d.startTS || !!d.startClientMS;
+  const hasStop  = !!d.stopTS  || !!d.stopClientMS;
+  tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
+  // Debug
+  debugDocEl.textContent = 'Doc: ' + JSON.stringify(d);
+}, (err)=>{
+  lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
+});
 
   // Cámara
   const btnEnableCam = document.getElementById('btnEnableCam');
