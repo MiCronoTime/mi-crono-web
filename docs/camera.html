@@ -6,27 +6,32 @@
   <title>Mi Crono — Cámara</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    :root { --hud:bg: rgba(0,0,0,.55); }
+    :root { --hud-bg: rgba(0,0,0,.55); }
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
     .muted{opacity:.8}
-    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
+    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:10px}
 
-    .stage{position:relative;margin-top:10px;border-radius:14px;overflow:hidden}
-    video{width:100%;background:#000;display:block}
+    .stage{
+      position:relative;margin-top:10px;border-radius:16px;overflow:hidden;
+      height:75vh; /* más alto */
+      background:#000; display:flex; align-items:center; justify-content:center;
+    }
+    video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
+
     .hud{
       position:absolute;left:12px;right:12px;top:12px;
-      background:var(--hud:bg);color:#fff;border-radius:14px;
+      background:var(--hud-bg);color:#fff;border-radius:14px;
       padding:10px 14px;font-weight:600;backdrop-filter:blur(4px)
     }
     .timer{
       position:absolute;left:12px;right:12px;bottom:12px;
-      background:var(--hud:bg);color:#fff;border-radius:22px;
+      background:var(--hud-bg);color:#fff;border-radius:22px;
       padding:18px 22px;font-size:42px;font-weight:800;
       text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)
     }
-    .panel{margin-top:12px;background:var(--hud:bg);color:#fff;border-radius:14px;padding:12px 14px}
+    .panel{margin-top:12px;background:var(--hud-bg);color:#fff;border-radius:14px;padding:12px 14px}
     .row.gap > *{margin-right:8px}
     input[type=range]{width:100%}
   </style>
@@ -51,7 +56,7 @@
       </div>
       <small class="muted">iOS: Safari + HTTPS + permitir Cámara (Ajustes → Safari → Cámara → Permitir).</small>
 
-      <div class="stage">
+      <div class="stage" id="stage">
         <video id="video" playsinline muted></video>
         <canvas id="overlay" class="overlay"></canvas>
         <div class="hud" id="hudTop">Listo</div>
@@ -59,7 +64,7 @@
       </div>
 
       <div class="panel">
-        <div style="margin-bottom:6px">Sensibilidad:</div>
+        <div style="margin-bottom:6px">Sensibilidad (detector cruzado por la franja roja):</div>
         <input id="sens" type="range" min="1" max="100" value="25"/>
       </div>
     </section>
@@ -94,7 +99,8 @@
     const title=$('title'), tag=$('tag'), hudTop=$('hudTop'), timerText=$('timerText');
     const fbState=$('fbState'), evState=$('evState'), lastErrorEl=$('lastError'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnStart=$('btnStart'), btnStop=$('btnStop'), btnResult=$('btnResult');
-    const video=$('video'), overlay=$('overlay'), sens=$('sens'); const octx=overlay.getContext('2d',{willReadFrequently:true});
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const octx=overlay.getContext('2d',{willReadFrequently:true});
 
     title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`; tag.textContent=`Evento ${code||'—'}`;
 
@@ -108,9 +114,27 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
+    // ===== Crono (independiente de la cámara) =====
+    let startMS=null, stopMS=null, running=false;
+    setInterval(()=>{
+      if(running && startMS){ timerText.textContent = fmt(Date.now()-startMS); }
+      else if(startMS && stopMS){ timerText.textContent = fmt(stopMS-startMS); }
+      else { timerText.textContent = '00:00.000'; }
+    }, 33); // ~30 fps TIEMPO EN PANTALLA SIEMPRE
+
+    const startLocal = ()=>{
+      if(running) return;
+      startMS = Date.now(); stopMS=null; running=true;
+      hudTop.textContent=(mode==='start'?'SALIDA':'META')+' — Crono en marcha';
+    };
+    const stopLocal = ()=>{
+      if(!running) return;
+      stopMS = Date.now(); running=false;
+      hudTop.textContent=(mode==='start'?'SALIDA':'META')+' — Crono detenido';
+    };
+
     // ===== Firebase (CDN) =====
     let db, eventRef;
-    let startMS=null, stopMS=null, running=false;  // estado local del crono
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
 
     try{
@@ -131,76 +155,60 @@
       db = getFirestore(app);
       window.__firebaseReady=true; paintFirebase();
 
-      // helpers de escritura (AHORA sí con serverTimestamp() correcto)
-      const writeStart = async()=>{
-        await setDoc(eventRef,{
-          startTS: serverTimestamp(),
-          startClientMS: Date.now(),
-          stopTS: null,
-          stopClientMS: null
-        },{merge:true});
-      };
-      const writeStop = async()=>{
-        await setDoc(eventRef,{
-          stopTS: serverTimestamp(),
-          stopClientMS: Date.now()
-        },{merge:true});
-      };
+      const writeStart = async()=> setDoc(eventRef,{
+        startTS: serverTimestamp(), startClientMS: Date.now(), stopTS:null, stopClientMS:null
+      },{merge:true});
+      const writeStop  = async()=> setDoc(eventRef,{
+        stopTS: serverTimestamp(), stopClientMS: Date.now()
+      },{merge:true});
 
       if(code){
         eventRef = doc(db,'events',code);
-        // crea si no existe
+
+        // Crear doc si no existe y leer estado inicial
         const s = await getDoc(eventRef);
         if(!s.exists()){
           await setDoc(eventRef,{code,createdAt:serverTimestamp(),startTS:null,stopTS:null},{merge:true});
+        } else {
+          const d=s.data()||{};
+          const hasStart=!!d.startTS||!!d.startClientMS;
+          const hasStop =!!d.stopTS ||!!d.stopClientMS;
+          if(hasStart && !hasStop){
+            startMS = tsToMillis(d.startTS) ?? d.startClientMS ?? Date.now();
+            stopMS = null; running=true;
+            hudTop.textContent=(mode==='start'?'SALIDA':'META')+' — Crono en marcha';
+          } else if(hasStart && hasStop){
+            startMS = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
+            stopMS  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+            running=false;
+            hudTop.textContent=(mode==='start'?'SALIDA':'META')+' — Crono detenido';
+          }
         }
 
-        // SUSCRIPCIÓN: sincroniza crono en ambos móviles
+        // Suscripción: hará que META vea el crono correr AÚN SIN CÁMARA
         onSnapshot(eventRef,(snap)=>{
           const d=snap.data()||{};
-          const hasStart = !!d.startTS || !!d.startClientMS;
-          const hasStop  = !!d.stopTS  || !!d.stopClientMS;
+          const hasStart=!!d.startTS||!!d.startClientMS;
+          const hasStop =!!d.stopTS ||!!d.stopClientMS;
 
-          // Arranque remoto (si aún no corría aquí)
           if(hasStart && !hasStop){
             const remoteStart = tsToMillis(d.startTS) ?? d.startClientMS ?? Date.now();
-            if(!running){
-              startMS = remoteStart;
-              stopMS = null;
-              running = true;
-              hudTop.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono en marcha';
-            }
-          }
-
-          // Parada remota
-          if(hasStart && hasStop){
-            const remoteStop = tsToMillis(d.stopTS) ?? d.stopClientMS ?? Date.now();
+            startMS = remoteStart; stopMS=null; running=true;
+            hudTop.textContent=(mode==='start'?'SALIDA':'META')+' — Crono en marcha';
+          } else if(hasStart && hasStop){
             startMS = tsToMillis(d.startTS) ?? d.startClientMS ?? startMS;
-            stopMS = remoteStop;
-            running = false;
-            hudTop.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono detenido';
+            stopMS  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? Date.now();
+            running=false;
+            hudTop.textContent=(mode==='start'?'SALIDA':'META')+' — Crono detenido';
           }
-
-          tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
+          tag.textContent=`Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
         },(err)=>{ lastErrorEl.textContent='Snapshot: '+(err.code||err.message||err); });
 
-        // Botones manuales (respaldo)
-        btnStart.onclick = async ()=>{ if(!running){ running=true; startMS=Date.now(); stopMS=null; await writeStart(); lastAction.textContent='Inicio marcado'; } };
-        btnStop.onclick  = async ()=>{ if(running){ running=false; stopMS=Date.now(); await writeStop(); lastAction.textContent='Fin marcado'; } };
+        // Botones manuales
+        btnStart.onclick = async ()=>{ if(!running){ startLocal(); await writeStart().catch(()=>{}); lastAction.textContent='Inicio marcado'; } };
+        btnStop.onclick  = async ()=>{ if(running){  stopLocal();  await writeStop().catch(()=>{});  lastAction.textContent='Fin marcado'; } };
 
-        // Detección cámara: si cruce ⇒ según modo escribir start/stop (evita duplicar)
-        let armed=true; // para no repetir mientras dura el cooldown
-        const trigger = async ()=>{
-          if(!armed) return;
-          armed=false; setTimeout(()=>armed=true, 1000);
-          if(mode==='start'){
-            if(!running){ running=true; startMS=Date.now(); stopMS=null; await writeStart().catch(()=>{}); }
-          }else{
-            if(running){ running=false; stopMS=Date.now(); await writeStop().catch(()=>{}); }
-          }
-        };
-
-        // ===== Cámara =====
+        // ===== Cámara + detección (solo para disparar automático; el crono ya se pinta sin cámara) =====
         btnEnable.onclick = async ()=>{
           try{
             if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -211,42 +219,52 @@
             video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
             await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
             btnEnable.textContent='Cámara activada'; btnEnable.disabled=true;
-            requestAnimationFrame(loop);
+            requestAnimationFrame(loop); // solo arranca detección; el crono ya se actualiza aparte
           }catch(e){ alert('Error cámara: '+(e?.message||e)); }
         };
 
-        // ===== Dibujo y detección en la franja =====
-        let prev=null;
+        // Detección por franja central
+        let prev=null, armed=true;
+        const trigger = async ()=>{
+          if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
+          if(mode==='start'){ if(!running){ startLocal(); await writeStart().catch(()=>{}); } }
+          else { if(running){  stopLocal();  await writeStop().catch(()=>{});  } }
+        };
+
         function loop(){
-          const w=overlay.width=video.videoWidth||0, h=overlay.height=video.videoHeight||0;
-          if(w&&h){
-            const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+          const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
+          // Dibujo de líneas (si no hay frame de video, igualmente dibujamos)
+          const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+          octx.clearRect(0,0,w,h);
+          octx.fillStyle='rgba(255,0,0,.3)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+          octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-            octx.clearRect(0,0,w,h);
-            octx.fillStyle='rgba(255,0,0,.3)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-            octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+          // Si hay video, hacemos detección
+          const vw=video.videoWidth, vh=video.videoHeight;
+          if(vw && vh){
+            // escalamos coordenadas ROI al frame del video
+            const scaleX = vw / stage.clientWidth;
+            const scaleY = vh / stage.clientHeight;
+            const sx = Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+            const sw = Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+            const sy = 0, sh = vh;
 
-            const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h;
-            const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,w,h);
-            const frame=tctx.getImageData(x1,0,roiWidth,h);
+            // volcar frame
+            const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
+            const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
+            const frame=tctx.getImageData(sx,sy,sw,sh);
 
-            if(prev && prev.width===roiWidth && prev.height===h){
+            if(prev && prev.width===sw && prev.height===sh){
               const sensV=Number(sens.value); const thr=20+Math.round((100-sensV)*1.2); const pct=0.04+(100-sensV)*0.0006;
               let diff=0,total=0;
               for(let i=0;i<frame.data.length;i+=16){
                 const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
                 if(d>thr) diff++; total++;
               }
-              const moved=(diff/Math.max(1,total))>pct;
-              if(moved) trigger();
+              if((diff/Math.max(1,total))>pct) trigger();
             }
             prev=frame;
           }
-          // actualizar crono local
-          if(running && startMS) timerText.textContent = fmt(Date.now()-startMS);
-          else if(startMS && stopMS) timerText.textContent = fmt(stopMS-startMS);
-          else timerText.textContent = '00:00.000';
-
           requestAnimationFrame(loop);
         }
       }
