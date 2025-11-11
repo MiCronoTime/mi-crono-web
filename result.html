@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Mi Crono Web — Resultado</title>
   <link rel="stylesheet" href="styles.css"/>
-  <style>
-    .big { font-size: 42px; font-weight: 700; letter-spacing: 0.5px; }
-  </style>
+  <style>.big{font-size:42px;font-weight:700;letter-spacing:.5px}</style>
 </head>
 <body class="wrap">
   <header class="top">
@@ -24,41 +22,68 @@
         <a id="btnBack" class="btn" href="index.html">Nuevo evento</a>
       </div>
     </section>
+    <section class="card">
+      <h2>Depuración</h2>
+      <div class="debug" id="lastError" style="font-family:monospace;white-space:pre-wrap"></div>
+    </section>
   </main>
 
-  <script src="js/app.js"></script>
+  <!-- firebase como módulo -->
   <script type="module" src="js/firebase.js"></script>
+
   <script type="module">
-    import { getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
-    const code = getParam('code') || '';
-    document.getElementById('subtitle').textContent = `Evento ${code}`;
+    // Utilidades internas (no dependemos de app.js)
+    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    const two = (n)=> String(n).padStart(2,'0');
+    const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
+      const m=Math.floor(t/60000), s=Math.floor((t%60000)/1000), cs=Math.floor((t%1000)/10);
+      return `${two(m)}:${two(s)}.${two(cs)}`; };
+    const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
+
+    const code = (getParam('code')||'').toUpperCase();
+    document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
+
+    const getEventDocRef  = window.getEventDocRef;
+    const getDoc          = window.getDoc;
+    const onSnapshot      = window.onSnapshot;
+
+    const lastErrorEl = document.getElementById('lastError');
+    if (!code) lastErrorEl.textContent = 'Falta ?code=... en la URL. Vuelve a la Cámara y pulsa "Ver resultado".';
+
     const eventRef = getEventDocRef(code);
-
-onSnapshot(eventRef, (snap) => {
-  const d = snap.data() || {};
-  const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
-  const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
-  const dur = (start && stop) ? (stop - start) : null;
-
-  document.getElementById('time').textContent = dur != null ? formatDuration(dur) : '--:--.--';
-  document.getElementById('details').textContent =
-    `Inicio: ${fmtTS(start)} | Fin: ${fmtTS(stop)} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
-}, (err)=>{
-  document.getElementById('details').textContent = 'Error al leer Firestore: ' + (err && (err.code || err.message || err));
-});
+    onSnapshot(eventRef, (snap) => {
+      const d = snap.data() || {};
+      const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
+      const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+      const dur   = (start && stop) ? (stop - start) : null;
+      document.getElementById('time').textContent = dur!=null ? formatDuration(dur) : '--:--.--';
+      document.getElementById('details').textContent =
+        `Inicio: ${start?new Date(start).toLocaleTimeString(): '—'} | Fin: ${stop?new Date(stop).toLocaleTimeString():'—'} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
+    }, (err)=>{
+      lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
+    });
 
     document.getElementById('btnCSV').onclick = async () => {
-      const snap = await getDoc(eventRef);
-      const d = snap.data() || {};
-      const start = tsToMillis(d.startTS);
-      const stop  = tsToMillis(d.stopTS);
-      const dur = (start && stop) ? (stop - start) : '';
-      const rows = [
-        ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
-        [code, start||'', stop||'', dur||'', new Date(start||0).toISOString(), new Date(stop||0).toISOString(), dur?formatDuration(dur):'']
-      ];
-      downloadCSV(rows, `resultado_${code}.csv`);
+      try{
+        const snap = await getDoc(eventRef);
+        const d = snap.data() || {};
+        const start = tsToMillis(d.startTS) ?? d.startClientMS ?? '';
+        const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? '';
+        const dur   = (start && stop) ? (stop - start) : '';
+        const rows = [
+          ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
+          [code, start||'', stop||'', dur||'', start?new Date(start).toISOString():'', stop?new Date(stop).toISOString():'', dur?formatDuration(dur):'']
+        ];
+        const csv = rows.map(r=>r.map(c=>`"${String(c).replaceAll('"','""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
+      }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
     };
+
+    window.addEventListener('error', (e)=>{
+      lastErrorEl.textContent = 'JS error: ' + (e && (e.message || e.filename));
+    });
   </script>
 </body>
 </html>
