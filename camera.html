@@ -19,6 +19,13 @@
 
   <main class="grid one">
     <section class="card">
+      <button id="btnEnableCam" class="btn primary block">Activar cámara</button>
+
+<div class="stage">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas" hidden></canvas>
+  <div id="overlay" class="overlay" style="display:none;">MOVIMIENTO DETECTADO</div>
+</div>
       <div class="stage">
         <video id="video" playsinline autoplay muted></video>
         <canvas id="canvas" hidden></canvas>
