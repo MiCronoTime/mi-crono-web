@@ -6,155 +6,123 @@
   <title>Mi Crono — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:860px;margin:0 auto;padding:16px}
+    :root{--bg:#0b1020;--card:#ffffff;--text:#0b1220;--muted:#667;--pri:#2f6dfc}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f5f7fb;color:var(--text)}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .brand{display:flex;gap:10px;align-items:center}
+    .brand .logo{font-size:22px}
+    .brand h1{font-size:20px;margin:0}
     .grid{display:grid;gap:16px}
     .two{grid-template-columns:1fr}
-    @media(min-width:880px){ .two{grid-template-columns:1fr 1fr} }
-    .card{background:#fff;border:1px solid #eee;border-radius:14px;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-    h1,h2{margin:.2rem 0}
-    .btn{display:inline-block;padding:10px 14px;border-radius:10px;border:1px solid #ddd;background:#f6f6ff;text-decoration:none}
-    .btn.primary{background:#2f6dfc;color:#fff;border-color:#2f6dfc}
-    input,textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:10px}
-    .muted{opacity:.8}
+    @media(min-width:900px){.two{grid-template-columns:1fr 1fr}}
+    .card{background:var(--card);border:1px solid #e7e9f2;border-radius:16px;padding:18px}
+    h2{margin:.3rem 0 10px 0}
+    label{display:block;margin:8px 0 6px;font-weight:600}
+    input,textarea{width:100%;padding:12px 14px;border:1px solid #dde1ee;border-radius:12px;background:#fbfcff}
+    textarea{min-height:130px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;
+         border:1px solid #dbe0f0;background:#f3f5ff;text-decoration:none;color:#102;cursor:pointer}
+    .btn.primary{background:var(--pri);color:#fff;border-color:var(--pri)}
+    .muted{color:var(--muted)}
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
-    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .help{font-size:12px;color:#778; margin-top:6px}
   </style>
 </head>
 <body class="wrap">
   <header class="top">
-    <h1>Mi Crono Web</h1>
+    <div class="brand"><div class="logo">⏱️</div><h1>Mi Crono Web</h1></div>
     <a href="result.html" class="muted">Ver resultados (necesita código)</a>
   </header>
 
   <main class="grid two">
-    <!-- Crear evento + participantes -->
     <section class="card">
       <h2>Crear evento</h2>
       <label for="code">Código del evento</label>
       <input id="code" placeholder="p.ej. TEST1" autocomplete="off"/>
 
-      <label for="names" style="margin-top:8px">Participantes (uno por línea, en orden de salida)</label>
+      <label for="names">Participantes (uno por línea, en orden de salida)</label>
       <textarea id="names" placeholder="Corredor 1&#10;Corredor 2&#10;Corredor 3"></textarea>
+      <div class="help">Puedes editar nombres después, pero el orden se usa para mostrar la parrilla.</div>
 
-      <div class="row" style="margin-top:8px">
-        <button id="btnCreate" class="btn primary">Crear y guardar</button>
+      <div class="row" style="margin-top:10px">
+        <button id="btnCreate" class="btn primary">Guardar evento</button>
       </div>
 
-      <div id="createMsg" class="muted" style="margin-top:8px">—</div>
+      <div id="createMsg" class="muted" style="margin-top:10px">—</div>
 
-      <div id="links" style="display:none;margin-top:10px" class="row">
-        <a id="lnkStart" class="btn">Abrir SALIDA</a>
-        <a id="lnkFinish" class="btn">Abrir META</a>
-        <a id="lnkResult" class="btn">Ver resultados</a>
+      <div id="links" style="display:none;margin-top:12px" class="row">
+        <a id="lnkStart" class="btn">🚦 SALIDA</a>
+        <a id="lnkFinish" class="btn">🏁 META</a>
+        <a id="lnkResult" class="btn">📄 Resultados</a>
       </div>
     </section>
 
-    <!-- Unirse a evento existente -->
     <section class="card">
       <h2>Unirse a un evento</h2>
       <label for="joinCode">Código</label>
       <input id="joinCode" placeholder="p.ej. TEST1" autocomplete="off"/>
-      <div class="row" style="margin-top:8px">
-        <a id="joinStart" class="btn">📱 SALIDA</a>
+      <div class="row" style="margin-top:10px">
+        <a id="joinStart" class="btn">🚦 SALIDA</a>
         <a id="joinFinish" class="btn">🏁 META</a>
-        <a id="joinResult" class="btn">Resultado</a>
+        <a id="joinResult" class="btn">📄 Resultado</a>
       </div>
+      <div class="help">Tip: abre SALIDA en la salida, y META en la línea de llegada. Ambos con el mismo código.</div>
     </section>
   </main>
 
-  <!-- ÚNICO script: ES Modules por CDN -->
   <script type="module">
     const $ = (id)=>document.getElementById(id);
     const pid = (i)=> 'p'+String(i).padStart(3,'0');
 
-    // 1) Carga Firebase por CDN (ES modules)
-    let app, db;
-    try {
-      const { initializeApp, getApp, getApps } =
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-      const { getFirestore, doc, setDoc, collection } =
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+    const { initializeApp, getApp, getApps } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const { getFirestore, doc, setDoc, collection } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-      app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      db  = getFirestore(app);
-      console.log('[Firebase] OK', app.options.projectId);
+    $('btnCreate').onclick = async ()=>{
+      const code = ($('code').value||'').trim().toUpperCase();
+      const lines = ($('names').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+      if(!code){ $('createMsg').textContent='Escribe un código.'; $('createMsg').className='err'; return; }
+      if(!lines.length){ $('createMsg').textContent='Añade al menos un participante.'; $('createMsg').className='err'; return; }
+      try{
+        const eventRef = doc(db,'events',code);
+        await setDoc(eventRef,{code, startTS:null, startClientMS:null, stopTS:null, stopClientMS:null, createdAt:new Date().toISOString()},{merge:true});
+        const col = collection(eventRef,'participants');
+        await Promise.all(lines.map((name,idx)=> setDoc(doc(col, pid(idx+1)),{
+          order: idx+1, name, startTS:null, startClientMS:null, stopTS:null, stopClientMS:null
+        },{merge:true})));
+        $('createMsg').textContent = `Evento y participantes guardados (${lines.length}).`;
+        $('createMsg').className='ok';
+        $('links').style.display='';
+        $('lnkStart').href  = `camera.html?code=${encodeURIComponent(code)}&mode=start`;
+        $('lnkFinish').href = `camera.html?code=${encodeURIComponent(code)}&mode=finish`;
+        $('lnkResult').href = `result.html?code=${encodeURIComponent(code)}`;
+      }catch(e){
+        $('createMsg').textContent = 'Error: '+(e.message||e);
+        $('createMsg').className='err';
+      }
+    };
 
-      // 2) Crear evento + participantes
-      $('btnCreate').onclick = async ()=>{
-        const code = ($('code').value||'').trim().toUpperCase();
-        const lines = ($('names').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
-
-        if(!code){
-          $('createMsg').textContent = 'Escribe un código.'; $('createMsg').className='err'; return;
-        }
-        if(!lines.length){
-          $('createMsg').textContent = 'Añade al menos un participante.'; $('createMsg').className='err'; return;
-        }
-
-        try{
-          const eventRef = doc(db,'events',code);
-          // Crea/actualiza evento y limpia marcas globales (por si había restos)
-          await setDoc(eventRef,{
-            code, startTS:null, startClientMS:null, stopTS:null, stopClientMS:null, createdAt: new Date().toISOString()
-          },{ merge:true });
-
-          // Subcolección participants
-          const col = collection(eventRef,'participants');
-          const writes = lines.map((name,idx)=> {
-            const ref = doc(col, pid(idx+1));
-            return setDoc(ref, {
-              order: idx+1, name,
-              startTS:null, startClientMS:null,
-              stopTS:null,  stopClientMS:null
-            }, { merge:true });
-          });
-          await Promise.all(writes);
-
-          $('createMsg').textContent = `Evento y participantes guardados (${lines.length}).`;
-          $('createMsg').className = 'ok';
-          $('links').style.display = '';
-
-          // Enlaces directos
-          $('lnkStart').href  = `camera.html?code=${encodeURIComponent(code)}&mode=start`;
-          $('lnkFinish').href = `camera.html?code=${encodeURIComponent(code)}&mode=finish`;
-          $('lnkResult').href = `result.html?code=${encodeURIComponent(code)}`;
-        }catch(e){
-          console.error(e);
-          $('createMsg').textContent = 'Error guardando: ' + (e.message||e);
-          $('createMsg').className = 'err';
-        }
-      };
-
-      // 3) Unirse
-      const openWith = (mode)=>()=>{
-        const c = ($('joinCode').value||'').trim().toUpperCase();
-        if(!c){ alert('Escribe un código'); return; }
-        location.href = `camera.html?code=${encodeURIComponent(c)}&mode=${mode}`;
-      };
-      $('joinStart').onclick  = openWith('start');
-      $('joinFinish').onclick = openWith('finish');
-      $('joinResult').onclick = ()=> {
-        const c = ($('joinCode').value||'').trim().toUpperCase();
-        if(!c){ alert('Escribe un código'); return; }
-        location.href = `result.html?code=${encodeURIComponent(c)}`;
-      };
-
-    } catch(e){
-      console.error('[Firebase INIT ERROR]', e);
-      alert('No se han podido cargar los módulos de Firebase. Revisa conexión y vuelve a intentar.');
-    }
+    const openWith = (mode)=>()=>{ const c=($('joinCode').value||'').trim().toUpperCase();
+      if(!c) return alert('Escribe un código'); location.href=`camera.html?code=${encodeURIComponent(c)}&mode=${mode}`; };
+    $('joinStart').onclick  = openWith('start');
+    $('joinFinish').onclick = openWith('finish');
+    $('joinResult').onclick = ()=>{ const c=($('joinCode').value||'').trim().toUpperCase();
+      if(!c) return alert('Escribe un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
   </script>
 </body>
 </html>
