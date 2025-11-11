@@ -4,12 +4,13 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimesta
 
 // 1) Rellena con tu configuración desde Firebase Console (Proyecto → Configuración → Web → SDK)
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "TU_AUTH_DOMAIN",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_STORAGE_BUCKET",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
+  authDomain: "mi-crono-web.firebaseapp.com",
+  projectId: "mi-crono-web",
+  storageBucket: "mi-crono-web.firebasestorage.app",
+  messagingSenderId: "803218040641",
+  appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
+  measurementId: "G-Z2Q6WQX450"
 };
 
 // 2) Inicializa Firebase
