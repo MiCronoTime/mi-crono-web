@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono Web — Cámara (Seguro)</title>
+  <title>Mi Crono Web — Cámara (Incrustado)</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     video, canvas { width:100%; border-radius:16px; }
@@ -16,6 +16,39 @@
     .ok { color:#065f46; }
     .err { color:#b91c1c; }
   </style>
+
+  <!-- 🔵 Firebase incrustado (MÓDULO) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+    // Config REAL que me diste
+    const firebaseConfig = {
+      apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
+      authDomain: "mi-crono-web.firebaseapp.com",
+      projectId: "mi-crono-web",
+      storageBucket: "mi-crono-web.firebasestorage.app",
+      messagingSenderId: "803218040641",
+      appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
+      measurementId: "G-Z2Q6WQX450"
+    };
+
+    // Inicializa y expón helpers en window para el script de abajo
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+      window.getDoc          = getDoc;
+      window.setDoc          = setDoc;
+      window.updateDoc       = updateDoc;
+      window.onSnapshot      = onSnapshot;
+      window.serverTimestamp = serverTimestamp;
+      window.__firebaseReady = true;
+    } catch (e) {
+      window.__firebaseReady = false;
+      window.__firebaseError = e;
+    }
+  </script>
 </head>
 <body class="wrap">
   <header class="top">
@@ -63,68 +96,58 @@
     </section>
   </main>
 
-  <!-- Carga SOLO firebase.js como módulo -->
-  <script type="module" src="js/firebase.js"></script>
-
-  <!-- Lógica segura sin depender de app.js -->
+  <!-- Lógica (sin app.js) -->
   <script>
-    // ===== Utilidades internas (no dependemos de app.js) =====
+    // Utilidades internas
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const two = (n)=> String(n).padStart(2,'0');
-    const formatDuration = (ms)=> {
-      const t = Math.max(0, Math.floor(ms||0));
-      const m = Math.floor(t/60000), s = Math.floor((t%60000)/1000), cs = Math.floor((t%1000)/10);
-      return `${two(m)}:${two(s)}.${two(cs)}`;
-    };
-    const tsToMillis = (ts)=> ts ? (typeof ts==='number' ? ts : (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6))) : null;
+    const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
+      const m=Math.floor(t/60000), s=Math.floor((t%60000)/1000), cs=Math.floor((t%1000)/10);
+      return `${two(m)}:${two(s)}.${two(cs)}`; };
+    const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
 
-    // ===== Referencias UI =====
-    const title       = document.getElementById('title');
-    const tag         = document.getElementById('tag');
-    const btnEnable   = document.getElementById('btnEnableCam');
-    const btnForce    = document.getElementById('btnForce');
-    const btnResult   = document.getElementById('btnResult');
-    const debugDocEl  = document.getElementById('debugDoc');
+    // UI
+    const title = document.getElementById('title');
+    const tag = document.getElementById('tag');
+    const btnEnable = document.getElementById('btnEnableCam');
+    const btnForce = document.getElementById('btnForce');
+    const btnResult = document.getElementById('btnResult');
+    const debugDocEl = document.getElementById('debugDoc');
     const lastErrorEl = document.getElementById('lastError');
-    const fbStateEl   = document.getElementById('fbState');
-    const evStateEl   = document.getElementById('evState');
-    const lastAction  = document.getElementById('lastAction');
-    const noCodeBox   = document.getElementById('noCodeBox');
+    const fbStateEl = document.getElementById('fbState');
+    const evStateEl = document.getElementById('evState');
+    const lastAction = document.getElementById('lastAction');
 
     const video  = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx    = canvas.getContext('2d', { willReadFrequently:true });
 
-    // ===== Parámetros =====
+    // Parámetros
     const code = (getParam('code')||'').toUpperCase();
     const mode = (getParam('mode')||'start'); // start | finish
     title.textContent = `Modo ${mode==='start'?'SALIDA':'META'}`;
     tag.textContent   = `Evento ${code || '—'}`;
-
-    // ===== Comprobación de Firebase cargado =====
-    const fbLoaded = !!(window.getEventDocRef && window.getDoc && window.setDoc && window.onSnapshot);
-    fbStateEl.textContent = fbLoaded ? "OK" : "ERROR (firebase.js no cargó)";
-    fbStateEl.className   = fbLoaded ? "ok" : "err";
-
     if(!code){
-      noCodeBox.style.display = '';
-      evStateEl.textContent = "SIN CÓDIGO";
-      evStateEl.className = "err";
-    } else {
-      evStateEl.textContent = code;
-      evStateEl.className = "ok";
+      document.getElementById('noCodeBox').style.display = '';
+      evStateEl.textContent = "SIN CÓDIGO"; evStateEl.className="err";
+    } else { evStateEl.textContent = code; evStateEl.className="ok"; }
+
+    // Estado Firebase
+    fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
+    fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
+    if (!window.__firebaseReady) {
+      lastErrorEl.textContent = 'Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError));
     }
 
-    // ===== Navegación a Resultado (forzada por JS) =====
-    btnResult.addEventListener('click', (e) => {
+    // Navegar a resultado
+    btnResult.addEventListener('click', (e)=> {
       e.preventDefault();
       window.location.href = `result.html?code=${encodeURIComponent(code)}`;
     });
 
-    if (!fbLoaded || !code) {
-      // No seguimos si falta firebase o falta código
+    if (!window.__firebaseReady || !code) {
+      // No seguimos si Firebase no está listo o no hay código
     } else {
-      // ==== Firestore helpers (expuestos por firebase.js) ====
       const getEventDocRef  = window.getEventDocRef;
       const getDoc          = window.getDoc;
       const setDoc          = window.setDoc;
@@ -133,7 +156,6 @@
 
       const eventRef = getEventDocRef(code);
 
-      // Crear doc si no existe
       (async () => {
         try {
           const snap = await getDoc(eventRef);
@@ -148,95 +170,63 @@
         }
       })();
 
-      // Snapshot en vivo
-      onSnapshot(eventRef, (s) => {
+      onSnapshot(eventRef, (s)=>{
         const d = s.data() || {};
         const hasStart = !!d.startTS || !!d.startClientMS;
         const hasStop  = !!d.stopTS  || !!d.stopClientMS;
         tag.textContent = `Evento ${code || '—'} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
         debugDocEl.textContent = 'Doc: ' + JSON.stringify(d, null, 2);
-      }, (err) => {
+      }, (err)=>{
         lastErrorEl.textContent = 'Error snapshot: ' + (err && (err.code || err.message || err));
       });
 
-      // Botones de test (sin cámara)
       document.getElementById('testWriteStart').onclick = async () => {
         try {
           await setDoc(eventRef, { startTS: serverTimestamp(), startClientMS: Date.now(), stopTS: null, stopClientMS: null }, { merge: true });
-          lastAction.textContent = "Test INICIO escrito";
-          alert("Test INICIO escrito");
-        } catch (e) {
-          lastErrorEl.textContent = 'Error testWriteStart: ' + (e && (e.code || e.message || e));
-          alert(lastErrorEl.textContent);
-        }
+          lastAction.textContent = "Test INICIO escrito"; alert("Test INICIO escrito");
+        } catch (e) { lastErrorEl.textContent = 'Error testWriteStart: ' + (e && (e.code || e.message || e)); alert(lastErrorEl.textContent); }
       };
       document.getElementById('testWriteStop').onclick = async () => {
         try {
           await setDoc(eventRef, { stopTS: serverTimestamp(), stopClientMS: Date.now() }, { merge: true });
-          lastAction.textContent = "Test FIN escrito";
-          alert("Test FIN escrito");
-        } catch (e) {
-          lastErrorEl.textContent = 'Error testWriteStop: ' + (e && (e.code || e.message || e));
-          alert(lastErrorEl.textContent);
-        }
+          lastAction.textContent = "Test FIN escrito"; alert("Test FIN escrito");
+        } catch (e) { lastErrorEl.textContent = 'Error testWriteStop: ' + (e && (e.code || e.message || e)); alert(lastErrorEl.textContent); }
       };
       document.getElementById('testRead').onclick = async () => {
-        try {
-          const snap = await getDoc(eventRef);
-          alert("Leído:\n" + JSON.stringify(snap.data(), null, 2));
-        } catch (e) {
-          lastErrorEl.textContent = 'Error testRead: ' + (e && (e.code || e.message || e));
-          alert(lastErrorEl.textContent);
-        }
+        try { const snap = await getDoc(eventRef); alert("Leído:\n" + JSON.stringify(snap.data(), null, 2)); }
+        catch (e) { lastErrorEl.textContent = 'Error testRead: ' + (e && (e.code || e.message || e)); alert(lastErrorEl.textContent); }
       };
 
-      // Cámara (solo tras pulsar)
-      async function startCamera(){
+      // Cámara iOS-friendly
+      btnEnable.onclick = async ()=>{
         if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-          alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.');
-          return;
+          alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
         }
-        const constraintsList = [
+        const list = [
           { video: { facingMode: { ideal: 'environment' }}, audio:false },
           { video: { facingMode: 'environment' }, audio:false },
           { video: true, audio:false }
         ];
-        let stream = null, lastErr = null;
-        for (const c of constraintsList) {
-          try { stream = await navigator.mediaDevices.getUserMedia(c); if (stream) break; }
-          catch (e) { lastErr = e; }
-        }
-        if(!stream){
-          alert('No se pudo abrir la cámara. Ajustes > Safari > Cámara (Permitir) + HTTPS.\nDetalle: ' + (lastErr && (lastErr.name + ': ' + lastErr.message)));
-          return;
-        }
-        try {
-          video.setAttribute('playsinline','true');
-          video.muted = true;
-          video.srcObject = stream;
-          await new Promise((res)=>{ if (video.readyState >= 2) return res(); video.onloadedmetadata = () => res(); });
-          await video.play();
-          btnEnable.textContent = "Cámara activada";
-          btnEnable.disabled = true;
-          lastAction.textContent = "Cámara OK";
-        } catch(e){
-          alert('Vista previa no pudo iniciarse.\n' + e);
-        }
-      }
-      btnEnable.onclick = startCamera;
+        let stream=null, lastErr=null;
+        for (const c of list){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }catch(e){ lastErr=e; } }
+        if(!stream){ alert('No se pudo abrir la cámara.\n' + (lastErr && (lastErr.name+': '+lastErr.message))); return; }
+        try{
+          video.setAttribute('playsinline','true'); video.muted = true; video.srcObject = stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata = ()=>res(); });
+          await video.play(); btnEnable.textContent='Cámara activada'; btnEnable.disabled=true; lastAction.textContent='Cámara OK';
+        }catch(e){ alert('Vista previa no pudo iniciarse.\n'+e); }
+      };
 
-      // Forzar acción (marca inicio/fin)
+      // Forzar acción
       async function triggerAction(){
         try{
           const now = Date.now();
           if(mode==='start'){
             await setDoc(eventRef, { startTS: serverTimestamp(), startClientMS: now, stopTS: null, stopClientMS: null }, { merge: true });
-            lastAction.textContent = "Inicio marcado";
-            alert('Inicio marcado');
+            lastAction.textContent = "Inicio marcado"; alert('Inicio marcado');
           }else{
             await setDoc(eventRef, { stopTS: serverTimestamp(), stopClientMS: now }, { merge: true });
-            lastAction.textContent = "Fin marcado";
-            alert('Fin marcado');
+            lastAction.textContent = "Fin marcado"; alert('Fin marcado');
           }
           lastErrorEl.textContent = '';
         }catch(e){
@@ -246,40 +236,32 @@
       }
       btnForce.onclick = triggerAction;
 
-      // Detección básica (si la cámara va)
+      // Detección básica
       let prev=null, coolDown=false;
       setInterval(()=>{
         if(video.readyState<2) return;
-        const w=video.videoWidth, h=video.videoHeight;
-        if(!w||!h) return;
-        canvas.width=w; canvas.height=h;
-        ctx.drawImage(video,0,0,w,h);
-        const frame=ctx.getImageData(0,0,w,h);
+        const w=video.videoWidth, h=video.videoHeight; if(!w||!h) return;
+        canvas.width=w; canvas.height=h; const ctx=canvas.getContext('2d',{willReadFrequently:true});
+        ctx.drawImage(video,0,0,w,h); const frame=ctx.getImageData(0,0,w,h);
         let moved=false;
         if(prev){
           const step=32; let diff=0, sample=0;
           for(let i=0;i<frame.data.length;i+=step){
-            const d=Math.abs(frame.data[i]-prev.data[i])+
-                    Math.abs(frame.data[i+1]-prev.data[i+1])+
-                    Math.abs(frame.data[i+2]-prev.data[i+2]);
+            const d=Math.abs(frame.data[i]-prev.data[i])+Math.abs(frame.data[i+1]-prev.data[i+1])+Math.abs(frame.data[i+2]-prev.data[i+2]);
             if(d>60) diff++; sample++;
           }
           moved = (diff/Math.max(1,sample))>0.12;
         }
         prev=frame;
         if(moved && !coolDown){
-          document.getElementById('overlay').style.display='block';
-          triggerAction();
-          coolDown=true;
-          setTimeout(()=>{ document.getElementById('overlay').style.display='none'; coolDown=false; }, 1200);
+          document.getElementById('overlay').style.display='block'; triggerAction();
+          coolDown=true; setTimeout(()=>{ document.getElementById('overlay').style.display='none'; coolDown=false; }, 1200);
         }
       },140);
     }
 
-    // ===== Captura cualquier error JS y muéstralo abajo =====
-    window.addEventListener('error', (e)=>{
-      lastErrorEl.textContent = 'JS error: ' + (e && (e.message || e.filename));
-    });
+    // Errores JS a pantalla
+    window.addEventListener('error', (e)=>{ const el=document.getElementById('lastError'); el.textContent='JS error: ' + (e && (e.message||e.filename)); });
   </script>
 </body>
 </html>
