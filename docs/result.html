@@ -5,58 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Mi Crono — Resultado</title>
   <link rel="stylesheet" href="styles.css"/>
-
-  <!-- Pre-chequeo CDN -->
-  <script>
-    (async () => {
-      try {
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-        window.__cdnOK = true;
-      } catch (e) {
-        window.__cdnOK = false;
-        window.__cdnErr = e;
-      }
-    })();
-  </script>
-
-  <!-- Firebase por CDN (MÓDULO) -->
-  <script type="module">
-    if (window.__cdnOK === false) {
-      window.__firebaseReady = false;
-      window.__firebaseError = new Error('No se pudo cargar Firebase desde gstatic (posible bloqueador).');
-    } else {
-      try {
-        const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
-        const { getFirestore, doc, getDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
-
-        const firebaseConfig = {
-          apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-          authDomain: "mi-crono-time-888b7.firebaseapp.com",
-          projectId: "mi-crono-time-888b7",
-          storageBucket: "mi-crono-time-888b7.appspot.com",
-          messagingSenderId: "379025900327",
-          appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-        };
-
-        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-        const db  = getFirestore(app);
-
-        window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
-        window.getDoc          = getDoc;
-        window.onSnapshot      = onSnapshot;
-
-        window.__firebaseReady = true;
-        window.__firebaseError = null;
-      } catch (e) {
-        window.__firebaseReady = false;
-        window.__firebaseError = e;
-      }
-    }
-  </script>
-
   <style>
     .big{font-size:42px;font-weight:700;letter-spacing:.5px}
     .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
+    .ok{color:#0a7a0a;font-weight:600}
+    .err{color:#b00020;font-weight:600}
   </style>
 </head>
 <body class="wrap">
@@ -72,15 +25,37 @@
       </div>
     </section>
     <section class="card">
+      <h2>Estado</h2>
+      <div>Firebase: <span id="fbState">—</span></div>
+    </section>
+    <section class="card">
       <h2>Depuración</h2>
       <div class="debug" id="lastError"></div>
     </section>
   </main>
 
   <script type="module">
+    // Estado por defecto
+    window.__firebaseReady=false; window.__firebaseError=null;
+
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
+
+    const fbStateEl=document.getElementById('fbState');
+    const lastErrorEl=document.getElementById('lastError');
+
+    function paintFirebase(){
+      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
+      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
+      if(!window.__firebaseReady){
+        const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError)) || 'sin detalle';
+        const hint = ' • Si usas iPhone: desactiva bloqueadores de contenido para esta web (gstatic).';
+        lastErrorEl.textContent = `Init Firebase error: ${msg}${hint}`;
+      } else {
+        lastErrorEl.textContent = '—';
+      }
+    }
 
     const two = (n)=> String(n).padStart(2,'0');
     const formatDuration = (ms)=>{ const t=Math.max(0, Math.floor(ms||0));
@@ -88,19 +63,26 @@
       return `${two(m)}:${two(s)}.${two(cs)}`; };
     const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
 
-    const lastErrorEl = document.getElementById('lastError');
-    if (!window.__firebaseReady) {
-      const hint = (window.__cdnOK===false) ? '\nPista: gstatic bloqueado. Desactiva bloqueadores de contenido y recarga.' : '';
-      const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError));
-      lastErrorEl.textContent = 'Init Firebase error: ' + (msg || 'desconocido') + hint;
-    }
+    try{
+      const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
+      const { getFirestore, doc, getDoc, onSnapshot } =
+        await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
 
-    if (window.__firebaseReady && code) {
-      const getEventDocRef  = window.getEventDocRef;
-      const getDoc          = window.getDoc;
-      const onSnapshot      = window.onSnapshot;
+      const firebaseConfig = {
+        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+        authDomain: "mi-crono-time-888b7.firebaseapp.com",
+        projectId: "mi-crono-time-888b7",
+        storageBucket: "mi-crono-time-888b7.appspot.com",
+        messagingSenderId: "379025900327",
+        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+      };
 
-      const eventRef = getEventDocRef(code);
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+
+      window.__firebaseReady = true; paintFirebase();
+
+      const eventRef = doc(db,"events",(code||"").toUpperCase());
       onSnapshot(eventRef, (snap) => {
         const d = snap.data() || {};
         const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
@@ -130,7 +112,13 @@
           a.download = `resultado_${code}.csv`; a.click(); URL.revokeObjectURL(a.href);
         }catch(e){ lastErrorEl.textContent = 'CSV error: ' + (e && (e.message||e)); }
       };
+
+    }catch(e){
+      window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
     }
+
+    paintFirebase();
+    window.addEventListener('error',(e)=>{ lastErrorEl.textContent='JS error: '+(e && (e.message||e.filename)); });
   </script>
 </body>
 </html>
