@@ -6,38 +6,58 @@
   <title>Mi Crono — Cámara</title>
   <link rel="stylesheet" href="styles.css"/>
 
-  <!-- Firebase por CDN (MÓDULO) -->
+  <!-- Pre-chequeo: ¿puedo cargar Firebase desde gstatic? -->
+  <script>
+    (async () => {
+      try {
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+        window.__cdnOK = true;
+      } catch (e) {
+        window.__cdnOK = false;
+        window.__cdnErr = e;
+      }
+    })();
+  </script>
+
+  <!-- Firebase por CDN (MÓDULO) con protección -->
   <script type="module">
-    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import {
-      getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
-
-    // Config TU proyecto (con storageBucket corregido a appspot.com)
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-
-    try {
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
-
-      // Exponer helpers al script inferior
-      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
-      window.getDoc          = getDoc;
-      window.setDoc          = setDoc;
-      window.onSnapshot      = onSnapshot;
-      window.serverTimestamp = serverTimestamp;
-
-      window.__firebaseReady = true;
-    } catch (e) {
+    // Si la CDN está bloqueada, marca error y no sigas
+    if (window.__cdnOK === false) {
       window.__firebaseReady = false;
-      window.__firebaseError = e;
+      window.__firebaseError = new Error('No se pudo cargar Firebase desde gstatic (posible bloqueador de contenido en Safari).');
+    } else {
+      try {
+        const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
+        const {
+          getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp
+        } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
+
+        // Tu config (storageBucket corregido a appspot.com)
+        const firebaseConfig = {
+          apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+          authDomain: "mi-crono-time-888b7.firebaseapp.com",
+          projectId: "mi-crono-time-888b7",
+          storageBucket: "mi-crono-time-888b7.appspot.com",
+          messagingSenderId: "379025900327",
+          appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+        };
+
+        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        const db  = getFirestore(app);
+
+        // Exponer helpers para el script inferior
+        window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+        window.getDoc          = getDoc;
+        window.setDoc          = setDoc;
+        window.onSnapshot      = onSnapshot;
+        window.serverTimestamp = serverTimestamp;
+
+        window.__firebaseReady = true;
+        window.__firebaseError = null;
+      } catch (e) {
+        window.__firebaseReady = false;
+        window.__firebaseError = e;
+      }
     }
   </script>
 
@@ -118,7 +138,9 @@
     fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
     fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
     if(!window.__firebaseReady){
-      lastErrorEl.textContent = 'Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError));
+      const hint = (window.__cdnOK===false) ? '\nPista: gstatic bloqueado. En iPhone ve a Ajustes → Safari → Bloqueadores de contenido (desactivar) y recarga.' : '';
+      const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError));
+      lastErrorEl.textContent = 'Init Firebase: ' + (msg || 'desconocido') + hint;
     }
 
     // -------- Código de evento --------
@@ -166,7 +188,7 @@
         catch(e){ lastErrorEl.textContent='Error testRead: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
       };
 
-      // -------- Cámara (iOS-friendly: requiere interacción) --------
+      // -------- Cámara (iOS: requiere interacción) --------
       btnEnable.onclick = async ()=>{
         if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
           alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
@@ -197,7 +219,7 @@
         }catch(e){ lastErrorEl.textContent='Error Firestore: '+(e && (e.code||e.message||e)); alert('No se pudo escribir en Firestore.\n'+(e && (e.code||e.message||e))); }
       };
 
-      // -------- Detección simple de movimiento --------
+      // -------- Detección simple --------
       let prev=null,coolDown=false;
       setInterval(()=>{
         if(video.readyState<2) return;
