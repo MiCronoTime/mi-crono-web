@@ -1,8 +1,12 @@
-// Firebase SDK modular (v9+)
+// Firebase SDK modular (v9+ / v10) desde CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
-// 1) Rellena con tu configuración desde Firebase Console (Proyecto → Configuración → Web → SDK)
+/**
+ * Configuración REAL de tu proyecto (pegada tal cual nos pasaste):
+ */
 const firebaseConfig = {
   apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
   authDomain: "mi-crono-web.firebaseapp.com",
@@ -13,14 +17,14 @@ const firebaseConfig = {
   measurementId: "G-Z2Q6WQX450"
 };
 
-// 2) Inicializa Firebase
+// Inicializa Firebase y Firestore
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db  = getFirestore(app);
 
-// 3) Helpers Firestore accesibles globalmente
-window.getEventDocRef = (code) => doc(db, "events", (code||"").toUpperCase());
-window.getDoc = getDoc;
-window.setDoc = setDoc;
-window.updateDoc = updateDoc;
-window.onSnapshot = onSnapshot;
+// Helpers expuestos en window (para usarlos desde scripts no-modulares)
+window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+window.getDoc          = getDoc;
+window.setDoc          = setDoc;
+window.updateDoc       = updateDoc;
+window.onSnapshot      = onSnapshot;
 window.serverTimestamp = serverTimestamp;
