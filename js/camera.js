@@ -106,13 +106,33 @@ async function initCameraPage(){
 
   setInterval(detectMovement, 120);
 
-  async function triggerAction(){
-    if(mode==='start'){
-      await updateDoc(eventRef, { startTS: serverTimestamp(), stopTS: null });
-    }else{
-      await updateDoc(eventRef, { stopTS: serverTimestamp() });
-    }
+async function triggerAction(){
+  if(!code){
+    alert('Código de evento vacío.');
+    return;
   }
-  btnForce.onclick = triggerAction;
+  try{
+    // marcadores de cliente por si el serverTimestamp tarda
+    const now = Date.now();
+    if(mode==='start'){
+      await setDoc(eventRef, {
+        startTS: serverTimestamp(),
+        startClientMS: now,
+        stopTS: null,
+        stopClientMS: null
+      }, { merge: true });
+      alert('Inicio marcado (enviado a Firestore).');
+    }else{
+      await setDoc(eventRef, {
+        stopTS: serverTimestamp(),
+        stopClientMS: now
+      }, { merge: true });
+      alert('Fin marcado (enviado a Firestore).');
+    }
+    lastErrorEl.textContent = ''; // limpiamos el error si todo fue ok
+  }catch(e){
+    console.error(e);
+    lastErrorEl.textContent = 'Error Firestore: ' + (e && (e.code || e.message || e));
+    alert('No se pudo escribir en Firestore. Revisa firebaseConfig y Reglas.\n' + (e && (e.code || e.message || e)));
+  }
 }
-window.initCameraPage = initCameraPage;
