@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Unirse</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1>Unirse al evento</h1>
+    <p class="tag" id="subtitle"></p>
+  </header>
+
+  <main class="grid one">
+    <section class="card">
+      <h2>Selecciona el modo</h2>
+      <div class="row">
+        <a id="goStart" class="btn primary">📱 SALIDA</a>
+        <a id="goFinish" class="btn">🏁 META</a>
+      </div>
+      <small class="muted">Ambos móviles deben usar el mismo código de evento.</small>
+    </section>
+
+    <section class="card">
+      <h2>Instrucciones rápidas</h2>
+      <ol>
+        <li>Pulsa el modo (Salida o Meta).</li>
+        <li>En la Cámara, pulsa <b>Activar cámara</b> y da permisos.</li>
+        <li>Usa <b>Forzar acción</b> para probar manualmente.</li>
+        <li>Ve a <b>Ver resultado</b> para ver el tiempo.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer><a class="linklike" href="index.html">⇦ Volver al inicio</a></footer>
+
+  <script>
+    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    const code = (getParam('code')||'').toUpperCase();
+    document.getElementById('subtitle').textContent = code ? `Código: ${code}` : 'Sin código';
+
+    const startURL  = `camera.html?code=${encodeURIComponent(code)}&mode=start`;
+    const finishURL = `camera.html?code=${encodeURIComponent(code)}&mode=finish`;
+    document.getElementById('goStart').href  = startURL;
+    document.getElementById('goFinish').href = finishURL;
+  </script>
+</body>
+</html>
