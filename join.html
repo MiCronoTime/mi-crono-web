@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Unirse</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1>Unirse al evento</h1>
+    <p id="eventCode" class="tag"></p>
+  </header>
+
+  <main class="grid one">
+    <section class="card">
+      <h2>Selecciona el modo</h2>
+      <div class="stack">
+        <a id="btnStart" class="btn primary block">📱 Salida</a>
+        <a id="btnFinish" class="btn block">🏁 Meta</a>
+      </div>
+      <ol class="tips">
+        <li>Da permisos de cámara.</li>
+        <li>Coloca el móvil en trípode.</li>
+        <li>Usa el mismo código en ambos dispositivos.</li>
+      </ol>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    const code = getParam('code') || '';
+    document.getElementById('eventCode').textContent = `Evento: ${code || '—'}`;
+    document.getElementById('btnStart').href = `camera.html?code=${encodeURIComponent(code)}&mode=start`;
+    document.getElementById('btnFinish').href = `camera.html?code=${encodeURIComponent(code)}&mode=finish`;
+  </script>
+</body>
+</html>

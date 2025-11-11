@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Resultado</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    .big { font-size: 42px; font-weight: 700; letter-spacing: 0.5px; }
+  </style>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1>Resultado</h1>
+    <p class="tag" id="subtitle"></p>
+  </header>
+
+  <main class="grid one">
+    <section class="card">
+      <div class="big" id="time">--:--.--</div>
+      <p id="details" class="muted"></p>
+      <div class="row">
+        <button id="btnCSV" class="btn">Exportar CSV</button>
+        <a id="btnBack" class="btn" href="index.html">Nuevo evento</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module">
+    import { getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    const code = getParam('code') || '';
+    document.getElementById('subtitle').textContent = `Evento ${code}`;
+    const eventRef = getEventDocRef(code);
+
+    onSnapshot(eventRef, (snap) => {
+      const d = snap.data() || {};
+      const start = tsToMillis(d.startTS);
+      const stop  = tsToMillis(d.stopTS);
+      const dur = (start && stop) ? (stop - start) : null;
+      document.getElementById('time').textContent = dur != null ? formatDuration(dur) : '--:--.--';
+      document.getElementById('details').textContent =
+        `Inicio: ${fmtTS(start)} | Fin: ${fmtTS(stop)} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
+    });
+
+    document.getElementById('btnCSV').onclick = async () => {
+      const snap = await getDoc(eventRef);
+      const d = snap.data() || {};
+      const start = tsToMillis(d.startTS);
+      const stop  = tsToMillis(d.stopTS);
+      const dur = (start && stop) ? (stop - start) : '';
+      const rows = [
+        ['Evento','Inicio(ms)','Fin(ms)','Duración(ms)','Inicio(ISO)','Fin(ISO)','Duración(formateada)'],
+        [code, start||'', stop||'', dur||'', new Date(start||0).toISOString(), new Date(stop||0).toISOString(), dur?formatDuration(dur):'']
+      ];
+      downloadCSV(rows, `resultado_${code}.csv`);
+    };
+  </script>
+</body>
+</html>

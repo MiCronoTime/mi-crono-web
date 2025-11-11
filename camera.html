@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Cámara</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    video, canvas { width:100%; max-height:50vh; border-radius:16px; }
+    .overlay { position:absolute; top:12px; left:12px; padding:6px 10px; background:#0008; color:#fff; border-radius:8px; }
+    .stage { position:relative; }
+  </style>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1 id="title">Modo</h1>
+    <p class="tag" id="tag">Conectando…</p>
+  </header>
+
+  <main class="grid one">
+    <section class="card">
+      <div class="stage">
+        <video id="video" playsinline autoplay muted></video>
+        <canvas id="canvas" hidden></canvas>
+        <div id="overlay" class="overlay" style="display:none;">MOVIMIENTO DETECTADO</div>
+      </div>
+
+      <div class="row">
+        <button id="btnForce" class="btn primary">Forzar acción</button>
+        <a id="btnResult" class="btn" href="#">Ver resultado</a>
+      </div>
+      <small class="muted">Coloca el móvil estable apuntando al corredor.</small>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script type="module" src="js/firebase.js"></script>
+  <script src="js/camera.js"></script>
+  <script>
+    initCameraPage();
+  </script>
+</body>
+</html>

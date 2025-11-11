@@ -1,0 +1,9 @@
+// ⚠️ Solo para demos / pruebas
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /events/{code} {
+      allow read, write: if request.time < timestamp.date(2099,12,31);
+    }
+  }
+}

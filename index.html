@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono Web — Inicio</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body class="wrap">
+  <header class="top">
+    <h1>🏁 Mi Crono Web</h1>
+    <p class="muted">Cronometraje gratis con dos móviles</p>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <h2>Crear evento</h2>
+      <div class="row">
+        <input id="newCode" value="TEST1" maxlength="12" class="input"/>
+        <button id="btnCopy" class="btn">Copiar</button>
+      </div>
+      <a id="btnGoCreate" class="btn primary block">Usar este código</a>
+      <small class="muted">Comparte el código con el otro móvil</small>
+    </section>
+
+    <section class="card">
+      <h2>Unirse a un evento</h2>
+      <div class="row">
+        <input id="joinCode" placeholder="Código (p. ej. TEST1)" maxlength="12" class="input"/>
+        <a id="btnJoin" class="btn">Unirse</a>
+      </div>
+      <small class="muted">Introduce el código que te compartieron</small>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+  <script>
+    const newCode = document.getElementById('newCode');
+    const btnCopy = document.getElementById('btnCopy');
+    const btnGoCreate = document.getElementById('btnGoCreate');
+    const joinCode = document.getElementById('joinCode');
+    const btnJoin = document.getElementById('btnJoin');
+
+    btnCopy.onclick = () => copyToClipboard(newCode.value.trim());
+    btnGoCreate.onclick = () => {
+      const code = sanitizeCode(newCode.value);
+      if (!code) return alert('Pon un código');
+      location.href = `join.html?code=${encodeURIComponent(code)}`;
+    };
+    btnJoin.onclick = () => {
+      const code = sanitizeCode(joinCode.value);
+      if (!code) return alert('Pon un código');
+      location.href = `join.html?code=${encodeURIComponent(code)}`;
+    };
+  </script>
+</body>
+</html>
