@@ -6,56 +6,9 @@
   <title>Mi Crono — Cámara</title>
   <link rel="stylesheet" href="styles.css"/>
 
-  <!-- Pre-chequeo de CDN para dar un error claro si gstatic está bloqueado -->
-  <script>
-    (async () => {
-      try {
-        await import('https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js');
-        window.__cdnOK = true;
-      } catch (e) {
-        window.__cdnOK = false;
-        window.__cdnErr = e;
-      }
-    })();
-  </script>
-
-  <!-- Firebase por CDN (MÓDULO) con protección anti-duplicado -->
-  <script type="module">
-    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import {
-      getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyB41JQSLE33w8yLQCNBypNVIh5QRs6suKk",
-      authDomain: "mi-crono-web.firebaseapp.com",
-      projectId: "mi-crono-web",
-      storageBucket: "mi-crono-web.appspot.com",
-      messagingSenderId: "803218040641",
-      appId: "1:803218040641:web:684f0c7c5622bd12ce63c0",
-      measurementId: "G-Z2Q6WQX450"
-    };
-
-    try {
-      if (window.__cdnOK === false) {
-        throw new Error('No se pudo cargar Firebase desde gstatic (bloqueador de contenido en Safari).');
-      }
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
-
-      // Exponer helpers al script inferior
-      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
-      window.getDoc          = getDoc;
-      window.setDoc          = setDoc;
-      window.onSnapshot      = onSnapshot;
-      window.serverTimestamp = serverTimestamp;
-
-      window.__firebaseReady = true;
-    } catch (e) {
-      window.__firebaseReady = false;
-      window.__firebaseError = e;
-    }
-  </script>
+  <!-- ⚠️ Tu bundle ya compilado (Vite/Webpack) -->
+  <!-- Debe existir: docs/assets/main.js -->
+  <script type="module" src="./assets/main.js"></script>
 
   <style>
     .overlay { position:absolute; top:12px; left:12px; padding:6px 10px; background:#0008; color:#fff; border-radius:8px; display:none; }
@@ -110,12 +63,11 @@
   <footer><a class="linklike" href="join.html">⇦ Cambiar código/modo</a></footer>
 
   <script>
-    // Utilidades básicas
+    // --- Parámetros y refs UI ---
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    // UI refs
     const title=document.getElementById('title'), tag=document.getElementById('tag');
     const fbStateEl=document.getElementById('fbState'), evStateEl=document.getElementById('evState');
     const lastErrorEl=document.getElementById('lastError'), lastAction=document.getElementById('lastAction');
@@ -127,37 +79,44 @@
     title.textContent = `Modo ${mode==='start'?'SALIDA':'META'}`;
     tag.textContent   = `Evento ${code || '—'}`;
 
-    // Estado Firebase
-    fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
-    fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
-    if(!window.__firebaseReady){
-      const hint = (window.__cdnOK===false)
-        ? 'Fallo cargando Firebase desde gstatic. Desactiva bloqueadores en Safari y recarga.'
-        : '';
-      lastErrorEl.textContent = 'Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError)) + (hint?('\n'+hint):'');
+    // --- Estado inicial Firebase (lo rellena tu bundle en window.__firebaseReady / __firebaseError) ---
+    function refreshFirebaseState(){
+      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
+      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
+      if(!window.__firebaseReady){
+        lastErrorEl.textContent = 'Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError));
+      }
     }
+    refreshFirebaseState();
 
-    // Código de evento
+    // --- Código de evento ---
     if(!code){ document.getElementById('noCodeBox').style.display=''; evStateEl.textContent='SIN CÓDIGO'; evStateEl.className='err'; }
     else { evStateEl.textContent=code; evStateEl.className='ok'; }
 
-    // Navegar a resultado
+    // --- Navegar a resultado ---
     btnResult.addEventListener('click', (e)=>{ e.preventDefault(); location.href = `result.html?code=${encodeURIComponent(code)}`; });
 
-    // Si Firebase inició y hay código, conectar a Firestore
-    if(window.__firebaseReady && code){
+    // --- Helpers que debe exponer tu bundle ---
+    function helpersReady(){
+      return !!(window.getEventDocRef && window.getDoc && window.setDoc && window.onSnapshot && window.serverTimestamp);
+    }
+    function readyAndCode(){
+      return window.__firebaseReady && helpersReady() && !!code;
+    }
+
+    // --- Flujo Firestore ---
+    async function initFirestoreFlows(){
+      if(!readyAndCode()) return;
       const getEventDocRef=window.getEventDocRef, getDoc=window.getDoc, setDoc=window.setDoc, onSnapshot=window.onSnapshot, serverTimestamp=window.serverTimestamp;
       const eventRef=getEventDocRef(code);
 
-      (async()=>{ // crea doc si no existe
-        try{
-          const snap=await getDoc(eventRef);
-          if(!snap.exists()){
-            await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
-            lastAction.textContent='Doc creado';
-          } else { lastAction.textContent='Doc existente'; }
-        }catch(e){ lastErrorEl.textContent='Error creando/leyendo doc: '+(e && (e.code||e.message||e)); }
-      })();
+      try{
+        const snap=await getDoc(eventRef);
+        if(!snap.exists()){
+          await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
+          lastAction.textContent='Doc creado';
+        } else { lastAction.textContent='Doc existente'; }
+      }catch(e){ lastErrorEl.textContent='Error creando/leyendo doc: '+(e && (e.code||e.message||e)); }
 
       onSnapshot(eventRef,(s)=>{
         const d=s.data()||{};
@@ -182,7 +141,7 @@
         catch(e){ lastErrorEl.textContent='Error testRead: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
       };
 
-      // Cámara (iOS-friendly: necesita click)
+      // Cámara (iOS-friendly: necesita interacción)
       btnEnable.onclick = async ()=>{
         if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
           alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
@@ -190,7 +149,7 @@
         const list=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
         let stream=null,lastErr=null;
         for(const c of list){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
-        if(!stream){ alert('No se pudo abrir la cámara. Ajustes > Safari > Cámara (Permitir) + HTTPS.\n'+(lastErr && (lastErr.name+': '+lastErr.message))); return; }
+        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr && (lastErr.name+': '+lastErr.message))); return; }
         try{
           video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
@@ -198,7 +157,7 @@
         }catch(e){ alert('Vista previa no pudo iniciarse.\n'+e); }
       };
 
-      // Forzar acción (marca inicio/fin)
+      // Forzar acción
       btnForce.onclick = async ()=>{
         try{
           const now=Date.now();
@@ -213,7 +172,7 @@
         }catch(e){ lastErrorEl.textContent='Error Firestore: '+(e && (e.code||e.message||e)); alert('No se pudo escribir en Firestore.\n'+(e && (e.code||e.message||e))); }
       };
 
-      // Detección sencilla (si hay cámara)
+      // Detección sencilla
       let prev=null,coolDown=false;
       setInterval(()=>{
         if(video.readyState<2) return;
@@ -237,7 +196,13 @@
       },140);
     }
 
-    // Mostrar errores JS
+    // Espera a que el bundle inicialice Firebase y exponga helpers
+    const wait = setInterval(()=>{
+      refreshFirebaseState();
+      if(readyAndCode()){ clearInterval(wait); initFirestoreFlows(); }
+    }, 150);
+
+    // Errores JS a pantalla
     window.addEventListener('error',(e)=>{ lastErrorEl.textContent='JS error: '+(e && (e.message||e.filename)); });
   </script>
 </body>
