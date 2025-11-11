@@ -34,15 +34,18 @@
     document.getElementById('subtitle').textContent = `Evento ${code}`;
     const eventRef = getEventDocRef(code);
 
-    onSnapshot(eventRef, (snap) => {
-      const d = snap.data() || {};
-      const start = tsToMillis(d.startTS);
-      const stop  = tsToMillis(d.stopTS);
-      const dur = (start && stop) ? (stop - start) : null;
-      document.getElementById('time').textContent = dur != null ? formatDuration(dur) : '--:--.--';
-      document.getElementById('details').textContent =
-        `Inicio: ${fmtTS(start)} | Fin: ${fmtTS(stop)} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
-    });
+onSnapshot(eventRef, (snap) => {
+  const d = snap.data() || {};
+  const start = tsToMillis(d.startTS) ?? d.startClientMS ?? null;
+  const stop  = tsToMillis(d.stopTS)  ?? d.stopClientMS  ?? null;
+  const dur = (start && stop) ? (stop - start) : null;
+
+  document.getElementById('time').textContent = dur != null ? formatDuration(dur) : '--:--.--';
+  document.getElementById('details').textContent =
+    `Inicio: ${fmtTS(start)} | Fin: ${fmtTS(stop)} | Duración: ${dur!=null?formatDuration(dur):'—'}`;
+}, (err)=>{
+  document.getElementById('details').textContent = 'Error al leer Firestore: ' + (err && (err.code || err.message || err));
+});
 
     document.getElementById('btnCSV').onclick = async () => {
       const snap = await getDoc(eventRef);
