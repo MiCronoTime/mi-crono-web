@@ -1,3 +1,5 @@
+const debugDocEl = document.getElementById('debugDoc');
+const lastErrorEl = document.getElementById('lastError');
 async function initCameraPage(){
   const code = (getParam('code')||'').toUpperCase();
   const mode = (getParam('mode')||'start'); // start | finish
