@@ -6,13 +6,48 @@
   <title>Mi Crono — Cámara</title>
   <link rel="stylesheet" href="styles.css"/>
 
-  <!-- ⚠️ Tu bundle ya compilado (Vite/Webpack) -->
-  <!-- Debe existir: docs/assets/main.js -->
-  <script type="module" src="./assets/main.js"></script>
+  <!-- Firebase por CDN (MÓDULO) -->
+  <script type="module">
+    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import {
+      getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+
+    // Config TU proyecto (con storageBucket corregido a appspot.com)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+
+    try {
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+
+      // Exponer helpers al script inferior
+      window.getEventDocRef  = (code) => doc(db, "events", (code||"").toUpperCase());
+      window.getDoc          = getDoc;
+      window.setDoc          = setDoc;
+      window.onSnapshot      = onSnapshot;
+      window.serverTimestamp = serverTimestamp;
+
+      window.__firebaseReady = true;
+    } catch (e) {
+      window.__firebaseReady = false;
+      window.__firebaseError = e;
+    }
+  </script>
 
   <style>
-    .overlay { position:absolute; top:12px; left:12px; padding:6px 10px; background:#0008; color:#fff; border-radius:8px; display:none; }
-    .stage { position:relative; margin-top:10px; }
+    .overlay{position:absolute;top:12px;left:12px;padding:6px 10px;background:#0008;color:#fff;border-radius:8px;display:none}
+    .stage{position:relative;margin-top:10px}
+    video{width:100%;max-height:55vh;background:#000;border-radius:12px}
+    .ok{color:#0a7a0a;font-weight:600}
+    .err{color:#b00020;font-weight:600}
+    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
   </style>
 </head>
 <body class="wrap">
@@ -49,161 +84,4 @@
     </section>
 
     <section class="card">
-      <h2>Depuración</h2>
-      <div class="debug" id="debugDoc">Doc: (sin datos)</div>
-      <div class="debug" id="lastError">Error: (sin errores)</div>
-      <div class="row" style="margin-top:8px">
-        <button id="testWriteStart" class="btn">Test escribir INICIO</button>
-        <button id="testWriteStop" class="btn">Test escribir FIN</button>
-        <button id="testRead" class="btn">Test leer DOC</button>
-      </div>
-    </section>
-  </main>
-
-  <footer><a class="linklike" href="join.html">⇦ Cambiar código/modo</a></footer>
-
-  <script>
-    // --- Parámetros y refs UI ---
-    const getParam = (k)=> new URL(location.href).searchParams.get(k);
-    const code=(getParam('code')||'').toUpperCase();
-    const mode=(getParam('mode')||'start'); // start|finish
-
-    const title=document.getElementById('title'), tag=document.getElementById('tag');
-    const fbStateEl=document.getElementById('fbState'), evStateEl=document.getElementById('evState');
-    const lastErrorEl=document.getElementById('lastError'), lastAction=document.getElementById('lastAction');
-    const debugDocEl=document.getElementById('debugDoc');
-    const btnResult=document.getElementById('btnResult'), btnEnable=document.getElementById('btnEnableCam'), btnForce=document.getElementById('btnForce');
-    const video=document.getElementById('video'), canvas=document.getElementById('canvas'), overlay=document.getElementById('overlay');
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});
-
-    title.textContent = `Modo ${mode==='start'?'SALIDA':'META'}`;
-    tag.textContent   = `Evento ${code || '—'}`;
-
-    // --- Estado inicial Firebase (lo rellena tu bundle en window.__firebaseReady / __firebaseError) ---
-    function refreshFirebaseState(){
-      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
-      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
-      if(!window.__firebaseReady){
-        lastErrorEl.textContent = 'Init Firebase: ' + (window.__firebaseError && (window.__firebaseError.message||window.__firebaseError));
-      }
-    }
-    refreshFirebaseState();
-
-    // --- Código de evento ---
-    if(!code){ document.getElementById('noCodeBox').style.display=''; evStateEl.textContent='SIN CÓDIGO'; evStateEl.className='err'; }
-    else { evStateEl.textContent=code; evStateEl.className='ok'; }
-
-    // --- Navegar a resultado ---
-    btnResult.addEventListener('click', (e)=>{ e.preventDefault(); location.href = `result.html?code=${encodeURIComponent(code)}`; });
-
-    // --- Helpers que debe exponer tu bundle ---
-    function helpersReady(){
-      return !!(window.getEventDocRef && window.getDoc && window.setDoc && window.onSnapshot && window.serverTimestamp);
-    }
-    function readyAndCode(){
-      return window.__firebaseReady && helpersReady() && !!code;
-    }
-
-    // --- Flujo Firestore ---
-    async function initFirestoreFlows(){
-      if(!readyAndCode()) return;
-      const getEventDocRef=window.getEventDocRef, getDoc=window.getDoc, setDoc=window.setDoc, onSnapshot=window.onSnapshot, serverTimestamp=window.serverTimestamp;
-      const eventRef=getEventDocRef(code);
-
-      try{
-        const snap=await getDoc(eventRef);
-        if(!snap.exists()){
-          await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
-          lastAction.textContent='Doc creado';
-        } else { lastAction.textContent='Doc existente'; }
-      }catch(e){ lastErrorEl.textContent='Error creando/leyendo doc: '+(e && (e.code||e.message||e)); }
-
-      onSnapshot(eventRef,(s)=>{
-        const d=s.data()||{};
-        const hasStart=!!d.startTS||!!d.startClientMS, hasStop=!!d.stopTS||!!d.stopClientMS;
-        tag.textContent=`Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
-        debugDocEl.textContent='Doc: '+JSON.stringify(d,null,2);
-      },(err)=>{ lastErrorEl.textContent='Error snapshot: '+(err && (err.code||err.message||err)); });
-
-      // Tests sin cámara
-      document.getElementById('testWriteStart').onclick=async()=>{
-        try{ await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true});
-             lastAction.textContent='Test INICIO escrito'; alert('Test INICIO escrito'); }
-        catch(e){ lastErrorEl.textContent='Error testWriteStart: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
-      };
-      document.getElementById('testWriteStop').onclick=async()=>{
-        try{ await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:Date.now()},{merge:true});
-             lastAction.textContent='Test FIN escrito'; alert('Test FIN escrito'); }
-        catch(e){ lastErrorEl.textContent='Error testWriteStop: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
-      };
-      document.getElementById('testRead').onclick=async()=>{
-        try{ const snap=await getDoc(eventRef); alert('Leído:\n'+JSON.stringify(snap.data(),null,2)); }
-        catch(e){ lastErrorEl.textContent='Error testRead: '+(e && (e.code||e.message||e)); alert(lastErrorEl.textContent); }
-      };
-
-      // Cámara (iOS-friendly: necesita interacción)
-      btnEnable.onclick = async ()=>{
-        if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-          alert('Este navegador no soporta cámara. Usa Safari (iOS) con HTTPS.'); return;
-        }
-        const list=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
-        let stream=null,lastErr=null;
-        for(const c of list){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
-        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr && (lastErr.name+': '+lastErr.message))); return; }
-        try{
-          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
-          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
-          await video.play(); btnEnable.textContent='Cámara activada'; btnEnable.disabled=true; lastAction.textContent='Cámara OK';
-        }catch(e){ alert('Vista previa no pudo iniciarse.\n'+e); }
-      };
-
-      // Forzar acción
-      btnForce.onclick = async ()=>{
-        try{
-          const now=Date.now();
-          if(mode==='start'){
-            await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:now,stopTS:null,stopClientMS:null},{merge:true});
-            lastAction.textContent='Inicio marcado'; alert('Inicio marcado');
-          }else{
-            await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:now},{merge:true});
-            lastAction.textContent='Fin marcado'; alert('Fin marcado');
-          }
-          lastErrorEl.textContent='';
-        }catch(e){ lastErrorEl.textContent='Error Firestore: '+(e && (e.code||e.message||e)); alert('No se pudo escribir en Firestore.\n'+(e && (e.code||e.message||e))); }
-      };
-
-      // Detección sencilla
-      let prev=null,coolDown=false;
-      setInterval(()=>{
-        if(video.readyState<2) return;
-        const w=video.videoWidth,h=video.videoHeight; if(!w||!h) return;
-        canvas.width=w; canvas.height=h;
-        ctx.drawImage(video,0,0,w,h); const frame=ctx.getImageData(0,0,w,h);
-        let moved=false;
-        if(prev){
-          const step=32; let diff=0,sample=0;
-          for(let i=0;i<frame.data.length;i+=step){
-            const d=Math.abs(frame.data[i]-prev.data[i])+Math.abs(frame.data[i+1]-prev.data[i+1])+Math.abs(frame.data[i+2]-prev.data[i+2]);
-            if(d>60) diff++; sample++;
-          }
-          moved=(diff/Math.max(1,sample))>0.12;
-        }
-        prev=frame;
-        if(moved && !coolDown){
-          overlay.style.display='block'; btnForce.click();
-          coolDown=true; setTimeout(()=>{ overlay.style.display='none'; coolDown=false; },1200);
-        }
-      },140);
-    }
-
-    // Espera a que el bundle inicialice Firebase y exponga helpers
-    const wait = setInterval(()=>{
-      refreshFirebaseState();
-      if(readyAndCode()){ clearInterval(wait); initFirestoreFlows(); }
-    }, 150);
-
-    // Errores JS a pantalla
-    window.addEventListener('error',(e)=>{ lastErrorEl.textContent='JS error: '+(e && (e.message||e.filename)); });
-  </script>
-</body>
-</html>
+      <h2>Depurac
