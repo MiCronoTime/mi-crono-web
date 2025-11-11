@@ -3,17 +3,20 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — Cámara (Smoke)</title>
+  <title>Mi Crono — Cámara</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
     .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
+    .stage{position:relative;margin-top:10px}
+    video{width:100%;max-height:55vh;background:#000;border-radius:12px}
+    .overlay{position:absolute;top:12px;left:12px;padding:6px 10px;background:#0008;color:#fff;border-radius:8px;display:none}
   </style>
 </head>
 <body class="wrap">
   <header class="top">
-    <h1 id="title">Modo (Smoke)</h1>
+    <h1 id="title">Modo Cámara</h1>
     <p class="tag" id="tag">Conectando…</p>
   </header>
 
@@ -24,9 +27,16 @@
 
     <section class="card">
       <div class="row">
-        <button id="btnStart" class="btn primary">Escribir INICIO</button>
-        <button id="btnStop" class="btn">Escribir FIN</button>
+        <button id="btnEnableCam" class="btn primary">Activar cámara</button>
+        <button id="btnStart" class="btn">Marcar INICIO</button>
+        <button id="btnStop" class="btn">Marcar FIN</button>
         <a id="btnResult" class="btn" href="#">Ver resultado</a>
+      </div>
+      <small class="muted">iOS: Safari + HTTPS + permitir acceso a Cámara (Ajustes &gt; Safari &gt; Cámara &gt; Permitir).</small>
+
+      <div class="stage">
+        <video id="video" playsinline muted></video>
+        <div id="overlay" class="overlay">CÁMARA ACTIVA</div>
       </div>
     </section>
 
@@ -48,22 +58,24 @@
   <!-- ÚNICO script -->
   <script type="module">
     // Estado por defecto
-    window.__firebaseReady = false;
-    window.__firebaseError = null;
+    window.__firebaseReady=false; window.__firebaseError=null;
 
-    // Parámetros
-    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    // -------- Parámetros --------
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
 
-    // UI
+    // -------- UI refs --------
     const fbStateEl=document.getElementById('fbState');
     const evStateEl=document.getElementById('evState');
     const tag=document.getElementById('tag');
     const lastErrorEl=document.getElementById('lastError');
     const lastAction=document.getElementById('lastAction');
+    const btnEnableCam=document.getElementById('btnEnableCam');
     const btnStart=document.getElementById('btnStart');
     const btnStop=document.getElementById('btnStop');
     const btnResult=document.getElementById('btnResult');
+    const video=document.getElementById('video');
+    const overlay=document.getElementById('overlay');
 
     function paintFirebase(){
       fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
@@ -80,7 +92,11 @@
     if(!code){ document.getElementById('noCodeBox').style.display=''; evStateEl.textContent='SIN CÓDIGO'; evStateEl.className='err'; }
     else { evStateEl.textContent=code; evStateEl.className='ok'; tag.textContent=`Evento ${code}`; }
 
-    // Init Firebase (CDN)
+    // Enlace a resultado
+    btnResult.addEventListener('click',(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; });
+
+    // -------- Inicializa Firebase (CDN) --------
+    let db, eventRef;
     try{
       const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
       const { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp } =
@@ -96,43 +112,18 @@
       };
 
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+      db = getFirestore(app);
 
       window.__firebaseReady = true; paintFirebase();
 
       if(code){
-        const eventRef = doc(db, "events", code);
+        eventRef = doc(db, "events", code);
 
         // Crea si no existe
-        try{ const s=await getDoc(eventRef);
-             if(!s.exists()) await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
-           }catch(e){ lastErrorEl.textContent='Error creando doc: '+(e.message||e); }
-
-        // Suscripción
-        onSnapshot(eventRef, (snap)=>{
-          const d = snap.data() || {};
-          const hasStart=!!d.startTS||!!d.startClientMS, hasStop=!!d.stopTS||!!d.stopClientMS;
-          tag.textContent=`Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Fin OK':'Sin fin'}`;
-        });
-
-        // Botones
-        btnStart.onclick = async ()=>{
-          try{ await setDoc(eventRef,{startTS:serverTimestamp(),startClientMS:Date.now(),stopTS:null,stopClientMS:null},{merge:true});
-               lastAction.textContent='Inicio escrito'; alert('Inicio escrito'); }
-          catch(e){ lastErrorEl.textContent='Error Start: '+(e.message||e); }
-        };
-        btnStop.onclick = async ()=>{
-          try{ await setDoc(eventRef,{stopTS:serverTimestamp(),stopClientMS:Date.now()},{merge:true});
-               lastAction.textContent='Fin escrito'; alert('Fin escrito'); }
-          catch(e){ lastErrorEl.textContent='Error Stop: '+(e.message||e); }
-        };
-        btnResult.onclick = (e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
-      }
-    }catch(e){
-      window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
-    }
-
-    paintFirebase();
-  </script>
-</body>
-</html>
+        try{
+          const s=await getDoc(eventRef);
+          if(!s.exists()){
+            await setDoc(eventRef, { code, createdAt: serverTimestamp(), startTS:null, stopTS:null }, { merge:true });
+            lastAction.textContent='Doc creado';
+          } else { lastAction.textContent='Doc existente'; }
+        }catch(e){ lastErrorEl.textCon
