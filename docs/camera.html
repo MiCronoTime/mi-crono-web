@@ -44,12 +44,9 @@
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
-    /* HUD superior (dejamos solo estado/siguiente) */
+    /* HUD superior (solo estado/siguiente) */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
-
-    /* ⚠️ Crono grande de cabecera: OCULTO para no tapar los individuales */
-    .timer{display:none}
 
     /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
@@ -89,9 +86,6 @@
           <span id="hudStatus">Listo</span>
           • <span id="hudNext" class="pill">Siguiente: —</span>
         </div>
-
-        <!-- crono grande oculto (no tapa) -->
-        <div class="timer" id="timerText">00:00.000 — <span id="runnerName">—</span></div>
       </div>
 
       <div class="sub">
@@ -172,7 +166,7 @@
       const s=await getDoc(eventRef);
       if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // Offset con servidor
+      // Offset con servidor (1 ping)
       try{
         const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
         const pingSnap = await getDoc(pingRef);
@@ -218,8 +212,7 @@
       });
 
       // Cámara + detección
-      const btnEnableCam=$('btnEnableCam');
-      btnEnableCam.onclick = async ()=>{
+      btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
           const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
@@ -228,7 +221,7 @@
           if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
           video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
-          btnEnableCam.textContent='CÁMARA ACTIVADA'; btnEnableCam.disabled=true;
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
           requestAnimationFrame(loop);
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
@@ -251,7 +244,7 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos por participante (nuevo arriba), tamaño -30%
+        // Cronos por participante (nuevo arriba), tamaño pensado para iPhone
         drawOverlayTimes(w,h,currentLive);
 
         // Detector por diferencia
@@ -285,24 +278,24 @@
         // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        // Tamaño -30% (antes ~3.8% del alto → ahora ~2.6%)
-        const baseSize = Math.max(18, Math.floor(h*0.026));  // ← reducido
-        const gap = Math.max(5, Math.floor(h*0.011));        // ↓ acorde
+        /* tamaño ~2.6% del alto (pequeño para iPhone) */
+        const baseSize = Math.max(18, Math.floor(h*0.026));
+        const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14);                   // espacio HUD
+        const topPad = Math.floor(h*0.14);                   // deja aire para HUD
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
         octx.textBaseline = 'top';
         octx.fillStyle = '#ffffff';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
-        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14)); // algo más fino
+        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
           const r = sorted[i];
-          const elapsed = nowSync - (r.startMS||nowSync);   // → arranca en 0 al marcar salida
+          const elapsed = nowSync - (r.startMS||nowSync);   // arranca en 0 al marcar salida
           const tText = fmt(elapsed);
           const nText = r.name || '—';
 
