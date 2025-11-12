@@ -7,14 +7,14 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418;          /* fondo principal oscuro */
-      --card:#1b1f27;        /* tarjetas */
-      --card-2:#232a34;      /* elementos dentro de tarjeta */
-      --text:#e8ecf1;        /* texto principal */
-      --muted:#b5bdc9;       /* texto secundario */
-      --border:#2b3240;      /* bordes sutiles */
-      --accent:#5ea1ff;      /* primario */
-      --accent-2:#7cc4ff;    /* hover */
+      --bg:#121418;
+      --card:#1b1f27;
+      --card-2:#232a34;
+      --text:#e8ecf1;
+      --muted:#b5bdc9;
+      --border:#2b3240;
+      --accent:#5ea1ff;
+      --accent-2:#7cc4ff;
       --danger:#ff5e7a;
     }
 
@@ -68,7 +68,7 @@
       color:var(--text);
       outline:none;
       transition:border-color .15s, box-shadow .15s;
-      text-transform: uppercase;           /* VISUAL: todo en mayúsculas */
+      text-transform: uppercase;    /* visual mayúsculas */
       letter-spacing:.02em;
     }
     input::placeholder, textarea::placeholder{ color:#80889a }
@@ -80,7 +80,7 @@
 
     .row{display:flex;gap:10px;flex-wrap:wrap}
 
-    /* Botones coherentes (mismo estilo que en cámara) */
+    /* Botones coherentes (uppercase + bold) */
     .btn{
       display:inline-flex;align-items:center;gap:8px;
       padding:11px 16px;border-radius:12px;
@@ -99,6 +99,7 @@
 
     .muted{ color:var(--muted) }
     .ok{color:#7cffb6;font-weight:700}
+    .warn{color:#ffd27e;font-weight:700}
     .err{color:var(--danger);font-weight:700}
 
     .help{font-size:12px;color:#9aa3b2;margin-top:6px}
@@ -115,7 +116,7 @@
   </header>
 
   <main class="grid two">
-    <!-- CREAR EVENTO -->
+    <!-- CREAR / RESETEAR EVENTO -->
     <section class="card">
       <h2 class="uc">CREAR EVENTO</h2>
 
@@ -124,7 +125,7 @@
 
       <label for="names">Participantes (uno por línea, en orden de salida)</label>
       <textarea id="names" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
-      <div class="help">El orden se usa como parrilla y para decidir el orden de llegada.</div>
+      <div class="help">Si el evento ya existe, <b>se RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.</div>
 
       <div class="row" style="margin-top:12px">
         <button id="btnCreate" class="btn primary">GUARDAR EVENTO</button>
@@ -163,19 +164,18 @@
     const $ = (id)=>document.getElementById(id);
     const pid = (i)=> 'p'+String(i).padStart(3,'0');
 
-    // Fuerza MAYÚSCULAS también a nivel de dato
+    // Forzar MAYÚSCULAS también a nivel de datos
     const toUpperLive = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
     toUpperLive($('code'));
     toUpperLive($('joinCode'));
-    if ($('names')) {
-      $('names').addEventListener('input', ()=> $('names').value = $('names').value.toUpperCase());
-    }
+    if ($('names')) $('names').addEventListener('input', ()=> $('names').value = $('names').value.toUpperCase());
 
     // Firebase CDN
     const { initializeApp, getApp, getApps } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-    const { getFirestore, doc, setDoc, collection } =
-      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+    const {
+      getFirestore, doc, setDoc, getDoc, collection, query, orderBy, getDocs, deleteDoc, serverTimestamp
+    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
     const firebaseConfig = {
       apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
@@ -188,35 +188,63 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    // Crear evento
     $('btnCreate').onclick = async ()=>{
       const code = (($('code').value||'').trim().toUpperCase());
       const lines = (($('names').value||'').toUpperCase())
         .split('\n').map(s=>s.trim()).filter(Boolean);
 
-      if(!code){ $('createMsg').textContent='Escribe un código.'; $('createMsg').className='err'; return; }
-      if(!lines.length){ $('createMsg').textContent='Añade al menos un participante.'; $('createMsg').className='err'; return; }
+      if(!code){ $('createMsg').textContent='Escribe un CÓDIGO.'; $('createMsg').className='err'; return; }
+      if(!lines.length){ $('createMsg').textContent='Añade al menos un PARTICIPANTE.'; $('createMsg').className='err'; return; }
 
       try{
         const eventRef = doc(db,'events',code);
-        await setDoc(eventRef,{
-          code,
-          startTS:null, startClientMS:null,
-          stopTS:null,  stopClientMS:null,
-          createdAt:new Date().toISOString()
-        },{merge:true});
+        const existsSnap = await getDoc(eventRef);
+        const partsCol = collection(eventRef,'participants');
 
+        if(existsSnap.exists()){
+          // === RESETEO COMPLETO ===
+          // 1) Borrar todos los participantes
+          const snap = await getDocs(query(partsCol, orderBy('order','asc')));
+          const deletions = snap.docs.map(d=> deleteDoc(d.ref));
+          await Promise.all(deletions);
+
+          // 2) Reiniciar el documento del evento (sin conservar datos previos)
+          await setDoc(eventRef,{
+            code,
+            startTS:null, stopTS:null,
+            createdAt: existsSnap.data()?.createdAt || serverTimestamp(), // por si quieres mantener createdAt
+            resetAt: serverTimestamp()                                   // marca del reseteo
+          }, {merge:true});
+
+          $('createMsg').textContent = 'Evento existente — RESETEADO por completo.';
+          $('createMsg').className = 'warn';
+        } else {
+          // === CREACIÓN NUEVA ===
+          await setDoc(eventRef,{
+            code,
+            startTS:null, stopTS:null,
+            createdAt: serverTimestamp()
+          }, {merge:true});
+          $('createMsg').textContent = 'Evento creado.';
+          $('createMsg').className = 'ok';
+        }
+
+        // 3) Crear los nuevos participantes desde 1
+        let order=1;
         const { doc:docRef, setDoc:setSub } =
           await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-        const col = collection(eventRef,'participants');
-        await Promise.all(lines.map((name,idx)=> setSub(docRef(col, pid(idx+1)),{
-          order: idx+1, name,
-          startTS:null, startClientMS:null,
-          stopTS:null,  stopClientMS:null
-        },{merge:true})));
+        const writes = lines.map(name=>{
+          const ref = docRef(partsCol, pid(order));
+          const data = { order, name, startTS:null, stopTS:null };
+          order++; return setSub(ref, data, {merge:true});
+        });
+        await Promise.all(writes);
 
-        $('createMsg').textContent = `Evento y participantes guardados (${lines.length}).`;
-        $('createMsg').className='ok';
+        // Mensaje final
+        $('createMsg').textContent += ` Añadidos: ${lines.length}.`;
+        $('createMsg').className = 'ok';
+
+        // Enlaces listos
         $('links').style.display='';
         $('lnkStart').href  = `camera.html?code=${encodeURIComponent(code)}&mode=start`;
         $('lnkFinish').href = `camera.html?code=${encodeURIComponent(code)}&mode=finish`;
