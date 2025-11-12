@@ -1,200 +1,36 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — INICIO</title>
-  <link rel="stylesheet" href="styles.css"/>
-  <style>
-    :root{
-      --bg:#121418;
-      --card:#1b1f27;
-      --card-2:#232a34;
-      --text:#e8ecf1;
-      --muted:#b5bdc9;
-      --border:#2b3240;
-      --accent:#5ea1ff;
-      --accent-2:#7cc4ff;
-      --danger:#ff5e7a;
-      --danger-2:#ff869d;
-    }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diag CDN Firebase</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Arial,sans-serif;padding:16px}
+  .ok{color:#0a7a0a;font-weight:600} .err{color:#b00020;font-weight:600}
+  code{background:#f6f6f6;padding:2px 6px;border-radius:6px}
+</style>
 
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                  var(--bg);
-      color:var(--text);
-    }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{color:var(--accent-2)}
+<h1>Diagnóstico CDN Firebase</h1>
+<div id="modStatus">🔎 Cargando módulos...</div>
+<div id="fbStatus">—</div>
+<pre id="detail" style="white-space:pre-wrap;background:#f6f6f6;padding:10px;border-radius:8px"></pre>
 
-    .wrap{max-width:980px;margin:0 auto;padding:20px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-    .brand{display:flex;gap:12px;align-items:center}
-    .logo{font-size:24px;line-height:1}
-    h1{margin:0;font-size:20px;letter-spacing:.06em}
-    .uc{ text-transform: uppercase; letter-spacing:.04em }
+<script type="module">
+  const mod = document.getElementById('modStatus');
+  const fb  = document.getElementById('fbStatus');
+  const det = document.getElementById('detail');
 
-    .grid{display:grid;gap:16px}
-    .two{grid-template-columns:1fr}
-    @media(min-width:940px){.two{grid-template-columns:1fr 1fr}}
+  function show(el, ok, msg){
+    el.className = ok ? 'ok' : 'err';
+    el.textContent = (ok ? '✅ ' : '❌ ') + msg;
+  }
 
-    .card{
-      background:var(--card);
-      border:1px solid var(--border);
-      border-radius:18px;
-      padding:18px;
-      box-shadow:0 8px 30px rgba(0,0,0,.2);
-    }
-    .subcard{
-      background:var(--card-2);
-      border:1px solid var(--border);
-      border-radius:12px;
-      padding:12px;
-    }
+  try {
+    // 1) ¿Carga el módulo desde gstatic?
+    const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const { getFirestore } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+    show(mod, true, 'Módulos ES de Firebase cargan desde gstatic correctamente');
 
-    h2{ margin:.3rem 0 12px 0; font-size:16px }
-    label{display:block;margin:10px 0 6px;font-weight:600;color:var(--text)}
-
-    input, textarea{
-      width:100%;
-      padding:12px 14px;
-      border:1px solid var(--border);
-      border-radius:12px;
-      background:#0f1217;
-      color:var(--text);
-      outline:none;
-      transition:border-color .15s, box-shadow .15s;
-      text-transform: uppercase;    /* visual mayúsculas */
-      letter-spacing:.02em;
-    }
-    input::placeholder, textarea::placeholder{ color:#80889a }
-    input:focus, textarea:focus{
-      border-color:var(--accent);
-      box-shadow:0 0 0 3px rgba(94,161,255,.2);
-    }
-    textarea{ min-height:140px; resize:vertical }
-
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-
-    /* Botones coherentes (uppercase + bold) */
-    .btn{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:11px 16px;border-radius:12px;
-      border:1px solid var(--border);
-      background:#0f1217;color:var(--text);
-      cursor:pointer; user-select:none;
-      transition:transform .05s ease, background .15s, border-color .15s, color .15s;
-      text-transform: uppercase; font-weight:800; letter-spacing:.03em;
-      font-size:14px; line-height:1;
-      text-decoration:none;
-    }
-    .btn:hover{ background:#12161d }
-    .btn:active{ transform:translateY(1px) }
-    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
-    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
-    .btn.danger{ background:var(--danger); border-color:var(--danger); color:#1d0b0f }
-    .btn.danger:hover{ background:var(--danger-2); border-color:var(--danger-2) }
-
-    .muted{ color:var(--muted) }
-    .ok{color:#7cffb6;font-weight:700}
-    .warn{color:#ffd27e;font-weight:700}
-    .err{color:var(--danger);font-weight:700}
-
-    .help{font-size:12px;color:#9aa3b2;margin-top:6px}
-    .links{margin-top:12px}
-  </style>
-</head>
-<body class="wrap">
-  <header class="top">
-    <div class="brand">
-      <div class="logo">⏱️</div>
-      <h1 class="uc">Mi Crono Web</h1>
-    </div>
-    <a href="result.html" class="btn">📄 RESULTADOS</a>
-  </header>
-
-  <main class="grid two">
-    <!-- CREAR / RESETEAR EVENTO (individual) -->
-    <section class="card">
-      <h2 class="uc">CREAR EVENTO</h2>
-
-      <label for="code">Código del evento</label>
-      <input id="code" placeholder="p.ej. TEST1" autocomplete="off"/>
-
-      <label for="names">Participantes (uno por línea, en orden de salida)</label>
-      <textarea id="names" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
-      <div class="help">Si el evento ya existe, <b>se RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.</div>
-
-      <div class="row" style="margin-top:12px">
-        <button id="btnCreate" class="btn primary">GUARDAR EVENTO</button>
-      </div>
-
-      <div id="createMsg" class="muted" style="margin-top:12px">—</div>
-
-      <div id="links" class="links row" style="display:none">
-        <a id="lnkStart"  class="btn">🚦 SALIDA</a>
-        <a id="lnkFinish" class="btn">🏁 META</a>
-        <a id="lnkResult" class="btn">📄 RESULTADOS</a>
-      </div>
-    </section>
-
-    <!-- UNIRSE A UN EVENTO -->
-    <section class="card">
-      <h2 class="uc">UNIRSE A UN EVENTO</h2>
-
-      <label for="joinCode">Código</label>
-      <input id="joinCode" placeholder="TEST1" autocomplete="off"/>
-
-      <div class="row" style="margin-top:12px">
-        <a id="joinStart"  class="btn">🚦 SALIDA</a>
-        <a id="joinFinish" class="btn">🏁 META</a>
-        <a id="joinResult" class="btn">📄 RESULTADOS</a>
-      </div>
-
-      <div class="subcard" style="margin-top:12px">
-        <div class="help">Abre <b>SALIDA</b> en la salida y <b>META</b> en la llegada. Ambos con el mismo <b>código</b>.</div>
-      </div>
-    </section>
-
-    <!-- HERRAMIENTAS -->
-    <section class="card" style="grid-column:1/-1">
-      <h2 class="uc">HERRAMIENTAS</h2>
-      <div class="subcard">
-        <p class="help" style="margin-top:0">
-          <b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.
-          Úsalo solo si quieres limpiar por completo.
-        </p>
-        <div class="row">
-          <button id="btnResetAll" class="btn danger">RESET EVENTOS</button>
-        </div>
-        <div id="resetMsg" class="muted" style="margin-top:10px">—</div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Firebase + lógica -->
-  <script type="module">
-    const $ = (id)=>document.getElementById(id);
-    const pid = (i)=> 'p'+String(i).padStart(3,'0');
-
-    // Forzar MAYÚSCULAS también a nivel de datos
-    const toUpperLive = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
-    toUpperLive($('code'));
-    toUpperLive($('joinCode'));
-    if ($('names')) $('names').addEventListener('input', ()=> $('names').value = $('names').value.toUpperCase());
-
-    // Firebase CDN
-    const { initializeApp, getApp, getApps } =
-      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-    const {
-      getFirestore, doc, setDoc, getDoc, collection, query, orderBy, getDocs, deleteDoc, serverTimestamp
-    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-
+    // 2) ¿Tu config inicializa?
     const firebaseConfig = {
       apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
       authDomain: "mi-crono-time-888b7.firebaseapp.com",
@@ -203,130 +39,15 @@
       messagingSenderId: "379025900327",
       appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
     };
+
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    // Crear / Resetear un ÚNICO evento según tu regla
-    $('btnCreate').onclick = async ()=>{
-      const code = (($('code').value||'').trim().toUpperCase());
-      const lines = (($('names').value||'').toUpperCase())
-        .split('\n').map(s=>s.trim()).filter(Boolean);
-
-      if(!code){ $('createMsg').textContent='Escribe un CÓDIGO.'; $('createMsg').className='err'; return; }
-      if(!lines.length){ $('createMsg').textContent='Añade al menos un PARTICIPANTE.'; $('createMsg').className='err'; return; }
-
-      try{
-        const eventRef = doc(db,'events',code);
-        const existsSnap = await getDoc(eventRef);
-        const partsCol = collection(eventRef,'participants');
-
-        if(existsSnap.exists()){
-          // === RESETEO COMPLETO DEL EVENTO EXISTENTE ===
-          // 1) Borrar participantes
-          const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-          const deletions = snap.docs.map(d=> deleteDoc(d.ref));
-          await Promise.all(deletions);
-
-          // 2) Reiniciar doc evento
-          await setDoc(eventRef,{
-            code,
-            startTS:null, stopTS:null,
-            createdAt: existsSnap.data()?.createdAt || serverTimestamp(),
-            resetAt: serverTimestamp()
-          }, {merge:true});
-
-          $('createMsg').textContent = 'Evento existente — RESETEADO por completo.';
-          $('createMsg').className = 'warn';
-        } else {
-          // === CREACIÓN NUEVA ===
-          await setDoc(eventRef,{
-            code,
-            startTS:null, stopTS:null,
-            createdAt: serverTimestamp()
-          }, {merge:true});
-          $('createMsg').textContent = 'Evento creado.';
-          $('createMsg').className = 'ok';
-        }
-
-        // 3) Crear nuevos participantes desde 1
-        let order=1;
-        const { doc:docRef, setDoc:setSub } =
-          await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-        const writes = lines.map(name=>{
-          const ref = docRef(partsCol, pid(order));
-          const data = { order, name, startTS:null, stopTS:null };
-          order++; return setSub(ref, data, {merge:true});
-        });
-        await Promise.all(writes);
-
-        $('createMsg').textContent += ` Añadidos: ${lines.length}.`;
-        $('createMsg').className = 'ok';
-
-        // Enlaces listos
-        $('links').style.display='';
-        $('lnkStart').href  = `camera.html?code=${encodeURIComponent(code)}&mode=start`;
-        $('lnkFinish').href = `camera.html?code=${encodeURIComponent(code)}&mode=finish`;
-        $('lnkResult').href = `result.html?code=${encodeURIComponent(code)}`;
-      }catch(e){
-        $('createMsg').textContent = 'Error: '+(e.message||e);
-        $('createMsg').className='err';
-      }
-    };
-
-    // Unirse
-    const openWith = (mode)=>()=>{ 
-      const c=(($('joinCode').value||'').trim().toUpperCase());
-      if(!c) return alert('Escribe un CÓDIGO');
-      location.href=`camera.html?code=${encodeURIComponent(c)}&mode=${mode}`;
-    };
-    $('joinStart').onclick  = openWith('start');
-    $('joinFinish').onclick = openWith('finish');
-    $('joinResult').onclick = ()=>{ 
-      const c=(($('joinCode').value||'').trim().toUpperCase());
-      if(!c) return alert('Escribe un CÓDIGO');
-      location.href=`result.html?code=${encodeURIComponent(c)}`;
-    };
-
-    // ====== RESET EVENTOS (borra TODO) ======
-    $('btnResetAll').onclick = async ()=>{
-      const msgEl = $('resetMsg');
-      msgEl.textContent = 'Esperando confirmación…';
-      msgEl.className = 'warn';
-
-      // Doble confirmación
-      const ok1 = confirm('Vas a ELIMINAR TODOS LOS EVENTOS y sus participantes. ¿Continuar?');
-      if(!ok1){ msgEl.textContent='Cancelado.'; msgEl.className='muted'; return; }
-      const typed = prompt('Escribe EXACTAMENTE: RESET');
-      if(typed !== 'RESET'){ msgEl.textContent='Texto no coincide. Cancelado.'; msgEl.className='muted'; return; }
-
-      try{
-        msgEl.textContent = 'Listando eventos…';
-        const eventsSnap = await getDocs(collection(db,'events'));
-        const events = eventsSnap.docs;
-
-        let totalParticipants=0;
-        // Borrado secuencial para evitar picos de cuota
-        for(const eDoc of events){
-          const evRef = eDoc.ref;
-          const partsCol = collection(evRef,'participants');
-          const partsSnap = await getDocs(partsCol);
-          totalParticipants += partsSnap.size;
-
-          // Borra participantes
-          for(const pDoc of partsSnap.docs){
-            await deleteDoc(pDoc.ref);
-          }
-          // Borra el evento
-          await deleteDoc(evRef);
-        }
-
-        msgEl.textContent = `Completado. Eventos borrados: ${events.length}. Participantes borrados: ${totalParticipants}.`;
-        msgEl.className = 'ok';
-      }catch(err){
-        msgEl.textContent = 'Error en RESET EVENTOS: '+(err.message||err);
-        msgEl.className = 'err';
-      }
-    };
-  </script>
-</body>
-</html>
+    show(fb, true, 'Firebase inicializado (app + Firestore OK)');
+    det.textContent = 'App name: ' + app.name + '\nProjectId: ' + app.options.projectId;
+  } catch (e) {
+    show(mod, false, 'Fallo al cargar/ejecutar módulo Firebase');
+    show(fb, false, 'Firebase NO inicializado');
+    det.textContent = (e && (e.message || String(e))) || 'Error desconocido';
+  }
+</script>
