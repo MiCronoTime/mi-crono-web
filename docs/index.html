@@ -24,7 +24,7 @@
     .top{
       display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px;
     }
-    .logo{width:26px;height:26px;border-radius:50%;background:#fff;display:inline-block}
+    .clock{font-size:22px;line-height:1;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
     .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .muted{color:var(--muted)}
     .grid{display:grid;gap:18px}
@@ -65,9 +65,9 @@
 </head>
 <body>
   <div class="wrap">
-    <!-- CABECERA SIN BOTÓN RESULTADOS -->
+    <!-- CABECERA (con reloj restaurado) -->
     <div class="top">
-      <span class="logo"></span>
+      <span class="clock" aria-hidden="true">⏱️</span>
       <h1 class="title">MI CRONO WEB</h1>
     </div>
 
@@ -90,7 +90,7 @@
         </div>
       </section>
 
-      <!-- UNIRSE A UN EVENTO -->
+      <!-- UNIRSE A UN EVENTO (iconos restaurados) -->
       <section class="card">
         <h2>Unirse a un evento</h2>
         <label for="joinCode">Código</label>
