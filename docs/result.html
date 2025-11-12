@@ -7,110 +7,109 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
-      --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
-      --accent:#6eb0ff; --accent-2:#8ec5ff; --ok:#7cffb6; --err:#ff7a8a;
+      --bg:#121418;
+      --card:#1b1f27;
+      --card-2:#232a34;
+      --text:#e8ecf1;
+      --muted:#b5bdc9;
+      --border:#2b3240;
+      --accent:#5ea1ff;
+      --accent-2:#7cc4ff;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1200px 800px at 20% -10%, #131a27 0%, transparent 60%),
-                  radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
     }
-    a{color:var(--accent);text-decoration:none} a:hover{color:var(--accent-2)}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{color:var(--accent-2)}
+
     .wrap{max-width:980px;margin:0 auto;padding:16px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
-    .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
     .tag{opacity:.9}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.28);margin-bottom:14px}
-    h2{margin:0 0 10px 0;text-transform:uppercase;letter-spacing:.05em}
-    .muted{color:var(--muted)}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+
+    /* Botones coherentes con el resto (uppercase + bold) */
     .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      padding:10px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#0f141c;color:var(--text);text-decoration:none;
-      text-transform:uppercase;font-weight:900;letter-spacing:.03em;min-height:40px;
-      transition:background .15s,border-color .15s,transform .05s;
+      display:inline-flex;align-items:center;gap:8px;
+      padding:11px 16px;border-radius:12px;
+      border:1px solid var(--border);
+      background:#0f1217;color:var(--text);
+      cursor:pointer; user-select:none;
+      transition:transform .05s ease, background .15s, border-color .15s, color .15s;
+      text-transform: uppercase; font-weight:800; letter-spacing:.03em;
+      font-size:14px; line-height:1;
+      text-decoration:none;
     }
-    .btn:hover{background:#141a24}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
-    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
-    .row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;
-         border:1px solid var(--border);border-radius:12px;background:#0f141c;padding:10px 12px;margin-bottom:8px}
-    .pos{width:42px;height:28px;border-radius:999px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-weight:900}
-    .name{font-weight:900;text-transform:uppercase}
-    .time{font-weight:900;letter-spacing:.4px}
-    .sub{font-size:12px;color:var(--muted)}
-    .ok{color:var(--ok);font-weight:800} .err{color:var(--err);font-weight:800}
-    .two{display:grid;grid-template-columns:1fr;gap:14px}
-    @media(min-width:900px){ .two{grid-template-columns:1fr 1fr} }
+    .btn:hover{ background:#12161d }
+    .btn:active{ transform:translateY(1px) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
-    /* Área a exportar a PDF */
-    #exportArea{padding:6px}
+    .big{font-size:38px;font-weight:900;letter-spacing:.5px}
+    .muted{color:var(--muted)}
+
+    table{width:100%;border-collapse:collapse;margin-top:10px;background:var(--card-2);border-radius:12px;overflow:hidden}
+    th,td{border-bottom:1px solid var(--border);padding:10px;text-align:left}
+    th{background:#202633;font-weight:800;text-transform:uppercase;color:#eaf2ff}
+    td{color:#e8ecf1}
+    tr:last-child td{border-bottom:none}
+    .num{width:60px}
+    .name{text-transform:uppercase} /* nombres en mayúsculas al presentar */
+    .time{font-weight:800}
+
+    .sectionTitle{margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:.04em}
   </style>
+
+  <!-- PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
-<body>
-  <div class="wrap">
-    <header>
-      <h1 class="title">RESULTADOS</h1>
-      <div class="tag" id="ev">Evento —</div>
-    </header>
+<body class="wrap">
+  <header class="top">
+    <h1 class="sectionTitle">RESULTADOS</h1>
+    <p class="tag" id="subtitle">—</p>
+  </header>
 
-    <!-- Herramientas (incluye PDF y navegación) -->
-    <section class="card" id="tools">
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <a class="btn" href="index.html">⇦ Inicio</a>
-        <a id="openStart" class="btn" href="#">🏁 Salida</a>
-        <a id="openFinish" class="btn" href="#">🚩 Meta</a>
-        <button id="btnPdf" class="btn primary">⬇️ Descargar PDF</button>
-      </div>
-      <div class="muted" style="margin-top:8px">Orden de clasificación: <b>mejor tiempo primero</b>.</div>
-    </section>
-
-    <div class="two" id="exportArea">
-      <section class="card" id="cardDone">
-        <h2>Clasificación</h2>
-        <div id="listDone"><div class="muted">— Aún no hay llegadas —</div></div>
-      </section>
-
-      <section class="card" id="cardLive">
-        <h2>En curso</h2>
-        <div id="listLive"><div class="muted">— Ningún participante en pista —</div></div>
-      </section>
-    </div>
-
+  <main class="grid one">
     <section class="card">
-      <h2>Estado</h2>
-      <div>Firebase: <span id="fb">—</span></div>
-      <div>Participantes: <span id="cnt">—</span></div>
-    </section>
-  </div>
+      <div class="big" id="overall">—</div>
+      <p class="muted" id="details">—</p>
+      <div class="row" style="margin-top:6px">
+        <button id="btnPDF" class="btn primary">DESCARGAR PDF</button>
+        <a class="btn" href="index.html">NUEVO EVENTO</a>
+      </div>
 
-  <!-- Firebase + Firestore (CDN, ES Modules) -->
+      <h2 class="sectionTitle">Participantes</h2>
+      <table>
+        <thead><tr><th class="num">#</th><th>Nombre</th><th>Tiempo</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </section>
+  </main>
+
   <script type="module">
-    // Utils
-    const $=(id)=>document.getElementById(id);
-    const two=(n)=>String(n).padStart(2,'0');
-    const three=(n)=>String(n).padStart(3,'0');
-    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
-      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-      return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
     const getParam=(k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
+    document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
 
-    $('ev').textContent = 'Evento ' + (code||'—');
-    $('openStart').onclick =(e)=>{ e.preventDefault(); if(!code) return alert('Sin código'); location.href = `camera.html?code=${encodeURIComponent(code)}&mode=start`; };
-    $('openFinish').onclick=(e)=>{ e.preventDefault(); if(!code) return alert('Sin código'); location.href = `camera.html?code=${encodeURIComponent(code)}&mode=finish`; };
+    const two = (n)=> String(n).padStart(2,'0');
+    const three = (n)=> String(n).padStart(3,'0');
+    const fmt = (ms)=>{ ms=Math.max(0, Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    // Firebase (CDN)
     try{
-      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-      const { getFirestore, doc, collection, query, orderBy, onSnapshot } =
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+      const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
+      const { getFirestore, doc, collection, query, orderBy, getDocs } =
+        await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
 
       const firebaseConfig = {
         apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
@@ -120,156 +119,89 @@
         messagingSenderId: "379025900327",
         appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
       };
+
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
-      $('fb').textContent='OK'; $('fb').className='ok';
 
-      const eventRef = doc(db,'events',code||'__NO_CODE__');
-      const partsCol = collection(eventRef,'participants');
+      const eventRef = doc(db,"events",code);
+      const partsCol = collection(eventRef,"participants");
 
-      // Datos en vivo
-      onSnapshot(query(partsCol, orderBy('order','asc')), (qs)=>{
-        const rows = qs.docs.map(d=> ({ id:d.id, ...d.data() }));
-        $('cnt').textContent = rows.length;
-
-        // ---- CLASIFICACIÓN: ordenar por mejor tiempo (ASC) ----
-        const done = rows
-          .filter(r=> r.startTS && r.stopTS)
-          .map(r=>{
-            const start = tsToMillis(r.startTS);
-            const stop  = tsToMillis(r.stopTS);
-            return {
-              name: (r.name||'').toUpperCase(),
-              order: r.order||0,
-              startMS: start,
-              stopMS:  stop,
-              durMS:   (stop!=null && start!=null) ? (stop - start) : null
-            };
-          })
-          .filter(r=> r.durMS!=null)
-          .sort((a,b)=>{
-            if(a.durMS!==b.durMS) return a.durMS - b.durMS;       // mejor tiempo primero
-            if(a.stopMS!==b.stopMS) return a.stopMS - b.stopMS;   // desempate por llegada
-            return a.order - b.order;                             // 2º desempate por dorsal
-          });
-
-        // En curso: quien salió pero no ha llegado (orden por salida)
-        const live = rows
-          .filter(r=> r.startTS && !r.stopTS)
-          .map(r=>({
-            name:(r.name||'').toUpperCase(),
-            order:r.order||0,
-            startMS: tsToMillis(r.startTS)
-          }))
-          .sort((a,b)=> (a.startMS||0)-(b.startMS||0));
-
-        renderDone(done);
-        renderLive(live);
-      });
-
-      function renderDone(arr){
-        const box = $('listDone');
-        if(!arr.length){ box.innerHTML = `<div class="muted">— Aún no hay llegadas —</div>`; return; }
-        box.innerHTML = arr.map((r,i)=> rowDone(i+1, r.name, r.durMS, r.startMS, r.stopMS)).join('');
-      }
-
-      function rowDone(pos, name, durMS, startMS, stopMS){
-        const startStr = new Date(startMS).toLocaleTimeString();
-        const stopStr  = new Date(stopMS).toLocaleTimeString();
-        return `
-          <div class="row">
-            <div class="pos">${pos}</div>
-            <div class="name">${name}</div>
-            <div class="time">${fmt(durMS)}</div>
-            <div class="sub">${startStr} → ${stopStr}</div>
-          </div>
-        `;
-      }
-
-      // Vivo (“En curso”): mostramos contador cliente (no afecta a PDF)
-      let liveCache=[];
-      function renderLive(arr){
-        liveCache = arr.slice();
-        if(!arr.length){ $('listLive').innerHTML = `<div class="muted">— Ningún participante en pista —</div>`; return; }
-        $('listLive').innerHTML = arr.map(r=> rowLive(r.order, r.name, 0)).join('');
-      }
-
-      function rowLive(order, name, ms){
-        return `
-          <div class="row">
-            <div class="pos">#${order}</div>
-            <div class="name">${name}</div>
-            <div class="time" data-live="${order}">${fmt(ms)}</div>
-            <div class="sub">En curso…</div>
-          </div>
-        `;
-      }
-
-      // Actualización de “En curso” cada 100 ms (estético)
-      setInterval(()=>{
-        if(!liveCache.length) return;
-        const now = Date.now();
-        liveCache.forEach(r=>{
-          const el = document.querySelector(`.time[data-live="${r.order}"]`);
-          if(!el) return;
-          const t = now - (r.startMS||now);
-          el.textContent = fmt(t);
+      async function loadParticipants(){
+        const snap = await getDocs(query(partsCol, orderBy('order','asc')));
+        return snap.docs.map(d=>{
+          const x=d.data();
+          const start = tsToMillis(x.startTS) ?? null;
+          const stop  = tsToMillis(x.stopTS)  ?? null;
+          const dur   = (start && stop) ? (stop - start) : null;
+          return { order:x.order||0, name:(x.name||'').toUpperCase(), start, stop, dur };
         });
-      }, 100);
+      }
+
+      async function render(){
+        const rows = await loadParticipants();
+
+        // Tabla
+        const tbody=document.getElementById('tbody');
+        tbody.innerHTML='';
+        rows.forEach(r=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML = `<td class="num">${r.order}</td><td class="name">${r.name}</td><td class="time">${r.dur!=null?fmt(r.dur):'—'}</td>`;
+          tbody.appendChild(tr);
+        });
+
+        // Resumen general (solo serverTS)
+        const starts = rows.map(r=>r.start).filter(Boolean);
+        const stops  = rows.map(r=>r.stop).filter(Boolean);
+        const minStart = starts.length? Math.min(...starts) : null;
+        const maxStop  = stops.length?  Math.max(...stops)  : null;
+        const overall  = (minStart && maxStop) ? fmt(maxStop-minStart) : '—';
+        document.getElementById('overall').textContent = overall;
+        document.getElementById('details').textContent =
+          `Inicio: ${minStart?new Date(minStart).toLocaleTimeString():'—'} | Fin: ${maxStop?new Date(maxStop).toLocaleTimeString():'—'} | Duración: ${overall}`;
+      }
+
+      await render();
+
+      // PDF
+      document.getElementById('btnPDF').onclick = async ()=>{
+        const rows = await loadParticipants();
+        const { jsPDF } = window.jspdf;
+        const docPdf = new jsPDF({unit:'pt', format:'a4'});
+
+        let y=50;
+        docPdf.setFontSize(16);
+        docPdf.text(`Mi Crono — Resultados (${code})`, 40, y); y+=24;
+        docPdf.setFontSize(10);
+        docPdf.text(`Generado: ${new Date().toLocaleString()}`, 40, y); y+=10;
+
+        const starts = rows.map(r=>r.start).filter(Boolean);
+        const stops  = rows.map(r=>r.stop).filter(Boolean);
+        const minStart = starts.length? Math.min(...starts) : null;
+        const maxStop  = stops.length?  Math.max(...stops)  : null;
+        const overallText = (minStart&&maxStop)? ( (maxStop-minStart) ) : null;
+        y+=18; docPdf.setFontSize(12); docPdf.text(`Tiempo total: ${overallText!=null?fmt(overallText):'—'}`, 40, y); y+=16;
+
+        const colX=[40, 80, 360];
+        docPdf.setFontSize(12);
+        docPdf.text('#', colX[0], y);
+        docPdf.text('Nombre', colX[1], y);
+        docPdf.text('Tiempo', colX[2], y);
+        y+=12; docPdf.line(40,y, 550,y); y+=10;
+
+        docPdf.setFontSize(12);
+        rows.forEach(r=>{
+          docPdf.text(String(r.order||''), colX[0], y);
+          docPdf.text(String((r.name||'').toUpperCase()),  colX[1], y);
+          docPdf.text(String(r.dur!=null?fmt(r.dur):'—'), colX[2], y);
+          y+=20; if(y>780){ docPdf.addPage(); y=50; }
+        });
+
+        docPdf.save(`resultado_${code}.pdf`);
+      };
 
     }catch(e){
-      $('fb').textContent='ERROR'; $('fb').className='err';
-      console.error('Firebase error:', e);
-      alert('Firebase ERROR: ' + (e.message || e));
+      alert('Error cargando resultados: '+(e.message||e));
     }
-
-    // ====== PDF (manteniendo la opción de la versión anterior) ======
-    // Usamos html2canvas + jsPDF vía CDN para capturar la tarjeta de clasificación.
-    // Nota: El PDF captura el aspecto actual (tema oscuro incluido).
-  </script>
-
-  <!-- html2canvas + jsPDF desde CDN (cargar fuera del módulo) -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script>
-    (function(){
-      const btn = document.getElementById('btnPdf');
-      if(!btn) return;
-
-      btn.addEventListener('click', async ()=>{
-        try{
-          // Capturamos solo el área de resultados (clasificación + en curso)
-          const target = document.getElementById('exportArea');
-          const canvas = await html2canvas(target, { scale: 2, backgroundColor: null, useCORS: true });
-
-          const imgData = canvas.toDataURL('image/png');
-          const { jsPDF } = window.jspdf;
-
-          // Hoja A4 vertical
-          const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-          const pageW = pdf.internal.pageSize.getWidth();
-          const pageH = pdf.internal.pageSize.getHeight();
-
-          // Ajuste manteniendo proporción y márgenes
-          const margin = 24;
-          const maxW = pageW - margin*2;
-          const maxH = pageH - margin*2;
-
-          let imgW = canvas.width, imgH = canvas.height;
-          const ratio = Math.min(maxW/imgW, maxH/imgH);
-          const w = imgW * ratio, h = imgH * ratio;
-          const x = (pageW - w)/2;
-          const y = (pageH - h)/2;
-
-          pdf.setProperties({ title: 'Resultados — Mi Crono Web' });
-          pdf.addImage(imgData, 'PNG', x, y, w, h);
-          pdf.save('resultados_mi_crono_web.pdf');
-        }catch(e){
-          alert('No se pudo generar el PDF: ' + (e.message||e));
-          console.error(e);
-        }
-      });
-    })();
   </script>
 </body>
 </html>
