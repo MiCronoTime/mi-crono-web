@@ -3,23 +3,31 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — Cámara</title>
+  <title>Mi Crono — CÁMARA</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root { --hud-bg: rgba(0,0,0,.55); }
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .tag{opacity:.8}
+    .card{background:#fff;border:1px solid #eee;border-radius:16px;padding:14px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid #dbe0f0;background:#f3f5ff;text-decoration:none;color:#102;cursor:pointer}
+    .btn.primary{background:#2f6dfc;color:#fff;border-color:#2f6dfc}
+    .muted{opacity:.75}
     .ok{color:#0a7a0a;font-weight:600}
     .err{color:#b00020;font-weight:600}
-    .muted{opacity:.8}
-    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:10px}
-    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:75vh;background:#000;display:flex;align-items:center;justify-content:center}
+
+    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:72vh;background:#000;display:flex;align-items:center;justify-content:center}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
+
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud-bg);color:#fff;border-radius:14px;padding:10px 14px;font-weight:600;backdrop-filter:blur(4px)}
-    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud-bg);color:#fff;border-radius:22px;padding:18px 22px;font-size:42px;font-weight:800;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
-    .row.gap > *{margin-right:8px}
-    input[type=range]{width:100%}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef;color:#123}
+    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud-bg);color:#fff;border-radius:22px;padding:18px 22px;font-size:42px;font-weight:800;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
+    input[type=range]{width:100%}
+
     .list{margin-top:12px}
     .runner{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e8e8f0;border-radius:10px;background:#fff;margin-bottom:6px}
     .runner .time{font-weight:700}
@@ -37,10 +45,8 @@
     </section>
 
     <section class="card">
-      <div class="row gap">
+      <div class="row">
         <button id="btnEnableCam" class="btn primary">Activar cámara</button>
-        <button id="btnStart" class="btn">Marcar INICIO</button>
-        <button id="btnStop" class="btn">Marcar FIN</button>
         <a id="btnResult" class="btn" href="#">Ver resultado</a>
       </div>
       <small class="muted">iOS: Safari + HTTPS + permitir Cámara.</small>
@@ -74,17 +80,12 @@
       <div>Evento: <span id="evState">—</span></div>
       <div>Última acción: <span id="lastAction">—</span></div>
     </section>
-
-    <section class="card">
-      <h2>Depuración</h2>
-      <div class="debug" id="lastError">—</div>
-    </section>
   </main>
 
   <footer><a class="linklike" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    // ===== Utils & UI =====
+    // ===== Utils =====
     const $ = (id)=>document.getElementById(id);
     const two = (n)=> String(n).padStart(2,'0');
     const three = (n)=> String(n).padStart(3,'0');
@@ -97,53 +98,42 @@
     const mode=(getParam('mode')||'start'); // start|finish
 
     const title=$('title'), tag=$('tag'), hudStatus=$('hudStatus'), hudNext=$('hudNext'), timerText=$('timerText'), runnerName=$('runnerName'), runningList=$('runningList');
-    const fbState=$('fbState'), evState=$('evState'), lastErrorEl=$('lastError'), lastAction=$('lastAction');
-    const btnEnable=$('btnEnableCam'), btnStart=$('btnStart'), btnStop=$('btnStop'), btnResult=$('btnResult');
+    const fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
+    const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
     title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`; tag.textContent=`Evento ${code||'—'}`;
 
-    // ===== Estado =====
-    window.__firebaseReady=false; window.__firebaseError=null;
+    // Crono de cabecera (muestra el PRIMERO en curso)
+    let headerStart = null;  // ms desde startTS
+    let headerName  = '—';
+    let headerRunning = false;
+    setInterval(()=>{
+      if(headerRunning && headerStart!=null){
+        timerText.innerHTML = fmt(Date.now()-headerStart) + ' — <span>'+ headerName +'</span>';
+      } else {
+        timerText.innerHTML = '00:00.000 — <span>'+ headerName +'</span>';
+      }
+    }, 90);
+
+    // ===== Firebase (CDN) =====
+    let db, eventRef, partsCol, participants=[];
+    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+
+    window.__firebaseReady=false;
     const paintFirebase=()=>{ fbState.textContent=window.__firebaseReady?'OK':'ERROR';
-      fbState.className=window.__firebaseReady?'ok':'err';
-      lastErrorEl.textContent=window.__firebaseReady?'—':('Init Firebase: '+(window.__firebaseError?.message||String(window.__firebaseError)||'sin detalle')); };
+      fbState.className=window.__firebaseReady?'ok':'err'; };
 
     if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // ===== Crono principal (visual) =====
-    let startMS=null, stopMS=null, running=false, currentRunner=null; // {id,name,order}
-    setInterval(()=>{
-      const nameText = currentRunner?.name || '—';
-      if(running && startMS){ timerText.innerHTML = fmt(Date.now()-startMS) + ' — <span>'+ nameText +'</span>'; }
-      else if(startMS && stopMS){ timerText.innerHTML = fmt(stopMS-startMS) + ' — <span>'+ nameText +'</span>'; }
-      else { timerText.innerHTML = '00:00.000 — <span>'+ nameText +'</span>'; }
-      renderRunningList();
-    }, 80);
-
-    const startLocal = (ms, runner)=>{
-      if(running) return;
-      startMS = ms || Date.now(); stopMS=null; running=true; currentRunner = runner || currentRunner;
-      hudStatus.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono en marcha';
-    };
-    const stopLocal = (ms)=>{
-      if(!running) return;
-      stopMS = ms || Date.now(); running=false;
-      hudStatus.textContent = (mode==='start'?'SALIDA':'META') + ' — Crono detenido';
-    };
-
-    // ===== Firebase (CDN) =====
-    let db, eventRef, partsCol, participants=[];
-    const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
-
     try{
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
-        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, serverTimestamp,
-        collection, query, orderBy, getDocs
+        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+        serverTimestamp, collection, query, orderBy, getDocs
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -154,7 +144,6 @@
         messagingSenderId: "379025900327",
         appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
       };
-
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       db = getFirestore(app);
       window.__firebaseReady=true; paintFirebase();
@@ -168,33 +157,32 @@
           participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
         };
 
-        // Crear evento si no existe
+        // Crea evento si no existe
         const s=await getDoc(eventRef);
         if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-        // Helpers SALIDA/META (selección local con snapshot)
-        const nextToStart = ()=> participants.find(p=>!p.startClientMS && !p.startTS);
+        // Selectores (SOLO CON serverTS)
+        const nextToStart = ()=> participants.find(p=>!p.startTS);
         const runningSorted = ()=> participants
-          .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
-          .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
+          .filter(p=>p.startTS && !p.stopTS)
+          .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-        // ------- INICIO y FIN (sin transacciones) -------
+        // Acciones (escribe SOLO serverTimestamp)
         async function startNext(){
           await reloadOrdered();
           const p = nextToStart(); if(!p) return null;
-          await updateDoc(p.ref,{ startTS:serverTimestamp(), startClientMS: Date.now(), stopTS:null, stopClientMS:null });
-          return { id:p.id, name:p.name, order:p.order, startClientMS: Date.now() };
+          await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
+          return p;
         }
         async function stopEarliest(){
           await reloadOrdered();
           const run = runningSorted();
           const p = run[0]; if(!p) return null;
-          await updateDoc(p.ref,{ stopTS:serverTimestamp(), stopClientMS: Date.now() });
-          return { id:p.id, name:p.name, order:p.order, stopClientMS: Date.now() };
+          await updateDoc(p.ref,{ stopTS:serverTimestamp() });
+          return p;
         }
-        // -------------------------------------------------
 
-        // SNAPSHOT: refleja estado, NO auto–arranca en META
+        // Suscripción: refleja estado y alinea el crono con serverTS
         onSnapshot(partsCol, async ()=>{
           await reloadOrdered();
 
@@ -203,32 +191,22 @@
 
           if(runningArr.length>0){
             const first = runningArr[0];
-            const ms = (first.startClientMS ?? tsToMillis(first.startTS) ?? Date.now());
-            startLocal(ms, { id:first.id, name:first.name, order:first.order });
-            $('runnerName').textContent = first.name || '—';
+            headerStart  = tsToMillis(first.startTS);
+            headerName   = first.name || '—';
+            headerRunning= true;
           } else {
-            if(running) stopLocal();
-            $('runnerName').textContent = nextOne?.name || '—';
+            headerRunning=false; headerStart=null;
+            headerName = nextOne?.name || '—';
           }
 
           hudNext.textContent = 'Siguiente: ' + (nextOne?.name || '—');
 
-          const hasStart = participants.some(p=>p.startClientMS||p.startTS);
-          const hasStop  = participants.some(p=>p.stopClientMS||p.stopTS);
+          const hasStart = participants.some(p=>p.startTS);
+          const hasStop  = participants.some(p=>p.stopTS);
           tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
-        },(err)=>{ lastErrorEl.textContent='Snapshot: '+(err.code||err.message||err); });
 
-        // Botones
-        btnStart.onclick = async ()=>{
-          const r = await startNext(); // SALIDA decide el siguiente
-          if(r){ startLocal(r.startClientMS, {id:r.id,name:r.name,order:r.order}); lastAction.textContent='Inicio: '+r.name; }
-          else { lastAction.textContent='No hay siguiente para iniciar.'; }
-        };
-        btnStop.onclick  = async ()=>{
-          const r = await stopEarliest(); // META para al primero en curso (FIFO)
-          if(r){ stopLocal(r.stopClientMS); lastAction.textContent='Fin: '+r.name; }
-          else { lastAction.textContent='No hay participante en curso.'; }
-        };
+          renderRunningList();
+        });
 
         // ===== Cámara + detección =====
         btnEnable.onclick = async ()=>{
@@ -249,13 +227,8 @@
         let prev=null, armed=true;
         const trigger = async ()=>{
           if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
-          if(mode==='start'){
-            const r=await startNext(); // SALIDA inicia al siguiente
-            if(r){ startLocal(r.startClientMS, {id:r.id,name:r.name,order:r.order}); }
-          } else {
-            const r=await stopEarliest(); // META para al primero en curso
-            if(r){ stopLocal(r.stopClientMS); }
-          }
+          if(mode==='start'){ const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); } }
+          else { const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); } }
         };
 
         function loop(){
@@ -289,19 +262,16 @@
         }
 
         function renderRunningList(){
-          if(!participants.length) { runningList.innerHTML='—'; return; }
           const now = Date.now();
-          const runningArr = participants
-            .filter(p=>(p.startClientMS||p.startTS) && !(p.stopClientMS||p.stopTS))
-            .sort((a,b)=>(a.startClientMS ?? tsToMillis(a.startTS)) - (b.startClientMS ?? tsToMillis(b.startTS)));
+          const runningArr = runningSorted();
           if(!runningArr.length){ runningList.innerHTML='—'; return; }
           runningList.innerHTML = runningArr.map(p=>{
-            const st = (p.startClientMS ?? tsToMillis(p.startTS) ?? now);
+            const st = tsToMillis(p.startTS);
             return `<div class="runner"><div>${p.order}. ${p.name}</div><div class="time">${fmt(now - st)}</div></div>`;
           }).join('');
         }
       }
-    }catch(e){ window.__firebaseError=e; window.__firebaseReady=false; paintFirebase(); }
+    }catch(e){ window.__firebaseReady=false; paintFirebase(); alert('Firebase error: '+(e.message||e)); }
     paintFirebase();
   </script>
 </body>
