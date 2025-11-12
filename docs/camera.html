@@ -35,8 +35,19 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
     .card h2{margin:.2rem 0 8px 0}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
 
+    /* CONTROLES (alineados y del mismo tamaño) */
+    .controls{
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    }
+    .controls .btn{
+      flex:1 1 0;                 /* mismo ancho */
+      min-height:44px;            /* misma altura mínima */
+      justify-content:center;     /* centra texto */
+      white-space:nowrap;         /* evita salto de línea */
+    }
+
+    /* Botones idénticos para <button> y <a> */
     .btn{
       display:inline-flex;align-items:center;gap:8px;
       padding:11px 16px;border-radius:12px;
@@ -45,6 +56,8 @@
       cursor:pointer; user-select:none;
       transition:transform .05s ease, background .15s, border-color .15s, color .15s;
       text-transform: uppercase; font-weight:800; letter-spacing:.03em;
+      font-size:14px; line-height:1;  /* MISMO tamaño y línea */
+      text-decoration:none;           /* <a> sin subrayado */
     }
     .btn:hover{ background:#12161d }
     .btn:active{ transform:translateY(1px) }
@@ -76,6 +89,11 @@
     .list{margin-top:12px}
     .runner{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
     .runner .time{font-weight:800;color:#eaf2ff}
+
+    /* Responsive: si prefieres que en móvil sean 100% ancho uno bajo otro, descomenta:
+    @media(max-width:520px){
+      .controls .btn{flex:1 1 100%}
+    } */
   </style>
 </head>
 <body class="wrap">
@@ -90,7 +108,7 @@
     </section>
 
     <section class="card">
-      <div class="row">
+      <div class="controls">
         <button id="btnEnableCam" class="btn primary">ACTIVAR CÁMARA</button>
         <a id="btnResult" class="btn" href="#">VER RESULTADO</a>
       </div>
@@ -148,11 +166,11 @@
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`; 
+    title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`;
     tag.textContent=`Evento ${code||'—'}`;
     document.querySelector('h1#title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
 
-    // Crono de cabecera (muestra el PRIMERO en curso) — usa SOLO serverTimestamp
+    // Crono de cabecera (PRIMERO en curso) — sólo serverTimestamp
     let headerStart = null;  // ms desde startTS
     let headerName  = '—';
     let headerRunning = false;
@@ -192,7 +210,7 @@
         appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
       };
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      db = getFirestore(app);
+      const db  = getFirestore(app);
       window.__firebaseReady=true; paintFirebase();
 
       if(code){
