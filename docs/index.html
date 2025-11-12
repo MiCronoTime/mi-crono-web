@@ -3,86 +3,172 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — Inicio</title>
+  <title>Mi Crono — INICIO</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg1:#eef3ff; --bg2:#f9fbff; --card:#ffffff; --text:#0b1220; --muted:#667; --pri:#2f6dfc;
-      --border:#e2e7f5;
+      --bg:#121418;          /* fondo principal */
+      --card:#1b1f27;        /* tarjetas */
+      --card-2:#232a34;      /* elementos dentro de tarjeta */
+      --text:#e8ecf1;        /* texto principal */
+      --muted:#b5bdc9;       /* texto secundario */
+      --border:#2b3240;      /* bordes sutiles */
+      --accent:#5ea1ff;      /* primario */
+      --accent-2:#7cc4ff;    /* hover */
+      --danger:#ff5e7a;
     }
+
+    /* Reset y base */
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
+      margin:0;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: linear-gradient(180deg,var(--bg1),var(--bg2));
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+                  var(--bg);
       color:var(--text);
     }
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-    .brand{display:flex;gap:10px;align-items:center}
-    .brand .logo{font-size:22px}
-    .brand h1{font-size:20px;margin:0}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{color:var(--accent-2)}
+
+    .wrap{max-width:980px;margin:0 auto;padding:20px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{font-size:24px;line-height:1}
+    h1{margin:0;font-size:20px;letter-spacing:.06em}
+    .uc{ text-transform: uppercase; letter-spacing:.04em }
+
     .grid{display:grid;gap:16px}
     .two{grid-template-columns:1fr}
-    @media(min-width:900px){.two{grid-template-columns:1fr 1fr}}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(16,24,40,.04)}
-    h2{margin:.3rem 0 10px 0}
-    label{display:block;margin:8px 0 6px;font-weight:600}
-    input,textarea{width:100%;padding:12px 14px;border:1px solid #dde1ee;border-radius:12px;background:#fbfcff}
-    textarea{min-height:130px}
-    .row{display:flex;gap:8px;flex-wrap:wrap}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid #dbe0f0;background:#f3f5ff;text-decoration:none;color:#102;cursor:pointer}
-    .btn.primary{background:var(--pri);color:#fff;border-color:var(--pri)}
-    .muted{color:var(--muted)}
-    .ok{color:#0a7a0a;font-weight:600}
-    .err{color:#b00020;font-weight:600}
-    .help{font-size:12px;color:#778; margin-top:6px}
+    @media(min-width:940px){.two{grid-template-columns:1fr 1fr}}
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:18px;
+      box-shadow:0 8px 30px rgba(0,0,0,.2);
+    }
+    .subcard{
+      background:var(--card-2);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:12px;
+    }
+
+    h2{ margin:.3rem 0 12px 0; font-size:16px }
+    label{display:block;margin:10px 0 6px;font-weight:600;color:var(--text)}
+
+    input, textarea{
+      width:100%;
+      padding:12px 14px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:#0f1217;
+      color:var(--text);
+      outline:none;
+      transition:border-color .15s, box-shadow .15s;
+      text-transform: uppercase;           /* VISUAL: todo en mayúsculas */
+      letter-spacing:.02em;
+    }
+    input::placeholder, textarea::placeholder{ color:#80889a }
+    input:focus, textarea:focus{
+      border-color:var(--accent);
+      box-shadow:0 0 0 3px rgba(94,161,255,.2);
+    }
+    textarea{ min-height:140px; resize:vertical }
+
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:11px 16px;border-radius:12px;
+      border:1px solid var(--border);
+      background:#0f1217;color:var(--text);
+      cursor:pointer; user-select:none;
+      transition:transform .05s ease, background .15s, border-color .15s, color .15s;
+    }
+    .btn:hover{ background:#12161d }
+    .btn:active{ transform:translateY(1px) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+
+    .muted{ color:var(--muted) }
+    .ok{color:#7cffb6;font-weight:600}
+    .err{color:var(--danger);font-weight:600}
+
+    .help{font-size:12px;color:#9aa3b2;margin-top:6px}
+    .links{margin-top:12px}
   </style>
 </head>
 <body class="wrap">
   <header class="top">
-    <div class="brand"><div class="logo">⏱️</div><h1>Mi Crono Web</h1></div>
+    <div class="brand">
+      <div class="logo">⏱️</div>
+      <h1 class="uc">Mi Crono Web</h1>
+    </div>
     <a href="result.html" class="muted">Ver resultados (necesita código)</a>
   </header>
 
   <main class="grid two">
+    <!-- CREAR EVENTO -->
     <section class="card">
-      <h2>Crear evento</h2>
+      <h2 class="uc">Crear evento</h2>
+
       <label for="code">Código del evento</label>
       <input id="code" placeholder="p.ej. TEST1" autocomplete="off"/>
 
       <label for="names">Participantes (uno por línea, en orden de salida)</label>
-      <textarea id="names" placeholder="Corredor 1&#10;Corredor 2&#10;Corredor 3"></textarea>
+      <textarea id="names" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
       <div class="help">El orden se usa como parrilla y para decidir el orden de llegada.</div>
 
-      <div class="row" style="margin-top:10px">
+      <div class="row" style="margin-top:12px">
         <button id="btnCreate" class="btn primary">Guardar evento</button>
       </div>
 
-      <div id="createMsg" class="muted" style="margin-top:10px">—</div>
+      <div id="createMsg" class="muted" style="margin-top:12px">—</div>
 
-      <div id="links" style="display:none;margin-top:12px" class="row">
-        <a id="lnkStart" class="btn">🚦 SALIDA</a>
+      <div id="links" class="links row" style="display:none">
+        <a id="lnkStart"  class="btn">🚦 SALIDA</a>
         <a id="lnkFinish" class="btn">🏁 META</a>
         <a id="lnkResult" class="btn">📄 Resultados</a>
       </div>
     </section>
 
+    <!-- UNIRSE A UN EVENTO -->
     <section class="card">
-      <h2>Unirse a un evento</h2>
+      <h2 class="uc">Unirse a un evento</h2>
+
       <label for="joinCode">Código</label>
-      <input id="joinCode" placeholder="p.ej. TEST1" autocomplete="off"/>
-      <div class="row" style="margin-top:10px">
-        <a id="joinStart" class="btn">🚦 SALIDA</a>
+      <input id="joinCode" placeholder="TEST1" autocomplete="off"/>
+
+      <div class="row" style="margin-top:12px">
+        <a id="joinStart"  class="btn">🚦 SALIDA</a>
         <a id="joinFinish" class="btn">🏁 META</a>
         <a id="joinResult" class="btn">📄 Resultado</a>
       </div>
-      <div class="help">Abre SALIDA en salida y META en llegada. Ambos con el mismo código.</div>
+
+      <div class="subcard" style="margin-top:12px">
+        <div class="help">Abre <b>SALIDA</b> en la salida y <b>META</b> en la llegada. Ambos con el mismo <b>código</b>.</div>
+      </div>
     </section>
   </main>
 
+  <!-- Firebase + lógica -->
   <script type="module">
     const $ = (id)=>document.getElementById(id);
     const pid = (i)=> 'p'+String(i).padStart(3,'0');
 
+    // Fuerza MAYÚSCULAS también a nivel de dato (no solo visual)
+    const toUpperLive = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
+    toUpperLive($('code'));
+    toUpperLive($('joinCode'));
+    // Para el textarea, convertimos todo a mayúsculas al soltar tecla
+    if ($('names')) {
+      $('names').addEventListener('input', ()=> $('names').value = $('names').value.toUpperCase());
+    }
+
+    // Firebase CDN
     const { initializeApp, getApp, getApps } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const { getFirestore, doc, setDoc, collection } =
@@ -99,18 +185,34 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
+    // Crear evento
     $('btnCreate').onclick = async ()=>{
-      const code = ($('code').value||'').trim().toUpperCase();
-      const lines = ($('names').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+      const code = (($('code').value||'').trim().toUpperCase());
+      // normaliza saltos y mayúsculas en nombres
+      const lines = (($('names').value||'').toUpperCase())
+        .split('\n').map(s=>s.trim()).filter(Boolean);
+
       if(!code){ $('createMsg').textContent='Escribe un código.'; $('createMsg').className='err'; return; }
       if(!lines.length){ $('createMsg').textContent='Añade al menos un participante.'; $('createMsg').className='err'; return; }
+
       try{
         const eventRef = doc(db,'events',code);
-        await setDoc(eventRef,{code, startTS:null, startClientMS:null, stopTS:null, stopClientMS:null, createdAt:new Date().toISOString()},{merge:true});
+        await setDoc(eventRef,{
+          code,
+          startTS:null, startClientMS:null,
+          stopTS:null,  stopClientMS:null,
+          createdAt:new Date().toISOString()
+        },{merge:true});
+
+        const { doc:docRef, setDoc:setSub } =
+          await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
         const col = collection(eventRef,'participants');
-        await Promise.all(lines.map((name,idx)=> setDoc(doc(col, pid(idx+1)),{
-          order: idx+1, name, startTS:null, startClientMS:null, stopTS:null, stopClientMS:null
+        await Promise.all(lines.map((name,idx)=> setSub(docRef(col, pid(idx+1)),{
+          order: idx+1, name,
+          startTS:null, startClientMS:null,
+          stopTS:null,  stopClientMS:null
         },{merge:true})));
+
         $('createMsg').textContent = `Evento y participantes guardados (${lines.length}).`;
         $('createMsg').className='ok';
         $('links').style.display='';
@@ -123,12 +225,19 @@
       }
     };
 
-    const openWith = (mode)=>()=>{ const c=($('joinCode').value||'').trim().toUpperCase();
-      if(!c) return alert('Escribe un código'); location.href=`camera.html?code=${encodeURIComponent(c)}&mode=${mode}`; };
+    // Unirse
+    const openWith = (mode)=>()=>{ 
+      const c=(($('joinCode').value||'').trim().toUpperCase());
+      if(!c) return alert('Escribe un CÓDIGO');
+      location.href=`camera.html?code=${encodeURIComponent(c)}&mode=${mode}`;
+    };
     $('joinStart').onclick  = openWith('start');
     $('joinFinish').onclick = openWith('finish');
-    $('joinResult').onclick = ()=>{ const c=($('joinCode').value||'').trim().toUpperCase();
-      if(!c) return alert('Escribe un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
+    $('joinResult').onclick = ()=>{ 
+      const c=(($('joinCode').value||'').trim().toUpperCase());
+      if(!c) return alert('Escribe un CÓDIGO');
+      location.href=`result.html?code=${encodeURIComponent(c)}`;
+    };
   </script>
 </body>
 </html>
