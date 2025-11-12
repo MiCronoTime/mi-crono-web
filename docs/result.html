@@ -33,8 +33,11 @@
       padding:10px 14px;border-radius:12px;border:1px solid var(--border);
       background:#0f141c;color:var(--text);text-decoration:none;
       text-transform:uppercase;font-weight:900;letter-spacing:.03em;min-height:40px;
+      transition:background .15s,border-color .15s,transform .05s;
     }
     .btn:hover{background:#141a24}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
+    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
     .row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;
          border:1px solid var(--border);border-radius:12px;background:#0f141c;padding:10px 12px;margin-bottom:8px}
     .pos{width:42px;height:28px;border-radius:999px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-weight:900}
@@ -44,6 +47,9 @@
     .ok{color:var(--ok);font-weight:800} .err{color:var(--err);font-weight:800}
     .two{display:grid;grid-template-columns:1fr;gap:14px}
     @media(min-width:900px){ .two{grid-template-columns:1fr 1fr} }
+
+    /* Área a exportar a PDF */
+    #exportArea{padding:6px}
   </style>
 </head>
 <body>
@@ -53,13 +59,24 @@
       <div class="tag" id="ev">Evento —</div>
     </header>
 
-    <div class="two">
-      <section class="card">
+    <!-- Herramientas (incluye PDF y navegación) -->
+    <section class="card" id="tools">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn" href="index.html">⇦ Inicio</a>
+        <a id="openStart" class="btn" href="#">🏁 Salida</a>
+        <a id="openFinish" class="btn" href="#">🚩 Meta</a>
+        <button id="btnPdf" class="btn primary">⬇️ Descargar PDF</button>
+      </div>
+      <div class="muted" style="margin-top:8px">Orden de clasificación: <b>mejor tiempo primero</b>.</div>
+    </section>
+
+    <div class="two" id="exportArea">
+      <section class="card" id="cardDone">
         <h2>Clasificación</h2>
         <div id="listDone"><div class="muted">— Aún no hay llegadas —</div></div>
       </section>
 
-      <section class="card">
+      <section class="card" id="cardLive">
         <h2>En curso</h2>
         <div id="listLive"><div class="muted">— Ningún participante en pista —</div></div>
       </section>
@@ -69,15 +86,10 @@
       <h2>Estado</h2>
       <div>Firebase: <span id="fb">—</span></div>
       <div>Participantes: <span id="cnt">—</span></div>
-      <div class="muted" id="note">Orden: mejor tiempo primero</div>
-      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-        <a class="btn" href="index.html">⇦ Inicio</a>
-        <a id="openStart" class="btn" href="#">🏁 Salida</a>
-        <a id="openFinish" class="btn" href="#">🚩 Meta</a>
-      </div>
     </section>
   </div>
 
+  <!-- Firebase + Firestore (CDN, ES Modules) -->
   <script type="module">
     // Utils
     const $=(id)=>document.getElementById(id);
@@ -97,7 +109,7 @@
     // Firebase (CDN)
     try{
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-      const { getFirestore, doc, collection, query, orderBy, onSnapshot, getDocs } =
+      const { getFirestore, doc, collection, query, orderBy, onSnapshot } =
         await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -112,50 +124,36 @@
       const db  = getFirestore(app);
       $('fb').textContent='OK'; $('fb').className='ok';
 
-      const eventRef = doc(db,'events',code);
+      const eventRef = doc(db,'events',code||'__NO_CODE__');
       const partsCol = collection(eventRef,'participants');
 
-      // Pequeña sync de reloj (opcional; para vivo en "En curso")
-      let serverOffsetMS = 0;
-      try{
-        // reuse un doc existente para estimar: coge el primero con startTS
-        const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-        const any = snap.docs.find(d => d.data()?.startTS);
-        if(any){
-          const nowLocal = Date.now();
-          // heurística no exacta; si no hay ping, mantenemos 0
-          serverOffsetMS = 0; // dejamos 0 para no liar; los resultados finalizados no dependen de esto
-        }
-      }catch(_){ serverOffsetMS=0; }
-
-      // Render
+      // Datos en vivo
       onSnapshot(query(partsCol, orderBy('order','asc')), (qs)=>{
         const rows = qs.docs.map(d=> ({ id:d.id, ...d.data() }));
         $('cnt').textContent = rows.length;
 
-        // Terminados: stopTS existe -> calcular duración y ordenar ascendente
+        // ---- CLASIFICACIÓN: ordenar por mejor tiempo (ASC) ----
         const done = rows
           .filter(r=> r.startTS && r.stopTS)
           .map(r=>{
             const start = tsToMillis(r.startTS);
             const stop  = tsToMillis(r.stopTS);
-            const dur   = (stop!=null && start!=null) ? (stop - start) : null;
             return {
               name: (r.name||'').toUpperCase(),
               order: r.order||0,
               startMS: start,
               stopMS:  stop,
-              durMS:   dur
+              durMS:   (stop!=null && start!=null) ? (stop - start) : null
             };
           })
           .filter(r=> r.durMS!=null)
           .sort((a,b)=>{
             if(a.durMS!==b.durMS) return a.durMS - b.durMS;       // mejor tiempo primero
-            if(a.stopMS!==b.stopMS) return a.stopMS - b.stopMS;   // quien llegó antes
-            return a.order - b.order;                             // desempate estable
+            if(a.stopMS!==b.stopMS) return a.stopMS - b.stopMS;   // desempate por llegada
+            return a.order - b.order;                             // 2º desempate por dorsal
           });
 
-        // En curso: startTS y NO stopTS (orden por start asc; mostramos tiempo vivo)
+        // En curso: quien salió pero no ha llegado (orden por salida)
         const live = rows
           .filter(r=> r.startTS && !r.stopTS)
           .map(r=>({
@@ -163,7 +161,7 @@
             order:r.order||0,
             startMS: tsToMillis(r.startTS)
           }))
-          .sort((a,b)=> (a.startMS||0) - (b.startMS||0));
+          .sort((a,b)=> (a.startMS||0)-(b.startMS||0));
 
         renderDone(done);
         renderLive(live);
@@ -188,7 +186,7 @@
         `;
       }
 
-      // Vivo (en curso): reloj animado
+      // Vivo (“En curso”): mostramos contador cliente (no afecta a PDF)
       let liveCache=[];
       function renderLive(arr){
         liveCache = arr.slice();
@@ -207,10 +205,10 @@
         `;
       }
 
-      // Bucle de actualización cada 100 ms solo para “En curso”
+      // Actualización de “En curso” cada 100 ms (estético)
       setInterval(()=>{
         if(!liveCache.length) return;
-        const now = Date.now() + serverOffsetMS;
+        const now = Date.now();
         liveCache.forEach(r=>{
           const el = document.querySelector(`.time[data-live="${r.order}"]`);
           if(!el) return;
@@ -224,6 +222,54 @@
       console.error('Firebase error:', e);
       alert('Firebase ERROR: ' + (e.message || e));
     }
+
+    // ====== PDF (manteniendo la opción de la versión anterior) ======
+    // Usamos html2canvas + jsPDF vía CDN para capturar la tarjeta de clasificación.
+    // Nota: El PDF captura el aspecto actual (tema oscuro incluido).
+  </script>
+
+  <!-- html2canvas + jsPDF desde CDN (cargar fuera del módulo) -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script>
+    (function(){
+      const btn = document.getElementById('btnPdf');
+      if(!btn) return;
+
+      btn.addEventListener('click', async ()=>{
+        try{
+          // Capturamos solo el área de resultados (clasificación + en curso)
+          const target = document.getElementById('exportArea');
+          const canvas = await html2canvas(target, { scale: 2, backgroundColor: null, useCORS: true });
+
+          const imgData = canvas.toDataURL('image/png');
+          const { jsPDF } = window.jspdf;
+
+          // Hoja A4 vertical
+          const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+          const pageW = pdf.internal.pageSize.getWidth();
+          const pageH = pdf.internal.pageSize.getHeight();
+
+          // Ajuste manteniendo proporción y márgenes
+          const margin = 24;
+          const maxW = pageW - margin*2;
+          const maxH = pageH - margin*2;
+
+          let imgW = canvas.width, imgH = canvas.height;
+          const ratio = Math.min(maxW/imgW, maxH/imgH);
+          const w = imgW * ratio, h = imgH * ratio;
+          const x = (pageW - w)/2;
+          const y = (pageH - h)/2;
+
+          pdf.setProperties({ title: 'Resultados — Mi Crono Web' });
+          pdf.addImage(imgData, 'PNG', x, y, w, h);
+          pdf.save('resultados_mi_crono_web.pdf');
+        }catch(e){
+          alert('No se pudo generar el PDF: ' + (e.message||e));
+          console.error(e);
+        }
+      });
+    })();
   </script>
 </body>
 </html>
