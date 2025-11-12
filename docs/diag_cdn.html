@@ -1,53 +1,73 @@
 <!DOCTYPE html>
 <html lang="es">
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Diag CDN Firebase</title>
-<style>
-  body{font-family:system-ui,Segoe UI,Arial,sans-serif;padding:16px}
-  .ok{color:#0a7a0a;font-weight:600} .err{color:#b00020;font-weight:600}
-  code{background:#f6f6f6;padding:2px 6px;border-radius:6px}
-</style>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diag Firebase (CDN)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0f141c;color:#eaf0f8;margin:0;padding:20px}
+    .ok{color:#7cffb6;font-weight:800}
+    .err{color:#ff7a8a;font-weight:800}
+    .muted{opacity:.85}
+    .card{background:#161c24;border:1px solid #2a3342;border-radius:14px;padding:16px;max-width:700px}
+    code{background:#0c1117;border:1px solid #2a3342;border-radius:6px;padding:2px 6px}
+  </style>
+</head>
+<body>
+  <h1>Diagnóstico Firebase (CDN)</h1>
+  <div class="card">
+    <div>Estado: <span id="state" class="muted">Cargando…</span></div>
+    <div id="line"></div>
+    <pre id="out" class="muted"></pre>
+  </div>
 
-<h1>Diagnóstico CDN Firebase</h1>
-<div id="modStatus">🔎 Cargando módulos...</div>
-<div id="fbStatus">—</div>
-<pre id="detail" style="white-space:pre-wrap;background:#f6f6f6;padding:10px;border-radius:8px"></pre>
+  <script type="module">
+    const S = (t,c)=>{ const el=document.getElementById('state'); el.textContent=t; el.className=c||''; };
+    const L = (t)=>{ document.getElementById('line').innerHTML = t; };
+    const O = (t)=>{ const el=document.getElementById('out'); el.textContent += t + "\n"; };
 
-<script type="module">
-  const mod = document.getElementById('modStatus');
-  const fb  = document.getElementById('fbStatus');
-  const det = document.getElementById('detail');
+    try{
+      // ⬇️ ESTA es la “línea de código” clave (import por CDN, módulos ES)
+      L('<code>https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js</code> y <code>firebase-firestore.js</code>');
 
-  function show(el, ok, msg){
-    el.className = ok ? 'ok' : 'err';
-    el.textContent = (ok ? '✅ ' : '❌ ') + msg;
-  }
+      const { initializeApp, getApp, getApps } =
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+      const {
+        getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, addDoc
+      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-  try {
-    // 1) ¿Carga el módulo desde gstatic?
-    const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-    const { getFirestore } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-    show(mod, true, 'Módulos ES de Firebase cargan desde gstatic correctamente');
+      const firebaseConfig = {
+        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+        authDomain: "mi-crono-time-888b7.firebaseapp.com",
+        projectId: "mi-crono-time-888b7",
+        storageBucket: "mi-crono-time-888b7.appspot.com",
+        messagingSenderId: "379025900327",
+        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+      };
 
-    // 2) ¿Tu config inicializa?
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
 
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
+      S('Módulos ES cargados, inicializando…');
 
-    show(fb, true, 'Firebase inicializado (app + Firestore OK)');
-    det.textContent = 'App name: ' + app.name + '\nProjectId: ' + app.options.projectId;
-  } catch (e) {
-    show(mod, false, 'Fallo al cargar/ejecutar módulo Firebase');
-    show(fb, false, 'Firebase NO inicializado');
-    det.textContent = (e && (e.message || String(e))) || 'Error desconocido';
-  }
-</script>
+      // Pequeña prueba de escritura/lectura
+      const pingCol = collection(db, '_diag_ping');
+      const ref = await addDoc(pingCol, { serverNow: serverTimestamp() });
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        S('Firebase OK (app + Firestore)', 'ok');
+        O('App name: ' + app.name);
+        O('ProjectId: ' + app.options.projectId);
+        O('Doc ID: ' + ref.id);
+        O('serverNow: ' + JSON.stringify(snap.data().serverNow));
+      } else {
+        S('Firebase ERROR (no se pudo leer doc)', 'err');
+      }
+    } catch (e) {
+      S('Firebase ERROR', 'err');
+      O((e && (e.stack || e.message)) || String(e));
+    }
+  </script>
+</body>
+</html>
