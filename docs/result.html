@@ -3,16 +3,19 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — Resultado</title>
+  <title>Mi Crono — RESULTADOS</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    .big{font-size:38px;font-weight:800;letter-spacing:.5px}
-    .debug{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#f6f6f6;border-radius:8px;padding:8px}
+    .wrap{max-width:980px;margin:0 auto;padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .card{background:#fff;border:1px solid #eee;border-radius:16px;padding:14px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid #dbe0f0;background:#f3f5ff;text-decoration:none;color:#102;cursor:pointer}
     table{width:100%;border-collapse:collapse;margin-top:10px}
     th,td{border-bottom:1px solid #eee;padding:8px;text-align:left}
     th{background:#fafafa}
-    .ok{color:#0a7a0a;font-weight:600}
-    .err{color:#b00020;font-weight:600}
+    .big{font-size:38px;font-weight:800;letter-spacing:.5px}
+    .muted{opacity:.75}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
@@ -21,7 +24,6 @@
 
   <main class="grid one">
     <section class="card">
-      <div>Firebase: <span id="fbState">—</span></div>
       <div class="big" id="overall">—</div>
       <p class="muted" id="details">—</p>
       <div class="row" style="margin-top:6px">
@@ -30,46 +32,24 @@
       </div>
 
       <h2 style="margin-top:14px">Participantes</h2>
-      <table id="tbl">
+      <table>
         <thead><tr><th>#</th><th>Nombre</th><th>Tiempo</th></tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </section>
-
-    <section class="card">
-      <h2>Depuración</h2>
-      <div class="debug" id="lastError">—</div>
-    </section>
   </main>
 
   <script type="module">
-    window.__firebaseReady=false; window.__firebaseError=null;
-
     const getParam=(k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
-
-    const fbStateEl=document.getElementById('fbState');
-    const lastErrorEl=document.getElementById('lastError');
-    const tbody=document.getElementById('tbody');
-    const overall=document.getElementById('overall');
-    const details=document.getElementById('details');
 
     const two = (n)=> String(n).padStart(2,'0');
     const three = (n)=> String(n).padStart(3,'0');
     const fmt = (ms)=>{ ms=Math.max(0, Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const tsToMillis = (ts)=> ts ? (typeof ts==='number'?ts:(ts.seconds*1000+Math.floor((ts.nanoseconds||0)/1e6))) : null;
-
-    function paintFirebase(){
-      fbStateEl.textContent = window.__firebaseReady ? "OK" : "ERROR";
-      fbStateEl.className   = window.__firebaseReady ? "ok" : "err";
-      if(!window.__firebaseReady){
-        const msg  = window.__firebaseError && (window.__firebaseError.message || String(window.__firebaseError)) || 'sin detalle';
-        lastErrorEl.textContent = `Init Firebase error: ${msg}`;
-      } else lastErrorEl.textContent='—';
-    }
+    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
     try{
       const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
@@ -87,27 +67,26 @@
 
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
-      window.__firebaseReady=true; paintFirebase();
 
       const eventRef = doc(db,"events",code);
       const partsCol = collection(eventRef,"participants");
 
       async function loadParticipants(){
         const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-        const rows = snap.docs.map(d=>{
+        return snap.docs.map(d=>{
           const x=d.data();
-          const start = tsToMillis(x.startTS) ?? x.startClientMS ?? null;
-          const stop  = tsToMillis(x.stopTS)  ?? x.stopClientMS  ?? null;
+          const start = tsToMillis(x.startTS) ?? null;
+          const stop  = tsToMillis(x.stopTS)  ?? null;
           const dur   = (start && stop) ? (stop - start) : null;
           return { order:x.order||0, name:x.name||'', start, stop, dur };
         });
-        return rows;
       }
 
       async function render(){
         const rows = await loadParticipants();
 
         // Tabla
+        const tbody=document.getElementById('tbody');
         tbody.innerHTML='';
         rows.forEach(r=>{
           const tr=document.createElement('tr');
@@ -115,19 +94,20 @@
           tbody.appendChild(tr);
         });
 
-        // Overall = del primer start al último stop
+        // Overall con serverTS
         const starts = rows.map(r=>r.start).filter(Boolean);
         const stops  = rows.map(r=>r.stop).filter(Boolean);
         const minStart = starts.length? Math.min(...starts) : null;
         const maxStop  = stops.length?  Math.max(...stops)  : null;
-
-        overall.textContent = (minStart && maxStop) ? fmt(maxStop-minStart) : '—';
-        details.textContent =
-          `Inicio: ${minStart?new Date(minStart).toLocaleTimeString():'—'} | Fin: ${maxStop?new Date(maxStop).toLocaleTimeString():'—'} | Duración: ${(minStart&&maxStop)?fmt(maxStop-minStart):'—'}`;
+        const overall  = (minStart && maxStop) ? fmt(maxStop-minStart) : '—';
+        document.getElementById('overall').textContent = overall;
+        document.getElementById('details').textContent =
+          `Inicio: ${minStart?new Date(minStart).toLocaleTimeString():'—'} | Fin: ${maxStop?new Date(maxStop).toLocaleTimeString():'—'} | Duración: ${overall}`;
       }
 
       await render();
 
+      // PDF
       document.getElementById('btnPDF').onclick = async ()=>{
         const rows = await loadParticipants();
         const { jsPDF } = window.jspdf;
@@ -143,8 +123,8 @@
         const stops  = rows.map(r=>r.stop).filter(Boolean);
         const minStart = starts.length? Math.min(...starts) : null;
         const maxStop  = stops.length?  Math.max(...stops)  : null;
-        const overallText = (minStart&&maxStop)? fmt(maxStop-minStart) : '—';
-        y+=18; docPdf.setFontSize(12); docPdf.text(`Tiempo total: ${overallText}`, 40, y); y+=16;
+        const overallText = (minStart&&maxStop)? ( (maxStop-minStart) ) : null;
+        y+=18; docPdf.setFontSize(12); docPdf.text(`Tiempo total: ${overallText!=null?fmt(overallText):'—'}`, 40, y); y+=16;
 
         const colX=[40, 80, 360];
         docPdf.setFontSize(12);
@@ -165,9 +145,8 @@
       };
 
     }catch(e){
-      window.__firebaseError=e; window.__firebaseReady=false; paintFirebase();
+      alert('Error cargando resultados: '+(e.message||e));
     }
-    paintFirebase();
   </script>
 </body>
 </html>
