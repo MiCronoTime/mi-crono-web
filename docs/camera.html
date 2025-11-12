@@ -41,10 +41,7 @@
       display:flex;gap:10px;align-items:center;flex-wrap:wrap;
     }
     .controls .btn{
-      flex:1 1 0;                 /* mismo ancho */
-      min-height:44px;            /* misma altura mínima */
-      justify-content:center;     /* centra texto */
-      white-space:nowrap;         /* evita salto de línea */
+      flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap;
     }
 
     /* Botones idénticos para <button> y <a> */
@@ -56,8 +53,7 @@
       cursor:pointer; user-select:none;
       transition:transform .05s ease, background .15s, border-color .15s, color .15s;
       text-transform: uppercase; font-weight:800; letter-spacing:.03em;
-      font-size:14px; line-height:1;  /* MISMO tamaño y línea */
-      text-decoration:none;           /* <a> sin subrayado */
+      font-size:14px; line-height:1; text-decoration:none;
     }
     .btn:hover{ background:#12161d }
     .btn:active{ transform:translateY(1px) }
@@ -70,7 +66,7 @@
 
     /* Escenario cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;
-           height:72vh;background:#000;display:flex;align-items:center;justify-content:center;
+           height:60vh;background:#000;display:flex;align-items:center;justify-content:center;
            border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
@@ -78,22 +74,29 @@
     /* HUD */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
-    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud);color:#fff;border-radius:22px;padding:18px 22px;font-size:42px;font-weight:900;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
+    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud);color:#fff;border-radius:22px;padding:14px 18px;font-size:34px;font-weight:900;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
 
     /* Sensibilidad */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
 
-    /* Lista en curso */
+    /* Lista en curso (informativa debajo) */
     .list{margin-top:12px}
-    .runner{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
-    .runner .time{font-weight:800;color:#eaf2ff}
-
-    /* Responsive: si prefieres que en móvil sean 100% ancho uno bajo otro, descomenta:
-    @media(max-width:520px){
-      .controls .btn{flex:1 1 100%}
-    } */
+    .runner{
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      align-items:center;
+      gap:10px;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      background:#0f1217;
+      margin-bottom:6px
+    }
+    .badge{font-weight:800;color:#cfe1ff;opacity:.9}
+    .rname{font-weight:800;text-transform:uppercase}
+    .rtime{font-weight:900;letter-spacing:.4px}
   </style>
 </head>
 <body class="wrap">
@@ -155,7 +158,6 @@
     const fmt = (ms)=>{ ms=Math.max(0,Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
-
     const getParam = (k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
@@ -166,26 +168,30 @@
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`;
+    title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`; 
     tag.textContent=`Evento ${code||'—'}`;
     document.querySelector('h1#title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
 
-    // Crono de cabecera (PRIMERO en curso) — sólo serverTimestamp
-    let headerStart = null;  // ms desde startTS
+    // ===== Estado para multicrono en vivo =====
+    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+    let liveRunning = [];      // [{id, order, name, startMS}]
+    let headerStart = null;    // ms del primer en curso
     let headerName  = '—';
     let headerRunning = false;
+
+    // Render del header cada ~90ms
     setInterval(()=>{
       if(headerRunning && headerStart!=null){
         timerText.innerHTML = fmt(Date.now()-headerStart) + ' — <span>'+ headerName +'</span>';
       } else {
         timerText.innerHTML = '00:00.000 — <span>'+ headerName +'</span>';
       }
+      // redibuja lista en vivo (panel inferior)
+      renderRunningList();
     }, 90);
 
     // ===== Firebase (CDN) =====
     let db, eventRef, partsCol, participants=[];
-    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
-
     window.__firebaseReady=false;
     const paintFirebase=()=>{ fbState.textContent=window.__firebaseReady?'OK':'ERROR';
       fbState.className=window.__firebaseReady?'ok':'err'; };
@@ -217,14 +223,15 @@
         eventRef = doc(db,'events',code);
         partsCol = collection(eventRef,'participants');
 
+        // Crea evento si no existe
+        const s=await getDoc(eventRef);
+        if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
+
+        // Carga ordenada
         const reloadOrdered = async ()=>{
           const snap = await getDocs(query(partsCol, orderBy('order','asc')));
           participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
         };
-
-        // Crea evento si no existe
-        const s=await getDoc(eventRef);
-        if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
         // Selectores SOLO con serverTS
         const nextToStart = ()=> participants.find(p=>!p.startTS);
@@ -247,26 +254,32 @@
           return p;
         }
 
-        // Suscripción: refleja estado (no auto–arranca en META)
+        // Suscripción: mantiene liveRunning, header y “siguiente” siempre actualizados
         onSnapshot(partsCol, async ()=>{
           await reloadOrdered();
 
-          const runningArr = runningSorted();
-          const nextOne    = nextToStart();
+          const runningArr = runningSorted().map(p=>({
+            id: p.id,
+            order: p.order || 0,
+            name: (p.name || '').toUpperCase(),
+            startMS: tsToMillis(p.startTS)
+          }));
+
+          liveRunning = runningArr;
 
           if(runningArr.length>0){
-            const first = runningArr[0];
-            headerStart  = tsToMillis(first.startTS);
-            headerName   = first.name || '—';
+            headerStart  = runningArr[0].startMS;
+            headerName   = runningArr[0].name || '—';
             headerRunning= true;
           } else {
             headerRunning=false; headerStart=null;
-            headerName = nextOne?.name || '—';
+            const nxt = nextToStart();
+            headerName = nxt ? (nxt.name||'—').toUpperCase() : '—';
           }
 
-          hudNext.textContent = 'Siguiente: ' + (nextOne?.name || '—');
-          renderRunningList(runningArr);
-          // Etiqueta de info
+          const nxt = nextToStart();
+          hudNext.textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+
           const hasStart = participants.some(p=>p.startTS);
           const hasStop  = participants.some(p=>p.stopTS);
           tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
@@ -287,10 +300,10 @@
           }catch(e){ alert('Error cámara: '+(e?.message||e)); }
         };
 
-        // Detección por franja central
+        // Detección por franja central (misma para SALIDA y META = startNext/stopEarliest)
         let prev=null, armed=true;
         const trigger = async ()=>{
-          if(!armed) return; armed=false; setTimeout(()=>armed=true,1000);
+          if(!armed) return; armed=false; setTimeout(()=>armed=true,900);
           if(mode==='start'){ const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); } }
           else { const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); } }
         };
@@ -299,9 +312,15 @@
           const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
           const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
           octx.clearRect(0,0,w,h);
+
+          // Franjas rojas (detector)
           octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
           octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
+          // === OVERLAY MULTI-CRONO (dentro del vídeo) ===
+          drawLiveTimes(w,h);
+
+          // Detector simple por diferencia
           const vw=video.videoWidth, vh=video.videoHeight;
           if(vw && vh){
             const scaleX = vw / stage.clientWidth;
@@ -325,13 +344,70 @@
           requestAnimationFrame(loop);
         }
 
-        function renderRunningList(runningArr){
+        // Dibuja tiempos (izquierda) + nombres (derecha) apilados desde abajo
+        function drawLiveTimes(w,h){
           const now = Date.now();
-          if(!runningArr || !runningArr.length){ runningList.innerHTML='—'; return; }
-          runningList.innerHTML = runningArr.map(p=>{
-            const st = tsToMillis(p.startTS);
-            return `<div class="runner"><div>${p.order}. ${p.name}</div><div class="time">${fmt(now - st)}</div></div>`;
-          }).join('');
+          const rows = liveRunning
+            .slice()
+            .sort((a,b)=> (a.startMS||0)-(b.startMS||0)); // primero que salió aparece más abajo (el último en array irá más arriba o abajo según prefieras)
+          if(!rows.length) return;
+
+          // Ajustes tipográficos
+          const baseSize = Math.max(26, Math.floor(h*0.045)); // tamaño relativo al alto
+          const gap = Math.max(8, Math.floor(h*0.02));
+          const leftPad = Math.floor(w*0.07);
+          const rightPad= Math.floor(w*0.07);
+          const bottomPad = Math.floor(h*0.08);
+
+          octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+          octx.textBaseline = 'bottom';
+          octx.fillStyle = '#ffffff';
+          octx.strokeStyle = 'rgba(0,0,0,.55)';
+          octx.lineWidth = Math.max(4, Math.floor(baseSize*0.18));
+
+          // Empezamos desde abajo
+          let y = h - bottomPad;
+          for(let idx=rows.length-1; idx>=0; idx--){
+            const r = rows[idx];
+            const tText = fmt(now - (r.startMS||now));
+            const nText = r.name || '—';
+
+            // Tiempo (izquierda)
+            octx.textAlign = 'left';
+            octx.strokeText(tText, leftPad, y);
+            octx.fillText  (tText, leftPad, y);
+
+            // Nombre (derecha)
+            octx.textAlign = 'right';
+            octx.strokeText(nText, w - rightPad, y);
+            octx.fillText  (nText, w - rightPad, y);
+
+            y -= (baseSize + gap);
+            if(y < baseSize*2) break; // no sobrecargar pantalla
+          }
+        }
+
+        // Panel “En curso” (informativo)
+        function renderRunningList(){
+          const now = Date.now();
+          if(!liveRunning.length){
+            runningList.innerHTML='—';
+            return;
+          }
+          const rows = liveRunning
+            .slice()
+            .sort((a,b)=> (a.startMS||0)-(b.startMS||0))
+            .map(p=>{
+              const ms = now - (p.startMS||now);
+              return `
+                <div class="runner">
+                  <div class="badge">#${p.order}</div>
+                  <div class="rname">${p.name}</div>
+                  <div class="rtime">${fmt(ms)}</div>
+                </div>
+              `;
+            }).join('');
+          runningList.innerHTML = rows;
         }
       }
     }catch(e){
