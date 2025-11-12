@@ -7,21 +7,13 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418;
-      --panel:#1b1f27;
-      --panel-2:#232a34;
-      --text:#e8ecf1;
-      --muted:#b5bdc9;
-      --border:#2b3240;
-      --accent:#5ea1ff;
-      --accent-2:#7cc4ff;
-      --hud: rgba(0,0,0,.55);
+      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
                   radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
                   var(--bg);
@@ -39,10 +31,8 @@
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:11px 16px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;
-      transition:transform .05s, background .15s, border-color .15s, color .15s;
+      display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;transition:transform .05s, background .15s, border-color .15s, color .15s;
       text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px;line-height:1;text-decoration:none;
     }
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
@@ -50,14 +40,16 @@
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
     /* Cámara */
-    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;
-           height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
+    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
+    /* HUD superior (dejamos solo estado/siguiente) */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
-    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud);color:#fff;border-radius:22px;padding:12px 16px;font-size:28px;font-weight:900;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
+
+    /* ⚠️ Crono grande de cabecera: OCULTO para no tapar los individuales */
+    .timer{display:none}
 
     /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
@@ -68,11 +60,12 @@
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
+    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
   </style>
 </head>
 <body class="wrap">
   <header class="top">
-    <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">Modo cámara</h1>
+    <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">MODO</h1>
     <p class="tag" id="tag">Conectando…</p>
   </header>
 
@@ -96,6 +89,8 @@
           <span id="hudStatus">Listo</span>
           • <span id="hudNext" class="pill">Siguiente: —</span>
         </div>
+
+        <!-- crono grande oculto (no tapa) -->
         <div class="timer" id="timerText">00:00.000 — <span id="runnerName">—</span></div>
       </div>
 
@@ -122,7 +117,7 @@
   <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    // ---------- Utilidades ----------
+    // ---------- Utils ----------
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -133,19 +128,18 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    const tag=$('tag'), timerText=$('timerText'), runningList=$('runningList');
-    const fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    document.querySelector('h1#title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     tag.textContent=`Evento ${code||'—'}`;
     if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // ---------- Sincronización con servidor ----------
+    // ---------- Reloj sincronizado con servidor ----------
     let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
@@ -178,60 +172,54 @@
       const s=await getDoc(eventRef);
       if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // --- Calcula offset con servidor (1 ping) ---
+      // Offset con servidor
       try{
         const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
         const pingSnap = await getDoc(pingRef);
         const serverNowMs = tsToMillis(pingSnap.data().serverNow);
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
-      }catch(_){ serverOffsetMS = 0; }
+      }catch(_){ serverOffsetMS=0; }
 
-      // Estado multicrono
+      // Estado participantes
       let participants=[];
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
       const nextToStart = ()=> participants.find(p=>!p.startTS);
-      const runningSorted = ()=> participants
-        .filter(p=>p.startTS && !p.stopTS)
+      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
       // Acciones
-      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
-        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
       async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-      // Suscripción a participantes
-      let liveRunning=[]; // [{order,name,startMS}]
+      // Suscripción -> cronos en vivo (ambas pantallas)
+      let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
-        const run=runningSorted().map(p=>({order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)}));
-        liveRunning = run;
-
-        // Cabecera: muestra el PRIMERO en curso (FIFO)
-        if(run.length>0){
-          const st = run[0].startMS;
-          timerStartMS = st;
-          headerName = run[0].name;
-          headerRunning = true;
-        }else{
-          headerRunning = false;
-          timerStartMS = null;
-          headerName = (nextToStart()?.name||'—').toUpperCase();
-        }
+        const run = runningSorted().map(p=>({
+          order: p.order||0,
+          name: (p.name||'').toUpperCase(),
+          startMS: tsToMillis(p.startTS)
+        }));
+        currentLive = run;
 
         const nxt = nextToStart();
         document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
-        // Render panel inferior
-        renderList(liveRunning);
+        // Estado textual
+        const hasStart = participants.some(p=>p.startTS);
+        const hasStop  = participants.some(p=>p.stopTS);
+        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
-        // Guarda para loop de dibujo
-        currentLive = liveRunning;
+        // Panel inferior informativo
+        renderList(currentLive);
       });
 
-      // ---- Cámara + detección ----
-      btnEnable.onclick = async ()=>{
+      // Cámara + detección
+      const btnEnableCam=$('btnEnableCam');
+      btnEnableCam.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
           const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
@@ -240,11 +228,12 @@
           if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
           video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
-          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+          btnEnableCam.textContent='CÁMARA ACTIVADA'; btnEnableCam.disabled=true;
           requestAnimationFrame(loop);
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
+      // Detector (misma lógica para SALIDA/META)
       let prev=null, armed=true;
       const trigger = async ()=>{
         if(!armed) return; armed=false; setTimeout(()=>armed=true,900);
@@ -252,16 +241,7 @@
         else { const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); } }
       };
 
-      // Variables para header crono sincronizado
-      let headerRunning=false, headerName='—', timerStartMS=null;
-      setInterval(()=>{
-        const nowSync = Date.now() + serverOffsetMS;
-        const t = (headerRunning && timerStartMS!=null) ? (nowSync - timerStartMS) : 0;
-        $('timerText').innerHTML = `${fmt(t)} — <span>${headerName}</span>`;
-      }, 90);
-
-      // Dibujo principal
-      let currentLive=[];
+      // Dibujo principal en overlay
       function loop(){
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
@@ -271,10 +251,10 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Overlay multicrono (más pequeño, nombre al lado)
+        // Cronos por participante (nuevo arriba), tamaño -30%
         drawOverlayTimes(w,h,currentLive);
 
-        // Detector
+        // Detector por diferencia
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -298,32 +278,32 @@
         requestAnimationFrame(loop);
       }
 
-      // Dibuja cronos: NUEVO en la parte superior (encima del anterior)
       function drawOverlayTimes(w,h,rows){
         if(!rows.length) return;
-        // Orden: más reciente ARRIBA ⇒ ordenar por startMS asc y recorrer de atrás a delante
         const nowSync = Date.now() + serverOffsetMS;
-        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0));
 
-        // Tamaños pensados para iPhone: algo más pequeños
-        const baseSize = Math.max(22, Math.floor(h*0.038)); // ↓ un poco
-        const gap = Math.max(6, Math.floor(h*0.016));
+        // Orden: más reciente ARRIBA
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+
+        // Tamaño -30% (antes ~3.8% del alto → ahora ~2.6%)
+        const baseSize = Math.max(18, Math.floor(h*0.026));  // ← reducido
+        const gap = Math.max(5, Math.floor(h*0.011));        // ↓ acorde
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14); // dejamos aire arriba para HUD
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)) );
+        const topPad = Math.floor(h*0.14);                   // espacio HUD
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
         octx.textBaseline = 'top';
         octx.fillStyle = '#ffffff';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
-        octx.lineWidth = Math.max(3, Math.floor(baseSize*0.16));
+        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14)); // algo más fino
 
         let y = topPad;
-        // Recorremos desde el más nuevo hacia el más viejo para que el nuevo quede "encima"
-        for(let i=sorted.length-1, painted=0; i>=0 && painted<maxRows; i--, painted++){
+        for(let i=0;i<maxRows;i++){
           const r = sorted[i];
-          const tText = fmt(nowSync - (r.startMS||nowSync));
+          const elapsed = nowSync - (r.startMS||nowSync);   // → arranca en 0 al marcar salida
+          const tText = fmt(elapsed);
           const nText = r.name || '—';
 
           // tiempo (izq)
@@ -341,12 +321,10 @@
       }
 
       function renderList(run){
-        if(!run.length){ runningList.innerHTML='—'; return; }
         const nowSync = Date.now() + serverOffsetMS;
-        runningList.innerHTML = run
-          .slice()
-          .sort((a,b)=> (a.startMS||0)-(b.startMS||0))
-          .reverse() // más nuevo primero también en la lista
+        const list = $('runningList');
+        if(!run.length){ list.innerHTML='—'; return; }
+        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
           .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
           .join('');
       }
