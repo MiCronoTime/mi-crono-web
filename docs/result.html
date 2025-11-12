@@ -4,204 +4,190 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Mi Crono — RESULTADOS</title>
-  <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418;
-      --card:#1b1f27;
-      --card-2:#232a34;
-      --text:#e8ecf1;
-      --muted:#b5bdc9;
-      --border:#2b3240;
-      --accent:#5ea1ff;
-      --accent-2:#7cc4ff;
+      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
+      --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
+      --accent:#6eb0ff; --accent-2:#8ec5ff; --ok:#7cffb6; --err:#ff7a8a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1300px 800px at 20% -10%, #131a27 0%, transparent 60%),
+                  radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
     }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{color:var(--accent-2)}
-
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .tag{opacity:.9}
-
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-
-    /* Botones coherentes con el resto (uppercase + bold) */
-    .btn{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:11px 16px;border-radius:12px;
-      border:1px solid var(--border);
-      background:#0f1217;color:var(--text);
-      cursor:pointer; user-select:none;
-      transition:transform .05s ease, background .15s, border-color .15s, color .15s;
-      text-transform: uppercase; font-weight:800; letter-spacing:.03em;
-      font-size:14px; line-height:1;
-      text-decoration:none;
-    }
-    .btn:hover{ background:#12161d }
-    .btn:active{ transform:translateY(1px) }
-    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
-    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
-
-    .big{font-size:38px;font-weight:900;letter-spacing:.5px}
+    .wrap{max-width:1000px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 14px}
+    .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .muted{color:var(--muted)}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      padding:10px 14px;border-radius:12px;border:1px solid var(--border);
+      background:#0f141c;color:var(--text);cursor:pointer;text-decoration:none;
+      text-transform:uppercase;font-weight:900;letter-spacing:.03em;min-height:42px;
+      transition:background .15s,border-color .15s,transform .05s;
+    }
+    .btn:hover{background:#141a24}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
+    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
 
-    table{width:100%;border-collapse:collapse;margin-top:10px;background:var(--card-2);border-radius:12px;overflow:hidden}
-    th,td{border-bottom:1px solid var(--border);padding:10px;text-align:left}
-    th{background:#202633;font-weight:800;text-transform:uppercase;color:#eaf2ff}
-    td{color:#e8ecf1}
-    tr:last-child td{border-bottom:none}
-    .num{width:60px}
-    .name{text-transform:uppercase} /* nombres en mayúsculas al presentar */
-    .time{font-weight:800}
-
-    .sectionTitle{margin:12px 0 8px 0;text-transform:uppercase;letter-spacing:.04em}
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    thead th{
+      text-align:left;padding:10px 12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)
+    }
+    tbody tr{background:var(--panel2);border:1px solid var(--border)}
+    tbody td{padding:12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+    tbody tr td:first-child{border-left:1px solid var(--border);border-top-left-radius:10px;border-bottom-left-radius:10px}
+    tbody tr td:last-child{border-right:1px solid var(--border);border-top-right-radius:10px;border-bottom-right-radius:10px}
+    .pos{width:64px;text-align:center;font-weight:900}
+    .name{font-weight:900;text-transform:uppercase}
+    .time{font-weight:900;letter-spacing:.4px}
+    .sep{height:8px}
+    .ok{color:var(--ok)} .err{color:var(--err)}
   </style>
-
-  <!-- PDF -->
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
-<body class="wrap">
-  <header class="top">
-    <h1 class="sectionTitle">RESULTADOS</h1>
-    <p class="tag" id="subtitle">—</p>
-  </header>
-
-  <main class="grid one">
-    <section class="card">
-      <div class="big" id="overall">—</div>
-      <p class="muted" id="details">—</p>
-      <div class="row" style="margin-top:6px">
-        <button id="btnPDF" class="btn primary">DESCARGAR PDF</button>
-        <a class="btn" href="index.html">NUEVO EVENTO</a>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1 class="title">RESULTADOS</h1>
+      <div class="actions">
+        <a href="index.html" class="btn">⇦&nbsp;Inicio</a>
+        <button id="btnRefresh" class="btn">Refrescar</button>
+        <button id="btnCSV" class="btn primary">Descargar CSV</button>
       </div>
+    </div>
 
-      <h2 class="sectionTitle">Participantes</h2>
+    <div class="card" style="margin-bottom:12px">
+      <div>Evento: <b id="evCode">—</b></div>
+      <div class="muted" id="meta">—</div>
+    </div>
+
+    <div class="card">
       <table>
-        <thead><tr><th class="num">#</th><th>Nombre</th><th>Tiempo</th></tr></thead>
-        <tbody id="tbody"></tbody>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Participante</th>
+            <th>Inicio</th>
+            <th>Fin</th>
+            <th>Tiempo</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="5" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
+        </tbody>
       </table>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script type="module">
-    const getParam=(k)=> new URL(location.href).searchParams.get(k);
-    const code=(getParam('code')||'').toUpperCase();
-    document.getElementById('subtitle').textContent = code ? `Evento ${code}` : 'Sin código';
-
-    const two = (n)=> String(n).padStart(2,'0');
-    const three = (n)=> String(n).padStart(3,'0');
-    const fmt = (ms)=>{ ms=Math.max(0, Math.floor(ms||0));
+    // ===== Utils =====
+    const $=(id)=>document.getElementById(id);
+    const two=(n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+    const tsMs=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+    const qp=new URL(location.href).searchParams;
+    const code=(qp.get('code')||'').toUpperCase();
+    $('evCode').textContent = code || '—';
 
-    try{
-      const { initializeApp, getApp, getApps } = await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js");
-      const { getFirestore, doc, collection, query, orderBy, getDocs } =
-        await import("https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js");
+    // ===== Firebase (CDN) =====
+    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import {
+      getFirestore, doc, collection, getDocs, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+    async function load(){
+      if(!code){ $('tbody').innerHTML = `<tr><td colspan="5" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`; return; }
 
-      const eventRef = doc(db,"events",code);
-      const partsCol = collection(eventRef,"participants");
+      const evRef = doc(db,'events',code);
+      const partsCol = collection(evRef,'participants');
+      const snap = await getDocs(query(partsCol, orderBy('order','asc')));
 
-      async function loadParticipants(){
-        const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-        return snap.docs.map(d=>{
-          const x=d.data();
-          const start = tsToMillis(x.startTS) ?? null;
-          const stop  = tsToMillis(x.stopTS)  ?? null;
-          const dur   = (start && stop) ? (stop - start) : null;
-          return { order:x.order||0, name:(x.name||'').toUpperCase(), start, stop, dur };
-        });
+      const rows = snap.docs.map(d=>{
+        const x=d.data();
+        const startMS=tsMs(x.startTS), stopMS=tsMs(x.stopTS);
+        const dur = (startMS!=null && stopMS!=null) ? (stopMS-startMS) : null;
+        return {
+          id:d.id,
+          name:(x.name||'').toUpperCase(),
+          order:x.order||0,
+          startMS, stopMS, dur
+        };
+      });
+
+      // === Ordenación por tiempo (mejor → peor)
+      const finished   = rows.filter(r=>r.dur!=null).sort((a,b)=> a.dur - b.dur);
+      const unfinished = rows.filter(r=>r.dur==null); // sin tiempo -> abajo
+
+      const all = [...finished, ...unfinished];
+
+      // Rellenar tabla
+      const tbody = $('tbody');
+      if(all.length===0){
+        tbody.innerHTML = `<tr><td colspan="5" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
+        $('meta').textContent = '0 participantes';
+        return;
       }
 
-      async function render(){
-        const rows = await loadParticipants();
+      tbody.innerHTML = all.map((r,idx)=>{
+        const s = r.startMS!=null ? new Date(r.startMS).toLocaleTimeString() : '—';
+        const e = r.stopMS !=null ? new Date(r.stopMS ).toLocaleTimeString() : '—';
+        const t = r.dur!=null ? fmt(r.dur) : '—';
+        const pos = (r.dur!=null) ? (finished.indexOf(r)+1) : '—';
+        return `
+          <tr>
+            <td class="pos">${pos}</td>
+            <td class="name">${r.name}</td>
+            <td>${s}</td>
+            <td>${e}</td>
+            <td class="time">${t}</td>
+          </tr>`;
+      }).join('');
 
-        // Tabla
-        const tbody=document.getElementById('tbody');
-        tbody.innerHTML='';
-        rows.forEach(r=>{
-          const tr=document.createElement('tr');
-          tr.innerHTML = `<td class="num">${r.order}</td><td class="name">${r.name}</td><td class="time">${r.dur!=null?fmt(r.dur):'—'}</td>`;
-          tbody.appendChild(tr);
-        });
-
-        // Resumen general (solo serverTS)
-        const starts = rows.map(r=>r.start).filter(Boolean);
-        const stops  = rows.map(r=>r.stop).filter(Boolean);
-        const minStart = starts.length? Math.min(...starts) : null;
-        const maxStop  = stops.length?  Math.max(...stops)  : null;
-        const overall  = (minStart && maxStop) ? fmt(maxStop-minStart) : '—';
-        document.getElementById('overall').textContent = overall;
-        document.getElementById('details').textContent =
-          `Inicio: ${minStart?new Date(minStart).toLocaleTimeString():'—'} | Fin: ${maxStop?new Date(maxStop).toLocaleTimeString():'—'} | Duración: ${overall}`;
-      }
-
-      await render();
-
-      // PDF
-      document.getElementById('btnPDF').onclick = async ()=>{
-        const rows = await loadParticipants();
-        const { jsPDF } = window.jspdf;
-        const docPdf = new jsPDF({unit:'pt', format:'a4'});
-
-        let y=50;
-        docPdf.setFontSize(16);
-        docPdf.text(`Mi Crono — Resultados (${code})`, 40, y); y+=24;
-        docPdf.setFontSize(10);
-        docPdf.text(`Generado: ${new Date().toLocaleString()}`, 40, y); y+=10;
-
-        const starts = rows.map(r=>r.start).filter(Boolean);
-        const stops  = rows.map(r=>r.stop).filter(Boolean);
-        const minStart = starts.length? Math.min(...starts) : null;
-        const maxStop  = stops.length?  Math.max(...stops)  : null;
-        const overallText = (minStart&&maxStop)? ( (maxStop-minStart) ) : null;
-        y+=18; docPdf.setFontSize(12); docPdf.text(`Tiempo total: ${overallText!=null?fmt(overallText):'—'}`, 40, y); y+=16;
-
-        const colX=[40, 80, 360];
-        docPdf.setFontSize(12);
-        docPdf.text('#', colX[0], y);
-        docPdf.text('Nombre', colX[1], y);
-        docPdf.text('Tiempo', colX[2], y);
-        y+=12; docPdf.line(40,y, 550,y); y+=10;
-
-        docPdf.setFontSize(12);
-        rows.forEach(r=>{
-          docPdf.text(String(r.order||''), colX[0], y);
-          docPdf.text(String((r.name||'').toUpperCase()),  colX[1], y);
-          docPdf.text(String(r.dur!=null?fmt(r.dur):'—'), colX[2], y);
-          y+=20; if(y>780){ docPdf.addPage(); y=50; }
-        });
-
-        docPdf.save(`resultado_${code}.pdf`);
-      };
-
-    }catch(e){
-      alert('Error cargando resultados: '+(e.message||e));
+      const total = rows.length;
+      const fin   = finished.length;
+      $('meta').textContent = `${total} participantes • ${fin} finalizados`;
     }
+
+    // CSV (ordenado como se muestra)
+    function downloadCSV(){
+      const rows = Array.from(document.querySelectorAll('#tbody tr'))
+        .map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim()))
+        .filter(cols => cols.length===5 && cols[1] !== 'Sin participantes');
+      const head = ['POS','PARTICIPANTE','INICIO','FIN','TIEMPO'];
+      const csv = [head, ...rows].map(r=>r.map(v=>`"${v.replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `resultados_${(code||'EVENTO')}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    $('btnRefresh').onclick = ()=>load();
+    $('btnCSV').onclick = ()=>downloadCSV();
+
+    load();
   </script>
 </body>
 </html>
