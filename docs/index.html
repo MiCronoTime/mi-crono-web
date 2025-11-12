@@ -16,6 +16,7 @@
       --accent:#5ea1ff;
       --accent-2:#7cc4ff;
       --danger:#ff5e7a;
+      --danger-2:#ff869d;
     }
 
     *{box-sizing:border-box}
@@ -96,6 +97,8 @@
     .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+    .btn.danger{ background:var(--danger); border-color:var(--danger); color:#1d0b0f }
+    .btn.danger:hover{ background:var(--danger-2); border-color:var(--danger-2) }
 
     .muted{ color:var(--muted) }
     .ok{color:#7cffb6;font-weight:700}
@@ -116,7 +119,7 @@
   </header>
 
   <main class="grid two">
-    <!-- CREAR / RESETEAR EVENTO -->
+    <!-- CREAR / RESETEAR EVENTO (individual) -->
     <section class="card">
       <h2 class="uc">CREAR EVENTO</h2>
 
@@ -157,6 +160,21 @@
         <div class="help">Abre <b>SALIDA</b> en la salida y <b>META</b> en la llegada. Ambos con el mismo <b>código</b>.</div>
       </div>
     </section>
+
+    <!-- HERRAMIENTAS -->
+    <section class="card" style="grid-column:1/-1">
+      <h2 class="uc">HERRAMIENTAS</h2>
+      <div class="subcard">
+        <p class="help" style="margin-top:0">
+          <b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.
+          Úsalo solo si quieres limpiar por completo.
+        </p>
+        <div class="row">
+          <button id="btnResetAll" class="btn danger">RESET EVENTOS</button>
+        </div>
+        <div id="resetMsg" class="muted" style="margin-top:10px">—</div>
+      </div>
+    </section>
   </main>
 
   <!-- Firebase + lógica -->
@@ -188,6 +206,7 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
+    // Crear / Resetear un ÚNICO evento según tu regla
     $('btnCreate').onclick = async ()=>{
       const code = (($('code').value||'').trim().toUpperCase());
       const lines = (($('names').value||'').toUpperCase())
@@ -202,18 +221,18 @@
         const partsCol = collection(eventRef,'participants');
 
         if(existsSnap.exists()){
-          // === RESETEO COMPLETO ===
-          // 1) Borrar todos los participantes
+          // === RESETEO COMPLETO DEL EVENTO EXISTENTE ===
+          // 1) Borrar participantes
           const snap = await getDocs(query(partsCol, orderBy('order','asc')));
           const deletions = snap.docs.map(d=> deleteDoc(d.ref));
           await Promise.all(deletions);
 
-          // 2) Reiniciar el documento del evento (sin conservar datos previos)
+          // 2) Reiniciar doc evento
           await setDoc(eventRef,{
             code,
             startTS:null, stopTS:null,
-            createdAt: existsSnap.data()?.createdAt || serverTimestamp(), // por si quieres mantener createdAt
-            resetAt: serverTimestamp()                                   // marca del reseteo
+            createdAt: existsSnap.data()?.createdAt || serverTimestamp(),
+            resetAt: serverTimestamp()
           }, {merge:true});
 
           $('createMsg').textContent = 'Evento existente — RESETEADO por completo.';
@@ -229,7 +248,7 @@
           $('createMsg').className = 'ok';
         }
 
-        // 3) Crear los nuevos participantes desde 1
+        // 3) Crear nuevos participantes desde 1
         let order=1;
         const { doc:docRef, setDoc:setSub } =
           await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
@@ -240,7 +259,6 @@
         });
         await Promise.all(writes);
 
-        // Mensaje final
         $('createMsg').textContent += ` Añadidos: ${lines.length}.`;
         $('createMsg').className = 'ok';
 
@@ -267,6 +285,47 @@
       const c=(($('joinCode').value||'').trim().toUpperCase());
       if(!c) return alert('Escribe un CÓDIGO');
       location.href=`result.html?code=${encodeURIComponent(c)}`;
+    };
+
+    // ====== RESET EVENTOS (borra TODO) ======
+    $('btnResetAll').onclick = async ()=>{
+      const msgEl = $('resetMsg');
+      msgEl.textContent = 'Esperando confirmación…';
+      msgEl.className = 'warn';
+
+      // Doble confirmación
+      const ok1 = confirm('Vas a ELIMINAR TODOS LOS EVENTOS y sus participantes. ¿Continuar?');
+      if(!ok1){ msgEl.textContent='Cancelado.'; msgEl.className='muted'; return; }
+      const typed = prompt('Escribe EXACTAMENTE: RESET');
+      if(typed !== 'RESET'){ msgEl.textContent='Texto no coincide. Cancelado.'; msgEl.className='muted'; return; }
+
+      try{
+        msgEl.textContent = 'Listando eventos…';
+        const eventsSnap = await getDocs(collection(db,'events'));
+        const events = eventsSnap.docs;
+
+        let totalParticipants=0;
+        // Borrado secuencial para evitar picos de cuota
+        for(const eDoc of events){
+          const evRef = eDoc.ref;
+          const partsCol = collection(evRef,'participants');
+          const partsSnap = await getDocs(partsCol);
+          totalParticipants += partsSnap.size;
+
+          // Borra participantes
+          for(const pDoc of partsSnap.docs){
+            await deleteDoc(pDoc.ref);
+          }
+          // Borra el evento
+          await deleteDoc(evRef);
+        }
+
+        msgEl.textContent = `Completado. Eventos borrados: ${events.length}. Participantes borrados: ${totalParticipants}.`;
+        msgEl.className = 'ok';
+      }catch(err){
+        msgEl.textContent = 'Error en RESET EVENTOS: '+(err.message||err);
+        msgEl.className = 'err';
+      }
     };
   </script>
 </body>
