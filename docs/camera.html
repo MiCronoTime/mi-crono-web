@@ -182,7 +182,7 @@
       const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      // Acciones
+      // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
       async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
@@ -211,7 +211,7 @@
         renderList(currentLive);
       });
 
-      // Cámara + detección
+      // ===== Cámara + detección =====
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -226,12 +226,30 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Detector (misma lógica para SALIDA/META)
-      let prev=null, armed=true;
+      // === Detector por diferencia, con "refractario" por modo ===
+      const COOLDOWN_START_MS  = 2000; // 2 s tras marcar SALIDA
+      const COOLDOWN_FINISH_MS = 900;  // 0.9 s tras marcar META
+      let prev=null, armed=true, cooldownTimer=null;
+
+      const armAfter = (ms)=>{
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
+      };
+
       const trigger = async ()=>{
-        if(!armed) return; armed=false; setTimeout(()=>armed=true,900);
-        if(mode==='start'){ const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); } }
-        else { const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); } }
+        if(!armed) return;
+        armed=false;
+
+        // aplica cooldown según modo
+        armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
+
+        if(mode==='start'){
+          const p=await startNext();
+          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+        }else{
+          const p=await stopEarliest();
+          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+        }
       };
 
       // Dibujo principal en overlay
@@ -258,7 +276,9 @@
           const frame=tctx.getImageData(sx,0,sw,vh);
 
           if(prev && prev.width===sw && prev.height===vh){
-            const sensV=Number(sens.value); const thr=20+Math.round((100-sensV)*1.2); const pct=0.04+(100-sensV)*0.0006;
+            const sensV=Number(sens.value);
+            const thr=20+Math.round((100-sensV)*1.2);
+            const pct=0.04+(100-sensV)*0.0006;
             let diff=0,total=0;
             for(let i=0;i<frame.data.length;i+=16){
               const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
@@ -278,12 +298,11 @@
         // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        /* tamaño ~2.6% del alto (pequeño para iPhone) */
-        const baseSize = Math.max(18, Math.floor(h*0.026));
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // pequeño para iPhone
         const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14);                   // deja aire para HUD
+        const topPad = Math.floor(h*0.14); // deja aire para HUD
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
@@ -295,7 +314,7 @@
         let y = topPad;
         for(let i=0;i<maxRows;i++){
           const r = sorted[i];
-          const elapsed = nowSync - (r.startMS||nowSync);   // arranca en 0 al marcar salida
+          const elapsed = nowSync - (r.startMS||nowSync);   // empieza en 0 al marcar salida
           const tText = fmt(elapsed);
           const nText = r.name || '—';
 
