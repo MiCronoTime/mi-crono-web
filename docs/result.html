@@ -48,7 +48,6 @@
     .pos{width:64px;text-align:center;font-weight:900}
     .name{font-weight:900;text-transform:uppercase}
     .time{font-weight:900;letter-spacing:.4px}
-    .sep{height:8px}
     .ok{color:var(--ok)} .err{color:var(--err)}
   </style>
 </head>
@@ -57,9 +56,8 @@
     <div class="top">
       <h1 class="title">RESULTADOS</h1>
       <div class="actions">
-        <a href="index.html" class="btn">⇦&nbsp;Inicio</a>
         <button id="btnRefresh" class="btn">Refrescar</button>
-        <button id="btnCSV" class="btn primary">Descargar CSV</button>
+        <button id="btnPDF" class="btn primary">Descargar PDF</button>
       </div>
     </div>
 
@@ -74,17 +72,19 @@
           <tr>
             <th>#</th>
             <th>Participante</th>
-            <th>Inicio</th>
-            <th>Fin</th>
             <th>Tiempo</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="5" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
+          <tr><td colspan="3" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
         </tbody>
       </table>
     </div>
   </div>
+
+  <!-- jsPDF + AutoTable (CDN) para exportar a PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
 
   <script type="module">
     // ===== Utils =====
@@ -116,8 +116,14 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
+    // Estado global de filas ordenadas para reutilizar en PDF
+    let orderedRows = [];
+
     async function load(){
-      if(!code){ $('tbody').innerHTML = `<tr><td colspan="5" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`; return; }
+      if(!code){
+        $('tbody').innerHTML = `<tr><td colspan="3" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
+        return;
+      }
 
       const evRef = doc(db,'events',code);
       const partsCol = collection(evRef,'participants');
@@ -135,31 +141,26 @@
         };
       });
 
-      // === Ordenación por tiempo (mejor → peor)
+      // Ordenación por tiempo (mejor→peor). No finalizados al final con tiempo '—'
       const finished   = rows.filter(r=>r.dur!=null).sort((a,b)=> a.dur - b.dur);
-      const unfinished = rows.filter(r=>r.dur==null); // sin tiempo -> abajo
+      const unfinished = rows.filter(r=>r.dur==null);
+      orderedRows = [...finished, ...unfinished];
 
-      const all = [...finished, ...unfinished];
-
-      // Rellenar tabla
+      // Pintar tabla
       const tbody = $('tbody');
-      if(all.length===0){
-        tbody.innerHTML = `<tr><td colspan="5" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
+      if(orderedRows.length===0){
+        tbody.innerHTML = `<tr><td colspan="3" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
         $('meta').textContent = '0 participantes';
         return;
       }
 
-      tbody.innerHTML = all.map((r,idx)=>{
-        const s = r.startMS!=null ? new Date(r.startMS).toLocaleTimeString() : '—';
-        const e = r.stopMS !=null ? new Date(r.stopMS ).toLocaleTimeString() : '—';
+      tbody.innerHTML = orderedRows.map((r,idx)=>{
         const t = r.dur!=null ? fmt(r.dur) : '—';
         const pos = (r.dur!=null) ? (finished.indexOf(r)+1) : '—';
         return `
           <tr>
             <td class="pos">${pos}</td>
             <td class="name">${r.name}</td>
-            <td>${s}</td>
-            <td>${e}</td>
             <td class="time">${t}</td>
           </tr>`;
       }).join('');
@@ -169,23 +170,46 @@
       $('meta').textContent = `${total} participantes • ${fin} finalizados`;
     }
 
-    // CSV (ordenado como se muestra)
-    function downloadCSV(){
-      const rows = Array.from(document.querySelectorAll('#tbody tr'))
-        .map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim()))
-        .filter(cols => cols.length===5 && cols[1] !== 'Sin participantes');
-      const head = ['POS','PARTICIPANTE','INICIO','FIN','TIEMPO'];
-      const csv = [head, ...rows].map(r=>r.map(v=>`"${v.replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `resultados_${(code||'EVENTO')}.csv`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+    // ===== PDF (orden como en pantalla) =====
+    function downloadPDF(){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit:'pt', format:'a4' }); // 72pt = 1in
+
+      const title = `RESULTADOS — ${code || 'EVENTO'}`;
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(16);
+      doc.text(title, 40, 40);
+
+      // Construimos datos
+      const head = [['#','PARTICIPANTE','TIEMPO']];
+      const body = orderedRows.map((r, i)=>{
+        const rank = (r.dur!=null) ? (orderedRows.filter(x=>x.dur!=null).indexOf(r)+1) : '—';
+        const time = (r.dur!=null) ? fmt(r.dur) : '—';
+        return [String(rank), r.name, time];
+      });
+
+      // AutoTable
+      doc.autoTable({
+        head,
+        body,
+        startY: 60,
+        styles: { font: 'helvetica', fontSize: 11, lineColor: [210,210,210], lineWidth: 0.5 },
+        headStyles: { fillColor: [110,176,255], textColor: 20, halign: 'left' },
+        bodyStyles: { fillColor: [250,250,250] },
+        alternateRowStyles: { fillColor: [240,240,240] },
+        columnStyles: {
+          0: { cellWidth: 50, halign:'center', fontStyle:'bold' },
+          1: { cellWidth: 320, fontStyle:'bold' },
+          2: { cellWidth: 100, halign:'right', fontStyle:'bold' }
+        },
+        margin: { left: 40, right: 40 }
+      });
+
+      doc.save(`resultados_${(code||'EVENTO')}.pdf`);
     }
 
     $('btnRefresh').onclick = ()=>load();
-    $('btnCSV').onclick = ()=>downloadCSV();
+    $('btnPDF').onclick = ()=>downloadPDF();
 
     load();
   </script>
