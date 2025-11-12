@@ -7,14 +7,14 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418;          /* fondo general oscuro */
-      --panel:#1b1f27;       /* paneles */
-      --panel-2:#232a34;     /* subpaneles */
-      --text:#e8ecf1;        /* texto principal */
-      --muted:#b5bdc9;       /* texto secundario */
-      --border:#2b3240;      /* bordes sutiles */
-      --accent:#5ea1ff;      /* primario */
-      --accent-2:#7cc4ff;    /* hover */
+      --bg:#121418;
+      --panel:#1b1f27;
+      --panel-2:#232a34;
+      --text:#e8ecf1;
+      --muted:#b5bdc9;
+      --border:#2b3240;
+      --accent:#5ea1ff;
+      --accent-2:#7cc4ff;
       --hud: rgba(0,0,0,.55);
     }
     *{box-sizing:border-box}
@@ -34,66 +34,37 @@
     .tag{opacity:.9}
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    .card h2{margin:.2rem 0 8px 0}
 
-    /* CONTROLES (alineados y del mismo tamaño) */
-    .controls{
-      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    }
-    .controls .btn{
-      flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap;
-    }
-
-    /* Botones idénticos para <button> y <a> */
+    /* Controles */
+    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
       display:inline-flex;align-items:center;gap:8px;
-      padding:11px 16px;border-radius:12px;
-      border:1px solid var(--border);
-      background:#0f1217;color:var(--text);
-      cursor:pointer; user-select:none;
-      transition:transform .05s ease, background .15s, border-color .15s, color .15s;
-      text-transform: uppercase; font-weight:800; letter-spacing:.03em;
-      font-size:14px; line-height:1; text-decoration:none;
+      padding:11px 16px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;
+      transition:transform .05s, background .15s, border-color .15s, color .15s;
+      text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px;line-height:1;text-decoration:none;
     }
-    .btn:hover{ background:#12161d }
-    .btn:active{ transform:translateY(1px) }
+    .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
-    .muted{color:var(--muted)}
-    .ok{color:#7cffb6;font-weight:700}
-    .err{color:#ff758d;font-weight:700}
-
-    /* Escenario cámara */
+    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;
-           height:60vh;background:#000;display:flex;align-items:center;justify-content:center;
-           border:1px solid var(--border)}
+           height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
-    /* HUD */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
-    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud);color:#fff;border-radius:22px;padding:14px 18px;font-size:34px;font-weight:900;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
+    .timer{position:absolute;left:12px;right:12px;bottom:12px;background:var(--hud);color:#fff;border-radius:22px;padding:12px 16px;font-size:28px;font-weight:900;text-align:center;letter-spacing:.5px;backdrop-filter:blur(4px)}
 
-    /* Sensibilidad */
+    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
-
-    /* Lista en curso (informativa debajo) */
     .list{margin-top:12px}
-    .runner{
-      display:grid;
-      grid-template-columns:auto 1fr auto;
-      align-items:center;
-      gap:10px;
-      padding:10px 12px;
-      border:1px solid var(--border);
-      border-radius:10px;
-      background:#0f1217;
-      margin-bottom:6px
-    }
+    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
@@ -151,60 +122,39 @@
   <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    // ===== Utils =====
-    const $ = (id)=>document.getElementById(id);
-    const two = (n)=> String(n).padStart(2,'0');
-    const three = (n)=> String(n).padStart(3,'0');
-    const fmt = (ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+    // ---------- Utilidades ----------
+    const $=(id)=>document.getElementById(id);
+    const two=(n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const getParam = (k)=> new URL(location.href).searchParams.get(k);
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    const title=$('title'), tag=$('tag'), hudStatus=$('hudStatus'), hudNext=$('hudNext'), timerText=$('timerText'), runnerName=$('runnerName'), runningList=$('runningList');
+    const tag=$('tag'), timerText=$('timerText'), runningList=$('runningList');
     const fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    title.textContent=`Modo ${mode==='start'?'SALIDA':'META'}`; 
-    tag.textContent=`Evento ${code||'—'}`;
     document.querySelector('h1#title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
-
-    // ===== Estado para multicrono en vivo =====
-    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
-    let liveRunning = [];      // [{id, order, name, startMS}]
-    let headerStart = null;    // ms del primer en curso
-    let headerName  = '—';
-    let headerRunning = false;
-
-    // Render del header cada ~90ms
-    setInterval(()=>{
-      if(headerRunning && headerStart!=null){
-        timerText.innerHTML = fmt(Date.now()-headerStart) + ' — <span>'+ headerName +'</span>';
-      } else {
-        timerText.innerHTML = '00:00.000 — <span>'+ headerName +'</span>';
-      }
-      // redibuja lista en vivo (panel inferior)
-      renderRunningList();
-    }, 90);
-
-    // ===== Firebase (CDN) =====
-    let db, eventRef, partsCol, participants=[];
-    window.__firebaseReady=false;
-    const paintFirebase=()=>{ fbState.textContent=window.__firebaseReady?'OK':'ERROR';
-      fbState.className=window.__firebaseReady?'ok':'err'; };
-
+    tag.textContent=`Evento ${code||'—'}`;
     if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
+    // ---------- Sincronización con servidor ----------
+    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
+    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+
+    // ---------- Firebase ----------
     try{
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-        serverTimestamp, collection, query, orderBy, getDocs
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -217,204 +167,194 @@
       };
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
-      window.__firebaseReady=true; paintFirebase();
+      window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
 
-      if(code){
-        eventRef = doc(db,'events',code);
-        partsCol = collection(eventRef,'participants');
+      // refs
+      const eventRef = doc(db,'events',code);
+      const partsCol = collection(eventRef,'participants');
+      const syncCol  = collection(eventRef,'sync');
 
-        // Crea evento si no existe
-        const s=await getDoc(eventRef);
-        if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
+      // Crea evento si no existe
+      const s=await getDoc(eventRef);
+      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-        // Carga ordenada
-        const reloadOrdered = async ()=>{
-          const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-          participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-        };
+      // --- Calcula offset con servidor (1 ping) ---
+      try{
+        const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
+        const pingSnap = await getDoc(pingRef);
+        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
+        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
+      }catch(_){ serverOffsetMS = 0; }
 
-        // Selectores SOLO con serverTS
-        const nextToStart = ()=> participants.find(p=>!p.startTS);
-        const runningSorted = ()=> participants
-          .filter(p=>p.startTS && !p.stopTS)
-          .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+      // Estado multicrono
+      let participants=[];
+      const nextToStart = ()=> participants.find(p=>!p.startTS);
+      const runningSorted = ()=> participants
+        .filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-        // Acciones (solo serverTimestamp)
-        async function startNext(){
-          await reloadOrdered();
-          const p = nextToStart(); if(!p) return null;
-          await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
-          return p;
+      // Acciones
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
+      async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
+        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
+      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
+
+      // Suscripción a participantes
+      let liveRunning=[]; // [{order,name,startMS}]
+      onSnapshot(partsCol, async ()=>{
+        await reload();
+        const run=runningSorted().map(p=>({order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)}));
+        liveRunning = run;
+
+        // Cabecera: muestra el PRIMERO en curso (FIFO)
+        if(run.length>0){
+          const st = run[0].startMS;
+          timerStartMS = st;
+          headerName = run[0].name;
+          headerRunning = true;
+        }else{
+          headerRunning = false;
+          timerStartMS = null;
+          headerName = (nextToStart()?.name||'—').toUpperCase();
         }
-        async function stopEarliest(){
-          await reloadOrdered();
-          const run = runningSorted();
-          const p = run[0]; if(!p) return null;
-          await updateDoc(p.ref,{ stopTS:serverTimestamp() });
-          return p;
-        }
 
-        // Suscripción: mantiene liveRunning, header y “siguiente” siempre actualizados
-        onSnapshot(partsCol, async ()=>{
-          await reloadOrdered();
+        const nxt = nextToStart();
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
-          const runningArr = runningSorted().map(p=>({
-            id: p.id,
-            order: p.order || 0,
-            name: (p.name || '').toUpperCase(),
-            startMS: tsToMillis(p.startTS)
-          }));
+        // Render panel inferior
+        renderList(liveRunning);
 
-          liveRunning = runningArr;
+        // Guarda para loop de dibujo
+        currentLive = liveRunning;
+      });
 
-          if(runningArr.length>0){
-            headerStart  = runningArr[0].startMS;
-            headerName   = runningArr[0].name || '—';
-            headerRunning= true;
-          } else {
-            headerRunning=false; headerStart=null;
-            const nxt = nextToStart();
-            headerName = nxt ? (nxt.name||'—').toUpperCase() : '—';
-          }
-
-          const nxt = nextToStart();
-          hudNext.textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
-
-          const hasStart = participants.some(p=>p.startTS);
-          const hasStop  = participants.some(p=>p.stopTS);
-          tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
-        });
-
-        // ===== Cámara + detección =====
-        btnEnable.onclick = async ()=>{
-          try{
-            if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-            const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
-            let stream=null,lastErr=null;
-            for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
-            if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
-            video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
-            await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
-            btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
-            requestAnimationFrame(loop);
-          }catch(e){ alert('Error cámara: '+(e?.message||e)); }
-        };
-
-        // Detección por franja central (misma para SALIDA y META = startNext/stopEarliest)
-        let prev=null, armed=true;
-        const trigger = async ()=>{
-          if(!armed) return; armed=false; setTimeout(()=>armed=true,900);
-          if(mode==='start'){ const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); } }
-          else { const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); } }
-        };
-
-        function loop(){
-          const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
-          const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
-          octx.clearRect(0,0,w,h);
-
-          // Franjas rojas (detector)
-          octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-          octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
-
-          // === OVERLAY MULTI-CRONO (dentro del vídeo) ===
-          drawLiveTimes(w,h);
-
-          // Detector simple por diferencia
-          const vw=video.videoWidth, vh=video.videoHeight;
-          if(vw && vh){
-            const scaleX = vw / stage.clientWidth;
-            const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
-            const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
-            const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
-            const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
-            const frame=tctx.getImageData(sx,0,sw,vh);
-
-            if(prev && prev.width===sw && prev.height===vh){
-              const sensV=Number(sens.value); const thr=20+Math.round((100-sensV)*1.2); const pct=0.04+(100-sensV)*0.0006;
-              let diff=0,total=0;
-              for(let i=0;i<frame.data.length;i+=16){
-                const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
-                if(d>thr) diff++; total++;
-              }
-              if((diff/Math.max(1,total))>pct) trigger();
-            }
-            prev=frame;
-          }
+      // ---- Cámara + detección ----
+      btnEnable.onclick = async ()=>{
+        try{
+          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
+          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+          let stream=null,lastErr=null;
+          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
           requestAnimationFrame(loop);
-        }
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
+      };
 
-        // Dibuja tiempos (izquierda) + nombres (derecha) apilados desde abajo
-        function drawLiveTimes(w,h){
-          const now = Date.now();
-          const rows = liveRunning
-            .slice()
-            .sort((a,b)=> (a.startMS||0)-(b.startMS||0)); // primero que salió aparece más abajo (el último en array irá más arriba o abajo según prefieras)
-          if(!rows.length) return;
+      let prev=null, armed=true;
+      const trigger = async ()=>{
+        if(!armed) return; armed=false; setTimeout(()=>armed=true,900);
+        if(mode==='start'){ const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); } }
+        else { const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); } }
+      };
 
-          // Ajustes tipográficos
-          const baseSize = Math.max(26, Math.floor(h*0.045)); // tamaño relativo al alto
-          const gap = Math.max(8, Math.floor(h*0.02));
-          const leftPad = Math.floor(w*0.07);
-          const rightPad= Math.floor(w*0.07);
-          const bottomPad = Math.floor(h*0.08);
+      // Variables para header crono sincronizado
+      let headerRunning=false, headerName='—', timerStartMS=null;
+      setInterval(()=>{
+        const nowSync = Date.now() + serverOffsetMS;
+        const t = (headerRunning && timerStartMS!=null) ? (nowSync - timerStartMS) : 0;
+        $('timerText').innerHTML = `${fmt(t)} — <span>${headerName}</span>`;
+      }, 90);
 
-          octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-          octx.textBaseline = 'bottom';
-          octx.fillStyle = '#ffffff';
-          octx.strokeStyle = 'rgba(0,0,0,.55)';
-          octx.lineWidth = Math.max(4, Math.floor(baseSize*0.18));
+      // Dibujo principal
+      let currentLive=[];
+      function loop(){
+        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-          // Empezamos desde abajo
-          let y = h - bottomPad;
-          for(let idx=rows.length-1; idx>=0; idx--){
-            const r = rows[idx];
-            const tText = fmt(now - (r.startMS||now));
-            const nText = r.name || '—';
+        // Franjas rojas
+        const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+        octx.clearRect(0,0,w,h);
+        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-            // Tiempo (izquierda)
-            octx.textAlign = 'left';
-            octx.strokeText(tText, leftPad, y);
-            octx.fillText  (tText, leftPad, y);
+        // Overlay multicrono (más pequeño, nombre al lado)
+        drawOverlayTimes(w,h,currentLive);
 
-            // Nombre (derecha)
-            octx.textAlign = 'right';
-            octx.strokeText(nText, w - rightPad, y);
-            octx.fillText  (nText, w - rightPad, y);
+        // Detector
+        const vw=video.videoWidth, vh=video.videoHeight;
+        if(vw && vh){
+          const scaleX = vw / stage.clientWidth;
+          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+          const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
+          const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
+          const frame=tctx.getImageData(sx,0,sw,vh);
 
-            y -= (baseSize + gap);
-            if(y < baseSize*2) break; // no sobrecargar pantalla
+          if(prev && prev.width===sw && prev.height===vh){
+            const sensV=Number(sens.value); const thr=20+Math.round((100-sensV)*1.2); const pct=0.04+(100-sensV)*0.0006;
+            let diff=0,total=0;
+            for(let i=0;i<frame.data.length;i+=16){
+              const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
+              if(d>thr) diff++; total++;
+            }
+            if((diff/Math.max(1,total))>pct) trigger();
           }
+          prev=frame;
         }
+        requestAnimationFrame(loop);
+      }
 
-        // Panel “En curso” (informativo)
-        function renderRunningList(){
-          const now = Date.now();
-          if(!liveRunning.length){
-            runningList.innerHTML='—';
-            return;
-          }
-          const rows = liveRunning
-            .slice()
-            .sort((a,b)=> (a.startMS||0)-(b.startMS||0))
-            .map(p=>{
-              const ms = now - (p.startMS||now);
-              return `
-                <div class="runner">
-                  <div class="badge">#${p.order}</div>
-                  <div class="rname">${p.name}</div>
-                  <div class="rtime">${fmt(ms)}</div>
-                </div>
-              `;
-            }).join('');
-          runningList.innerHTML = rows;
+      // Dibuja cronos: NUEVO en la parte superior (encima del anterior)
+      function drawOverlayTimes(w,h,rows){
+        if(!rows.length) return;
+        // Orden: más reciente ARRIBA ⇒ ordenar por startMS asc y recorrer de atrás a delante
+        const nowSync = Date.now() + serverOffsetMS;
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0));
+
+        // Tamaños pensados para iPhone: algo más pequeños
+        const baseSize = Math.max(22, Math.floor(h*0.038)); // ↓ un poco
+        const gap = Math.max(6, Math.floor(h*0.016));
+        const leftPad = Math.floor(w*0.06);
+        const rightPad= Math.floor(w*0.06);
+        const topPad = Math.floor(h*0.14); // dejamos aire arriba para HUD
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)) );
+
+        octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        octx.textBaseline = 'top';
+        octx.fillStyle = '#ffffff';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(3, Math.floor(baseSize*0.16));
+
+        let y = topPad;
+        // Recorremos desde el más nuevo hacia el más viejo para que el nuevo quede "encima"
+        for(let i=sorted.length-1, painted=0; i>=0 && painted<maxRows; i--, painted++){
+          const r = sorted[i];
+          const tText = fmt(nowSync - (r.startMS||nowSync));
+          const nText = r.name || '—';
+
+          // tiempo (izq)
+          octx.textAlign='left';
+          octx.strokeText(tText, leftPad, y);
+          octx.fillText  (tText, leftPad, y);
+
+          // nombre (der)
+          octx.textAlign='right';
+          octx.strokeText(nText, w - rightPad, y);
+          octx.fillText  (nText, w - rightPad, y);
+
+          y += baseSize + gap;
         }
       }
+
+      function renderList(run){
+        if(!run.length){ runningList.innerHTML='—'; return; }
+        const nowSync = Date.now() + serverOffsetMS;
+        runningList.innerHTML = run
+          .slice()
+          .sort((a,b)=> (a.startMS||0)-(b.startMS||0))
+          .reverse() // más nuevo primero también en la lista
+          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+          .join('');
+      }
+
     }catch(e){
-      window.__firebaseReady=false; paintFirebase();
+      window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
       alert('Firebase error: '+(e.message||e));
     }
-    paintFirebase();
   </script>
 </body>
 </html>
