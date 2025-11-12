@@ -21,9 +21,7 @@
       color:var(--text);
     }
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .top{
-      display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px;
-    }
+    .top{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px}
     .clock{font-size:22px;line-height:1;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
     .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .muted{color:var(--muted)}
@@ -39,6 +37,7 @@
       width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
       background:var(--bg2);color:var(--text);outline:none;font-size:15px;
     }
+    .uppercase{ text-transform: uppercase; letter-spacing:.03em; }
     textarea{min-height:170px;resize:vertical;white-space:pre}
     .btn{
       display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -52,20 +51,13 @@
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
     .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#210a12}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--border)}
-    .tools{margin-top:8px}
-    a.link{color:var(--accent);text-decoration:none} a.link:hover{color:var(--accent-2)}
-    small{opacity:.9}
-
-    /* botones de UNIRSE */
     .cluster{display:flex;gap:10px;flex-wrap:wrap}
     .cluster .btn{flex:1 1 120px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- CABECERA (con reloj restaurado) -->
+    <!-- CABECERA (con reloj) -->
     <div class="top">
       <span class="clock" aria-hidden="true">⏱️</span>
       <h1 class="title">MI CRONO WEB</h1>
@@ -76,25 +68,26 @@
       <section class="card">
         <h2>Crear evento</h2>
         <label for="newCode">Código del evento</label>
-        <input id="newCode" placeholder="P.EJ. TEST1" />
+        <input id="newCode" class="uppercase" placeholder="P.EJ. TEST1" />
 
         <label for="newList">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="newList" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
+        <textarea id="newList" class="uppercase" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
 
         <div class="hint">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
+          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y
+          tiempos) y se crean estos nuevos.
         </div>
 
-        <div class="tools" style="margin-top:14px">
+        <div style="margin-top:14px">
           <button id="btnSave" class="btn primary">Guardar evento</button>
         </div>
       </section>
 
-      <!-- UNIRSE A UN EVENTO (iconos restaurados) -->
+      <!-- UNIRSE A UN EVENTO -->
       <section class="card">
         <h2>Unirse a un evento</h2>
         <label for="joinCode">Código</label>
-        <input id="joinCode" placeholder="TEST1" />
+        <input id="joinCode" class="uppercase" placeholder="TEST1" />
 
         <div class="cluster" style="margin-top:12px">
           <a id="goStart"  class="btn" href="#">🏁&nbsp;Salida</a>
@@ -112,9 +105,10 @@
     <section class="card" style="margin-top:18px">
       <h2>Herramientas</h2>
       <div class="hint">
-        <b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos. Úsalo solo si quieres limpiar por completo.
+        <b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.
+        Úsalo solo si quieres limpiar por completo.
       </div>
-      <div class="tools">
+      <div style="margin-top:10px">
         <button id="btnNuke" class="btn danger">Reset eventos</button>
       </div>
     </section>
@@ -124,25 +118,44 @@
 
   <!-- Firebase (CDN, módulos ES) -->
   <script type="module">
-    // === UI helpers ===
-    const $ = (id)=>document.getElementById(id);
-    const cleanUpper = (s)=> (s||'').trim().toUpperCase();
+    // ===== Helpers de UI =====
+    const $  = (id)=>document.getElementById(id);
+    const UP = (s)=> (s||'').trim().toUpperCase();
 
-    // === Navegación botones UNIRSE ===
+    // Forzamos mayúsculas "reales" al escribir (no solo visual)
+    function forceUpper(){
+      ['newCode','joinCode'].forEach(id=>{
+        const el=$(id); if(!el) return;
+        el.addEventListener('input', e=>{
+          const pos=e.target.selectionStart;
+          e.target.value=e.target.value.toUpperCase();
+          e.target.setSelectionRange(pos,pos);
+        });
+      });
+      const ta=$('newList');
+      if(ta){
+        ta.addEventListener('input', e=>{
+          const s=e.target.selectionStart, t=e.target.selectionEnd;
+          e.target.value=e.target.value.toUpperCase();
+          e.target.setSelectionRange(s,t);
+        });
+      }
+    }
+
+    // Navegación
     function wireJoin(){
-      const codeInput = $('joinCode');
-      const nav = (mode)=> {
-        const code = cleanUpper(codeInput.value);
+      const nav=(mode)=>{
+        const code=UP($('joinCode').value);
         if(!code){ alert('Escribe un código de evento.'); return; }
-        if(mode==='result') location.href = `result.html?code=${encodeURIComponent(code)}`;
-        else location.href = `camera.html?code=${encodeURIComponent(code)}&mode=${mode}`;
+        if(mode==='result') location.href=`result.html?code=${encodeURIComponent(code)}`;
+        else location.href=`camera.html?code=${encodeURIComponent(code)}&mode=${mode}`;
       };
       $('goStart').onclick =(e)=>{ e.preventDefault(); nav('start'); };
       $('goFinish').onclick=(e)=>{ e.preventDefault(); nav('finish'); };
       $('goResult').onclick=(e)=>{ e.preventDefault(); nav('result'); };
     }
 
-    // === Firebase (CDN) ===
+    // ===== Firebase (CDN) =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
     import {
       getFirestore, doc, setDoc, collection, getDocs, deleteDoc, addDoc,
@@ -157,64 +170,75 @@
       messagingSenderId: "379025900327",
       appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
     };
+
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    // === Crear / resetear evento con participantes ===
+    // ===== Guardar / resetear evento =====
     $('btnSave').onclick = async ()=>{
       try{
-        const code = cleanUpper($('newCode').value);
+        const code = UP($('newCode').value);
         if(!code){ alert('Escribe un código de evento.'); return; }
 
-        // Crea/actualiza doc del evento
-        const evRef = doc(db, 'events', code);
-        await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
+        console.log('[SAVE] code=', code);
 
-        // Borra participantes existentes
-        const partsCol = collection(evRef, 'participants');
-        const old = await getDocs(partsCol);
-        const delBatch = writeBatch(db);
-        old.forEach(d => delBatch.delete(d.ref));
-        await delBatch.commit();
+        // Crea/actualiza doc del evento
+        const evRef = doc(db,'events',code);
+        await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
+
+        // Elimina participantes existentes (batch; si falla, bucle)
+        const partsCol = collection(evRef,'participants');
+        const existing = await getDocs(partsCol);
+
+        try{
+          const batch = writeBatch(db);
+          existing.forEach(d=>batch.delete(d.ref));
+          await batch.commit();
+        }catch(errBatch){
+          console.warn('[SAVE] writeBatch falló, borro uno a uno', errBatch);
+          for(const d of existing.docs){
+            try{ await deleteDoc(d.ref); }catch(e){ console.error('Error borrando', d.id, e); }
+          }
+        }
 
         // Inserta nuevos participantes (uno por línea)
-        const lines = ($('newList').value || '').split(/\r?\n/).map(s=>cleanUpper(s)).filter(Boolean);
-        let order = 1;
+        const lines = UP($('newList').value).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+        let order=1;
         for(const name of lines){
-          await addDoc(partsCol, {
-            name, order, startTS: null, stopTS: null, createdAt: serverTimestamp()
-          });
+          await addDoc(partsCol, { name, order, startTS:null, stopTS:null, createdAt: serverTimestamp() });
           order++;
         }
 
         alert('Evento guardado correctamente.');
-        // Auto-rellenar en UNIRSE
         $('joinCode').value = code;
+        console.log('[SAVE] OK. participants=', lines.length);
       }catch(e){
+        console.error('[SAVE] ERROR', e);
         alert('Error guardando evento: ' + (e.message||e));
       }
     };
 
-    // === Reset total: borra todos los eventos y sus subcolecciones participants ===
+    // ===== Reset total (nuke) =====
     $('btnNuke').onclick = async ()=>{
       if(!confirm('¿Seguro que quieres eliminar TODOS los eventos y participantes?')) return;
       try{
         const evs = await getDocs(collection(db,'events'));
         for(const ev of evs.docs){
-          // borra participants
           const parts = await getDocs(collection(ev.ref,'participants'));
-          for(const p of parts.docs){
-            await deleteDoc(p.ref);
-          }
+          // borra participantes
+          for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch(e){ console.error('Del participant',p.id,e); } }
           // borra el evento
-          await deleteDoc(ev.ref);
+          try{ await deleteDoc(ev.ref); }catch(e){ console.error('Del event',ev.id,e); }
         }
         alert('Base de datos limpia.');
+        console.log('[NUKE] OK');
       }catch(e){
+        console.error('[NUKE] ERROR', e);
         alert('Error al eliminar: ' + (e.message||e));
       }
     };
 
+    forceUpper();
     wireJoin();
   </script>
 </body>
