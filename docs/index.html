@@ -21,7 +21,9 @@
       color:var(--text);
     }
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .top{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px}
+    .top{
+      display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px;
+    }
     .clock{font-size:22px;line-height:1;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
     .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .muted{color:var(--muted)}
@@ -37,8 +39,6 @@
       width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
       background:var(--bg2);color:var(--text);outline:none;font-size:15px;
     }
-    /* Mayúsculas visuales en los campos que nos interesan */
-    .uppercase{ text-transform: uppercase; letter-spacing:.03em; }
     textarea{min-height:170px;resize:vertical;white-space:pre}
     .btn{
       display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -58,13 +58,14 @@
     a.link{color:var(--accent);text-decoration:none} a.link:hover{color:var(--accent-2)}
     small{opacity:.9}
 
+    /* botones de UNIRSE */
     .cluster{display:flex;gap:10px;flex-wrap:wrap}
     .cluster .btn{flex:1 1 120px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- CABECERA -->
+    <!-- CABECERA (con reloj restaurado) -->
     <div class="top">
       <span class="clock" aria-hidden="true">⏱️</span>
       <h1 class="title">MI CRONO WEB</h1>
@@ -75,10 +76,10 @@
       <section class="card">
         <h2>Crear evento</h2>
         <label for="newCode">Código del evento</label>
-        <input id="newCode" class="uppercase" placeholder="P.EJ. TEST1" />
+        <input id="newCode" placeholder="P.EJ. TEST1" />
 
         <label for="newList">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="newList" class="uppercase" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
+        <textarea id="newList" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
 
         <div class="hint">
           Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
@@ -89,11 +90,11 @@
         </div>
       </section>
 
-      <!-- UNIRSE A UN EVENTO -->
+      <!-- UNIRSE A UN EVENTO (iconos restaurados) -->
       <section class="card">
         <h2>Unirse a un evento</h2>
         <label for="joinCode">Código</label>
-        <input id="joinCode" class="uppercase" placeholder="TEST1" />
+        <input id="joinCode" placeholder="TEST1" />
 
         <div class="cluster" style="margin-top:12px">
           <a id="goStart"  class="btn" href="#">🏁&nbsp;Salida</a>
@@ -123,30 +124,9 @@
 
   <!-- Firebase (CDN, módulos ES) -->
   <script type="module">
-    // === Helpers ===
+    // === UI helpers ===
     const $ = (id)=>document.getElementById(id);
     const cleanUpper = (s)=> (s||'').trim().toUpperCase();
-
-    // Forzamos mayúsculas en el valor mientras el usuario escribe (no solo visual)
-    function forceUppercaseInputs(){
-      ['newCode','joinCode'].forEach(id=>{
-        const el=$(id); if(!el) return;
-        el.addEventListener('input', e=>{
-          const pos = e.target.selectionStart;
-          e.target.value = e.target.value.toUpperCase();
-          // restaurar posición del cursor
-          e.target.setSelectionRange(pos,pos);
-        });
-      });
-      const ta=$('newList');
-      if(ta){
-        ta.addEventListener('input', e=>{
-          const start = e.target.selectionStart, end = e.target.selectionEnd;
-          e.target.value = e.target.value.toUpperCase();
-          e.target.setSelectionRange(start,end);
-        });
-      }
-    }
 
     // === Navegación botones UNIRSE ===
     function wireJoin(){
@@ -186,15 +166,18 @@
         const code = cleanUpper($('newCode').value);
         if(!code){ alert('Escribe un código de evento.'); return; }
 
+        // Crea/actualiza doc del evento
         const evRef = doc(db, 'events', code);
         await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge: true });
 
+        // Borra participantes existentes
         const partsCol = collection(evRef, 'participants');
         const old = await getDocs(partsCol);
         const delBatch = writeBatch(db);
         old.forEach(d => delBatch.delete(d.ref));
         await delBatch.commit();
 
+        // Inserta nuevos participantes (uno por línea)
         const lines = ($('newList').value || '').split(/\r?\n/).map(s=>cleanUpper(s)).filter(Boolean);
         let order = 1;
         for(const name of lines){
@@ -205,12 +188,34 @@
         }
 
         alert('Evento guardado correctamente.');
+        // Auto-rellenar en UNIRSE
         $('joinCode').value = code;
       }catch(e){
         alert('Error guardando evento: ' + (e.message||e));
       }
     };
 
-    // === Reset total ===
-    $('btnNuke').onclick = as
-::contentReference[oaicite:0]{index=0}
+    // === Reset total: borra todos los eventos y sus subcolecciones participants ===
+    $('btnNuke').onclick = async ()=>{
+      if(!confirm('¿Seguro que quieres eliminar TODOS los eventos y participantes?')) return;
+      try{
+        const evs = await getDocs(collection(db,'events'));
+        for(const ev of evs.docs){
+          // borra participants
+          const parts = await getDocs(collection(ev.ref,'participants'));
+          for(const p of parts.docs){
+            await deleteDoc(p.ref);
+          }
+          // borra el evento
+          await deleteDoc(ev.ref);
+        }
+        alert('Base de datos limpia.');
+      }catch(e){
+        alert('Error al eliminar: ' + (e.message||e));
+      }
+    };
+
+    wireJoin();
+  </script>
+</body>
+</html>
