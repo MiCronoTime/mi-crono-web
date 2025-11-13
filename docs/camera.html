@@ -4,350 +4,347 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Mi Crono — CÁMARA</title>
+  <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
-      --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
-      --accent:#6eb0ff; --accent-2:#8ec5ff; --ok:#7cffb6; --err:#ff7a8a;
-      --danger:#ff6b82;
+      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1300px 800px at 20% -10%, #131a27 0%, transparent 60%),
-                  radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
     }
-    .wrap{max-width:1100px;margin:0 auto;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 14px}
-    .left{display:flex;align-items:center;gap:10px}
-    .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);font-weight:800}
-    .muted{color:var(--muted)}
-    .row{display:flex;gap:14px;flex-wrap:wrap}
-    .col{flex:1 1 340px}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{color:var(--accent-2)}
+    .wrap{max-width:1000px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .tag{opacity:.9}
+    .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
+    /* Controles */
+    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      padding:12px 16px;border-radius:12px;border:1px solid var(--border);
-      background:#0f141c;color:var(--text);cursor:pointer;text-decoration:none;
-      text-transform:uppercase;font-weight:900;letter-spacing:.03em;min-height:44px;
-      transition:background .15s,border-color .15s,transform .05s;
+      display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;transition:transform .05s, background .15s, border-color .15s, color .15s;
+      text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px;line-height:1;text-decoration:none;
     }
-    .btn:hover{background:#141a24}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
-    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
-    .btn.danger{background:var(--danger);border-color:var(--danger);color:#210a12}
+    .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
     /* Cámara */
-    .camWrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:#000}
-    video{display:block;width:100%;height:auto;background:#000}
-    .overlay{
-      position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;
-    }
-    /* Franjas rojas verticales (zona de detección) */
-    .gate{
-      position:absolute;top:0;bottom:0;width:10%;
-      border-left:3px solid rgba(255,0,0,.85);border-right:3px solid rgba(255,0,0,.85);
-      left:45%;
-    }
-    .flash{
-      position:absolute;inset:0;background:rgba(255,255,255,.18);opacity:0;transition:opacity .2s;
-    }
-    .flash.on{opacity:1}
-    .status{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-    .status .s{padding:6px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);font-weight:800}
-    .status .ok{color:var(--ok)} .status .err{color:var(--err)}
-    .list h3{margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em}
-    .item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--panel2);margin-bottom:8px}
-    .name{font-weight:900;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
-    .time{font-weight:900;letter-spacing:.3px}
-    .hint{color:var(--muted);font-size:13px}
+    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
+    video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none}
+
+    /* HUD superior (solo estado/siguiente) */
+    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
+
+    /* Paneles inferiores */
+    .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
+    label{display:block;margin-bottom:6px;font-weight:700}
+    input[type=range]{width:100%}
+    .list{margin-top:12px}
+    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
+    .badge{font-weight:800;color:#cfe1ff;opacity:.9}
+    .rname{font-weight:800;text-transform:uppercase}
+    .rtime{font-weight:900;letter-spacing:.4px}
+    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <div class="top">
-      <div class="left">
-        <h1 class="title">CÁMARA</h1>
-        <span class="pill" id="modePill">—</span>
+<body class="wrap">
+  <header class="top">
+    <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">MODO</h1>
+    <p class="tag" id="tag">Conectando…</p>
+  </header>
+
+  <main class="grid one">
+    <section class="card warn" id="noCodeBox" style="display:none">
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y crea/únete a un evento.
+    </section>
+
+    <section class="card">
+      <div class="controls">
+        <button id="btnEnableCam" class="btn primary">ACTIVAR CÁMARA</button>
+        <a id="btnResult" class="btn" href="#">VER RESULTADO</a>
       </div>
-      <div class="row">
-        <button id="btnCam" class="btn">ACTIVAR CÁMARA</button>
-        <a id="btnRes" class="btn" href="#">VER RESULTADOS</a>
-      </div>
-    </div>
+      <small class="muted">iOS: Safari + HTTPS + permitir Cámara.</small>
 
-    <div class="row">
-      <div class="col">
-        <div class="card">
-          <div class="status">
-            <span class="s">Evento: <b id="evCode">—</b></span>
-            <span class="s">Estado: <b id="conn">Conectando…</b></span>
-            <span class="s">Última acción: <b id="last">—</b></span>
-          </div>
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay" class="overlay"></canvas>
 
-          <div class="camWrap">
-            <video id="video" playsinline muted></video>
-            <div class="overlay">
-              <div class="gate" aria-hidden="true"></div>
-              <div class="flash" id="flash" aria-hidden="true"></div>
-            </div>
-          </div>
-
-          <p class="hint" style="margin-top:8px">
-            Coloca al corredor para que cruce entre las franjas rojas. El cronómetro se
-            <b id="modeExplain">iniciará</b> automáticamente.
-          </p>
+        <div class="hud" id="hudTop">
+          <span id="hudStatus">Listo</span>
+          • <span id="hudNext" class="pill">Siguiente: —</span>
         </div>
       </div>
 
-      <div class="col">
-        <div class="card list">
-          <h3>En curso</h3>
-          <div id="inProgress"></div>
-        </div>
-
-        <div class="card list" style="margin-top:12px">
-          <h3>Finalizados</h3>
-          <div id="finished"></div>
-        </div>
+      <div class="sub">
+        <label>Sensibilidad detector (franja roja)</label>
+        <input id="sens" type="range" min="1" max="100" value="25"/>
+        <small class="muted">Más a la derecha = más sensible.</small>
       </div>
-    </div>
-  </div>
+
+      <div class="sub list">
+        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
+        <div id="runningList">—</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 style="text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px 0">Estado</h2>
+      <div>Firebase: <span id="fbState">—</span></div>
+      <div>Evento: <span id="evState">—</span></div>
+      <div>Última acción: <span id="lastAction">—</span></div>
+    </section>
+  </main>
+
+  <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    // ================= Utils =================
-    const $ = (id)=>document.getElementById(id);
-    const two = n => String(n).padStart(2,'0');
-    const three = n => String(n).padStart(3,'0');
-    function fmt(ms){ ms = Math.max(0, Math.floor(ms||0));
-      const m = Math.floor(ms/60000), s = Math.floor((ms%60000)/1000), ms3 = ms%1000;
-      return `${two(m)}:${two(s)}.${three(ms3)}`;
-    }
-    const qp = new URL(location.href).searchParams;
-    const CODE = (qp.get('code')||'').toUpperCase();
-    const MODE = (qp.get('mode')||'start'); // 'start' | 'finish'
-    $('evCode').textContent = CODE || '—';
-    $('modePill').textContent = MODE === 'start' ? 'MODO SALIDA' : 'MODO META';
-    $('modeExplain').textContent = MODE === 'start' ? 'iniciará' : 'detendrá';
+    // ---------- Utils ----------
+    const $=(id)=>document.getElementById(id);
+    const two=(n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
+    const code=(getParam('code')||'').toUpperCase();
+    const mode=(getParam('mode')||'start'); // start|finish
 
-    // Cooldowns (mantener como teníamos)
-    const COOLDOWN_START_MS  = 2000; // SALIDA: 2 s
-    const COOLDOWN_FINISH_MS = 900;  // META: 0.9 s
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
+    const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    // ============== Firebase (CDN, módulos ES) ==============
-    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import {
-      getFirestore, doc, collection, query, orderBy, onSnapshot, getDocs, updateDoc,
-      serverTimestamp, writeBatch, where, getDoc
-    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+    tag.textContent=`Evento ${code||'—'}`;
+    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
+    else { evState.textContent=code; evState.className='ok'; }
+    btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
+    // ---------- Reloj sincronizado con servidor ----------
+    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
+    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    // ============== Navegación ==============
-    $('btnRes').href = `result.html?code=${encodeURIComponent(CODE)}`;
+    // ---------- Firebase ----------
+    try{
+      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+      const {
+        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc
+      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-    // ============== Render helpers ==============
-    function tsMs(ts){ return ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null; }
+      const firebaseConfig = {
+        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+        authDomain: "mi-crono-time-888b7.firebaseapp.com",
+        projectId: "mi-crono-time-888b7",
+        storageBucket: "mi-crono-time-888b7.appspot.com",
+        messagingSenderId: "379025900327",
+        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+      };
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
 
-    function renderLists(rows){
-      // Filtramos
-      const inProg = rows.filter(r => r.startMS!=null && r.stopMS==null)
-                         .sort((a,b)=> a.order - b.order);
-      const done   = rows.filter(r => r.startMS!=null && r.stopMS!=null)
-                         .sort((a,b)=> a.stopMS - b.stopMS);
+      // refs
+      const eventRef = doc(db,'events',code);
+      const partsCol = collection(eventRef,'participants');
+      const syncCol  = collection(eventRef,'sync');
 
-      // EN CURSO (con tiempo en vivo — AQUÍ el cambio clave data-live-start)
-      const inHTML = inProg.map(r=>{
-        const start = r.startMS;
-        return `
-          <div class="item" data-id="${r.id}">
-            <div class="name">${r.name}</div>
-            <div class="time" data-live-start="${start}">${fmt(Date.now() - start)}</div>
-          </div>`;
-      }).join('') || `<div class="muted">—</div>`;
-      $('inProgress').innerHTML = inHTML;
+      // Crea evento si no existe
+      const s=await getDoc(eventRef);
+      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // FINALIZADOS (sin live, congelado)
-      const finHTML = done.map((r)=>{
-        const dur = r.stopMS - r.startMS;
-        return `
-          <div class="item" data-id="${r.id}">
-            <div class="name">${r.name}</div>
-            <div class="time">${fmt(dur)}</div>
-          </div>`;
-      }).join('') || `<div class="muted">—</div>`;
-      $('finished').innerHTML = finHTML;
-    }
-
-    // ====== Live Ticker para "EN CURSO" (no tocamos nada más) ======
-    let _rafId;
-    function _tick(){
-      const now = Date.now();
-      document.querySelectorAll('[data-live-start]').forEach(el=>{
-        const start = Number(el.dataset.liveStart || 0);
-        if (start > 0) el.textContent = fmt(now - start);
-      });
-      _rafId = requestAnimationFrame(_tick);
-    }
-    cancelAnimationFrame(_rafId);
-    _rafId = requestAnimationFrame(_tick);
-
-    // ============== Suscripción a participantes ==============
-    let unsub = null;
-    async function subscribe(){
-      if(!CODE){ $('conn').textContent = 'Sin código'; return; }
-      const evRef = doc(db,'events',CODE);
-      const partsCol = collection(evRef,'participants');
-      const q = query(partsCol, orderBy('order','asc'));
-      unsub = onSnapshot(q, (snap)=>{
-        $('conn').textContent = 'Conectado';
-        const rows = snap.docs.map(d=>{
-          const x=d.data();
-          return {
-            id:d.id,
-            name:(x.name||'').toUpperCase(),
-            order:x.order||0,
-            startMS: tsMs(x.startTS),
-            stopMS:  tsMs(x.stopTS)
-          };
-        });
-        renderLists(rows);
-      }, (err)=>{
-        $('conn').textContent = 'ERROR';
-        console.error(err);
-      });
-    }
-
-    // ============== Lógica de cámara y detección ==============
-    const video = $('video');
-    const flash = $('flash');
-    let stream = null;
-    let lastTrigger = 0;
-
-    async function startCamera(){
+      // Offset con servidor (1 ping)
       try{
-        stream = await navigator.mediaDevices.getUserMedia({
-          video:{ facingMode:'environment' }, audio:false
-        });
-        video.srcObject = stream;
-        await video.play();
-      }catch(e){
-        alert('No se pudo abrir la cámara. Revisa permisos en Safari/Chrome.');
-        console.error(e);
+        const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
+        const pingSnap = await getDoc(pingRef);
+        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
+        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
+      }catch(_){ serverOffsetMS=0; }
+
+      // Estado participantes
+      let participants=[];
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
+      const nextToStart = ()=> participants.find(p=>!p.startTS);
+      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+
+      // Acciones (serverTimestamp)
+      async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
+        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
+      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
+
+      // Suscripción -> cronos en vivo (ambas pantallas)
+      let currentLive=[];
+      onSnapshot(partsCol, async ()=>{
+        await reload();
+        const run = runningSorted().map(p=>({
+          order: p.order||0,
+          name: (p.name||'').toUpperCase(),
+          startMS: tsToMillis(p.startTS)
+        }));
+        currentLive = run;
+
+        const nxt = nextToStart();
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+
+        // Estado textual
+        const hasStart = participants.some(p=>p.startTS);
+        const hasStop  = participants.some(p=>p.stopTS);
+        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+
+        // Panel inferior informativo
+        renderList(currentLive);
+      });
+
+      // ===== Cámara + detección =====
+      btnEnable.onclick = async ()=>{
+        try{
+          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
+          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+          let stream=null,lastErr=null;
+          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+          requestAnimationFrame(loop);
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
+      };
+
+      // === Detector por diferencia, con "refractario" por modo ===
+      const COOLDOWN_START_MS  = 3000; // 3 s tras marcar SALIDA
+      const COOLDOWN_FINISH_MS = 1500;  // 1.5 s tras marcar META
+      let prev=null, armed=true, cooldownTimer=null;
+
+      const armAfter = (ms)=>{
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
+      };
+
+      const trigger = async ()=>{
+        if(!armed) return;
+        armed=false;
+
+        // aplica cooldown según modo
+        armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
+
+        if(mode==='start'){
+          const p=await startNext();
+          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+        }else{
+          const p=await stopEarliest();
+          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+        }
+      };
+
+      // Dibujo principal en overlay
+      function loop(){
+        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
+
+        // Franjas rojas
+        const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+        octx.clearRect(0,0,w,h);
+        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+
+        // Cronos por participante (nuevo arriba), tamaño pensado para iPhone
+        drawOverlayTimes(w,h,currentLive);
+
+        // Detector por diferencia
+        const vw=video.videoWidth, vh=video.videoHeight;
+        if(vw && vh){
+          const scaleX = vw / stage.clientWidth;
+          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+          const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
+          const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
+          const frame=tctx.getImageData(sx,0,sw,vh);
+
+          if(prev && prev.width===sw && prev.height===vh){
+            const sensV=Number(sens.value);
+            const thr=20+Math.round((100-sensV)*1.2);
+            const pct=0.04+(100-sensV)*0.0006;
+            let diff=0,total=0;
+            for(let i=0;i<frame.data.length;i+=16){
+              const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
+              if(d>thr) diff++; total++;
+            }
+            if((diff/Math.max(1,total))>pct) trigger();
+          }
+          prev=frame;
+        }
+        requestAnimationFrame(loop);
       }
-    }
-    $('btnCam').onclick = ()=> startCamera();
 
-    // Detección simple por diferencia de frames en franja central (gate)
-    const cnv = document.createElement('canvas');
-    const ctx = cnv.getContext('2d', { willReadFrequently:true });
-    let prev = null;
+      function drawOverlayTimes(w,h,rows){
+        if(!rows.length) return;
+        const nowSync = Date.now() + serverOffsetMS;
 
-    function flashOnce(){
-      flash.classList.add('on');
-      setTimeout(()=>flash.classList.remove('on'), 120);
-    }
+        // Orden: más reciente ARRIBA
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-    async function tickDetect(){
-      if (video.readyState >= 2){
-        const w = video.videoWidth, h = video.videoHeight;
-        if (w && h){
-          cnv.width = w; cnv.height = h;
-          ctx.drawImage(video,0,0,w,h);
-          const img = ctx.getImageData(0,0,w,h).data;
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // pequeño para iPhone
+        const gap = Math.max(5, Math.floor(h*0.011));
+        const leftPad = Math.floor(w*0.06);
+        const rightPad= Math.floor(w*0.06);
+        const topPad = Math.floor(h*0.14); // deja aire para HUD
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
-          // zona de gate (45%..55%) igual que visual
-          const x1 = Math.floor(w*0.45), x2 = Math.floor(w*0.55);
-          const y1 = 0, y2 = h;
+        octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        octx.textBaseline = 'top';
+        octx.fillStyle = '#ffffff';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
-          let diff = 0, total = 0;
-          if (prev && prev.length === img.length){
-            for (let y=y1; y<y2; y+=3){
-              for (let x=x1; x<x2; x+=3){
-                const i = (y*w + x)*4;
-                const d = Math.abs(img[i]-prev[i]) + Math.abs(img[i+1]-prev[i+1]) + Math.abs(img[i+2]-prev[i+2]);
-                diff += d; total++;
-              }
-            }
-          }
-          prev = new Uint8ClampedArray(img);
+        let y = topPad;
+        for(let i=0;i<maxRows;i++){
+          const r = sorted[i];
+          const elapsed = nowSync - (r.startMS||nowSync);   // empieza en 0 al marcar salida
+          const tText = fmt(elapsed);
+          const nText = r.name || '—';
 
-          const motion = total ? (diff/total) : 0;
-          const now = Date.now();
+          // tiempo (izq)
+          octx.textAlign='left';
+          octx.strokeText(tText, leftPad, y);
+          octx.fillText  (tText, leftPad, y);
 
-          // Umbral heurístico; si hay movimiento y pasó cooldown, dispara
-          if (motion > 10){
-            const cd = (MODE==='start') ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS;
-            if (now - lastTrigger > cd){
-              lastTrigger = now;
-              flashOnce();
-              if (MODE==='start') await markStart();
-              else await markFinish();
-            }
-          }
+          // nombre (der)
+          octx.textAlign='right';
+          octx.strokeText(nText, w - rightPad, y);
+          octx.fillText  (nText, w - rightPad, y);
+
+          y += baseSize + gap;
         }
       }
-      requestAnimationFrame(tickDetect);
-    }
-    requestAnimationFrame(tickDetect);
 
-    // ============== Acciones Firestore ==============
-    // Buscar siguiente participante pendiente de salida (startTS==null)
-    async function markStart(){
-      try{
-        const evRef = doc(db,'events',CODE);
-        const partsCol = collection(evRef,'participants');
-
-        // siguiente sin start
-        const pendingSnap = await getDocs(query(partsCol, where('startTS','==',null), orderBy('order','asc')));
-        if (pendingSnap.empty){ $('last').textContent='No hay más participantes'; return; }
-
-        const first = pendingSnap.docs[0];
-        await updateDoc(first.ref, { startTS: serverTimestamp() });
-        $('last').textContent = `Inicio: ${first.data().name||first.id}`;
-      }catch(e){
-        console.error(e);
-        $('last').textContent = 'ERROR inicio';
+      function renderList(run){
+        const nowSync = Date.now() + serverOffsetMS;
+        const list = $('runningList');
+        if(!run.length){ list.innerHTML='—'; return; }
+        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+          .join('');
       }
+
+    }catch(e){
+      window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
+      alert('Firebase error: '+(e.message||e));
     }
-
-    // Parar el primero que esté en curso (startTS!=null && stopTS==null) por orden de salida
-    async function markFinish(){
-      try{
-        const evRef = doc(db,'events',CODE);
-        const partsCol = collection(evRef,'participants');
-
-        // primero en curso
-        const runningSnap = await getDocs(query(partsCol,
-          where('startTS','!=',null), where('stopTS','==',null), orderBy('order','asc')));
-
-        if (runningSnap.empty){ $('last').textContent='Nadie en curso'; return; }
-
-        const first = runningSnap.docs[0];
-        await updateDoc(first.ref, { stopTS: serverTimestamp() });
-        $('last').textContent = `Fin: ${first.data().name||first.id}`;
-      }catch(e){
-        console.error(e);
-        $('last').textContent = 'ERROR fin';
-      }
-    }
-
-    // ============== Iniciar ==============
-    subscribe();
   </script>
 </body>
 </html>
