@@ -37,19 +37,42 @@
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
     .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
 
-    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    /* ---------- Tabla ---------- */
+    .table-wrap{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch}
+    table{width:100%; border-collapse:separate; border-spacing:0 8px; min-width: 520px;}
     thead th{
-      text-align:left;padding:10px 12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)
+      text-align:left;padding:10px 12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+      white-space:nowrap;
     }
     tbody tr{background:var(--panel2);border:1px solid var(--border)}
-    tbody td{padding:12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+    tbody td{padding:12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);vertical-align:middle}
     tbody tr td:first-child{border-left:1px solid var(--border);border-top-left-radius:10px;border-bottom-left-radius:10px}
     tbody tr td:last-child{border-right:1px solid var(--border);border-top-right-radius:10px;border-bottom-right-radius:10px}
-    .pos{width:64px;text-align:center;font-weight:900}
-    .name{font-weight:900;text-transform:uppercase}
-    .time{font-weight:900;letter-spacing:.4px}
-    .delta{font-weight:800;letter-spacing:.3px;color:var(--muted)}
+    .pos{width:64px;text-align:center;font-weight:900;white-space:nowrap}
+    .name{font-weight:900;text-transform:uppercase;max-width: 44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .time{font-weight:900;letter-spacing:.4px; white-space:nowrap}
+    .delta{font-weight:800;letter-spacing:.3px;color:var(--muted); white-space:nowrap; text-align:right}
     .ok{color:var(--ok)} .err{color:var(--err)}
+
+    /* ---------- Responsive fino para iPhone ---------- */
+    @media (max-width: 430px){
+      .wrap{padding:12px}
+      .card{padding:12px}
+      thead th{padding:8px 10px; font-size:12px}
+      tbody td{padding:8px 10px; font-size:13px}
+      .pos{width:44px}
+      .name{max-width: 46vw}
+      .time{font-size:13px}
+      .delta{font-size:12px}
+      table{min-width:480px} /* aún permite ver todo; si no cabe, el contenedor permite scroll */
+    }
+    @media (max-width: 360px){
+      thead th{font-size:11px}
+      tbody td{font-size:12px}
+      .name{max-width: 42vw}
+      .delta{font-size:11px}
+      table{min-width:460px}
+    }
   </style>
 </head>
 <body>
@@ -70,19 +93,21 @@
     </div>
 
     <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Participante</th>
-            <th>Tiempo</th>
-            <th></th> <!-- Título eliminado a petición -->
-          </tr>
-        </thead>
-        <tbody id="tbody">
-          <tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Participante</th>
+              <th>Tiempo</th>
+              <th></th> <!-- sin título para la columna de Δ -->
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -242,7 +267,7 @@
           2: { cellWidth: 110, halign:'right', fontStyle:'bold' },
           3: { cellWidth: 100, halign:'right' }
         },
-        tableWidth: 'wrap' // asegura que se ajuste al ancho disponible
+        tableWidth: 'wrap'
       });
 
       doc.save(`resultados_${(code||'EVENTO')}.pdf`);
