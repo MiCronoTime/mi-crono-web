@@ -22,7 +22,7 @@
     }
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
     .top{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px}
-    .clock{font-size:22px;line-height:1}
+    .clock{font-size:22px;line-height:1;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
     .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .muted{color:var(--muted)}
     .grid{display:grid;gap:18px}
@@ -91,13 +91,12 @@
 
         <div class="cluster" style="margin-top:12px">
           <a id="goStart"  class="btn" href="#">🏁&nbsp;Salida</a>
-          <a id="goSplit"  class="btn" href="#">🟨&nbsp;Split</a>
           <a id="goFinish" class="btn" href="#">🚩&nbsp;Meta</a>
           <a id="goResult" class="btn" href="#">⬜&nbsp;Resultados</a>
         </div>
 
         <div class="hint">
-          Abre <b>Salida</b> en la salida, <b>Split</b> en el punto intermedio y <b>Meta</b> en la llegada. Todos con el mismo <b>código</b>.
+          Abre <b>Salida</b> en la salida y <b>Meta</b> en la llegada. Ambos con el mismo <b>código</b>.
         </div>
       </section>
     </div>
@@ -123,7 +122,7 @@
     const $  = (id)=>document.getElementById(id);
     const UP = (s)=> (s||'').trim().toUpperCase();
 
-    // Forzamos mayúsculas reales al escribir
+    // Forzamos mayúsculas "reales" al escribir (no solo visual)
     function forceUpper(){
       ['newCode','joinCode'].forEach(id=>{
         const el=$(id); if(!el) return;
@@ -152,7 +151,6 @@
         else location.href=`camera.html?code=${encodeURIComponent(code)}&mode=${mode}`;
       };
       $('goStart').onclick =(e)=>{ e.preventDefault(); nav('start'); };
-      $('goSplit').onclick =(e)=>{ e.preventDefault(); nav('split'); };   // <— NUEVO
       $('goFinish').onclick=(e)=>{ e.preventDefault(); nav('finish'); };
       $('goResult').onclick=(e)=>{ e.preventDefault(); nav('result'); };
     }
@@ -182,25 +180,29 @@
         const code = UP($('newCode').value);
         if(!code){ alert('Escribe un código de evento.'); return; }
 
+        // Crea/actualiza doc del evento
         const evRef = doc(db,'events',code);
         await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
 
-        // Eliminar participantes existentes
+        // Elimina participantes existentes (batch; si falla, borra uno a uno)
         const partsCol = collection(evRef,'participants');
         const existing = await getDocs(partsCol);
+
         try{
           const batch = writeBatch(db);
           existing.forEach(d=>batch.delete(d.ref));
           await batch.commit();
-        }catch{
-          for(const d of existing.docs){ try{ await deleteDoc(d.ref); }catch{} }
+        }catch(errBatch){
+          for(const d of existing.docs){
+            try{ await deleteDoc(d.ref); }catch(e){ console.error('Error borrando', d.id, e); }
+          }
         }
 
-        // Insertar nuevos
+        // Inserta nuevos participantes (uno por línea)
         const lines = UP($('newList').value).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
         let order=1;
         for(const name of lines){
-          await addDoc(partsCol, { name, order, startTS:null, split1TS:null, stopTS:null, createdAt: serverTimestamp() });
+          await addDoc(partsCol, { name, order, startTS:null, stopTS:null, createdAt: serverTimestamp() });
           order++;
         }
 
@@ -211,16 +213,17 @@
       }
     };
 
-    // ===== Reset total (confirmación) =====
+    // ===== Reset total (con confirmación) =====
     $('btnNuke').onclick = async ()=>{
       const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos. ¿Seguro que quieres continuar?');
       if(!ok) return;
+
       try{
         const evs = await getDocs(collection(db,'events'));
         for(const ev of evs.docs){
           const parts = await getDocs(collection(ev.ref,'participants'));
-          for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch{} }
-          try{ await deleteDoc(ev.ref); }catch{}
+          for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch(e){ console.error('Del participant',p.id,e); } }
+          try{ await deleteDoc(ev.ref); }catch(e){ console.error('Del event',ev.id,e); }
         }
         alert('Base de datos limpia.');
       }catch(e){
