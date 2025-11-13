@@ -48,6 +48,7 @@
     .pos{width:64px;text-align:center;font-weight:900}
     .name{font-weight:900;text-transform:uppercase}
     .time{font-weight:900;letter-spacing:.4px}
+    .delta{font-weight:800;letter-spacing:.3px;color:var(--muted)}
     .ok{color:var(--ok)} .err{color:var(--err)}
   </style>
 </head>
@@ -61,7 +62,7 @@
       </div>
     </div>
 
-    <!-- Tarjeta de cabecera con código y FECHA/HORA del evento -->
+    <!-- Cabecera con código y FECHA/HORA del evento -->
     <div class="card" style="margin-bottom:12px">
       <div>Evento: <b id="evCode">—</b></div>
       <div>Fecha: <b id="evDate">—</b></div>
@@ -75,16 +76,17 @@
             <th>#</th>
             <th>Participante</th>
             <th>Tiempo</th>
+            <th>Δ respecto 1º</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="3" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
+          <tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- jsPDF + AutoTable (CDN) para exportar a PDF -->
+  <!-- jsPDF + AutoTable (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
 
@@ -101,8 +103,8 @@
     const code=(qp.get('code')||'').toUpperCase();
     $('evCode').textContent = code || '—';
 
-    // Guardamos fecha para PDF
     let evDateStr = '—';
+    let orderedRows = []; // para PDF (incluye dur)
 
     // ===== Firebase (CDN) =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
@@ -121,16 +123,13 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    // Estado global de filas ordenadas para reutilizar en PDF
-    let orderedRows = [];
-
     async function load(){
       if(!code){
-        $('tbody').innerHTML = `<tr><td colspan="3" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
+        $('tbody').innerHTML = `<tr><td colspan="4" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
         return;
       }
 
-      // === 1) Leer FECHA/HORA del evento (updatedAt || createdAt)
+      // 1) Fecha/hora del evento
       const evRef = doc(db,'events',code);
       const evSnap = await getDoc(evRef);
       if (evSnap.exists()) {
@@ -148,7 +147,7 @@
         $('evDate').textContent = '—';
       }
 
-      // === 2) Participantes y ordenación por tiempo (mejor→peor)
+      // 2) Participantes y orden por tiempo
       const partsCol = collection(evRef,'participants');
       const snap = await getDocs(query(partsCol, orderBy('order','asc')));
 
@@ -168,10 +167,12 @@
       const unfinished = rows.filter(r=>r.dur==null);
       orderedRows = [...finished, ...unfinished];
 
-      // Pintar tabla
+      const leaderDur = finished.length ? finished[0].dur : null;
+
+      // 3) Pintar tabla (con Δ)
       const tbody = $('tbody');
       if(orderedRows.length===0){
-        tbody.innerHTML = `<tr><td colspan="3" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
         $('meta').textContent = '0 participantes';
         return;
       }
@@ -179,11 +180,17 @@
       tbody.innerHTML = orderedRows.map((r)=>{
         const t = r.dur!=null ? fmt(r.dur) : '—';
         const pos = (r.dur!=null) ? (finished.indexOf(r)+1) : '—';
+        let delta = '—';
+        if (leaderDur!=null && r.dur!=null) {
+          const diff = r.dur - leaderDur;
+          delta = diff===0 ? '+00:00.000' : ('+' + fmt(diff));
+        }
         return `
           <tr>
             <td class="pos">${pos}</td>
             <td class="name">${r.name}</td>
             <td class="time">${t}</td>
+            <td class="delta">${delta}</td>
           </tr>`;
       }).join('');
 
@@ -192,42 +199,44 @@
       $('meta').textContent = `${total} participantes • ${fin} finalizados`;
     }
 
-    // ===== PDF (orden como en pantalla) =====
+    // ===== PDF =====
     function downloadPDF(){
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit:'pt', format:'a4' }); // 72pt = 1in
+      const doc = new jsPDF({ unit:'pt', format:'a4' });
 
       // Título + Fecha
       const title = `RESULTADOS — ${code || 'EVENTO'}`;
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(16);
-      doc.text(title, 40, 40);
+      doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text(title, 40, 40);
+      doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.text(`Fecha: ${evDateStr}`, 40, 58);
 
-      doc.setFont('helvetica','normal');
-      doc.setFontSize(11);
-      doc.text(`Fecha: ${evDateStr}`, 40, 58);
+      // Construir datos (misma lógica de Δ)
+      const head = [['#','PARTICIPANTE','TIEMPO','Δ respecto 1º']];
+      const finishedOnly = orderedRows.filter(r => r.dur!=null);
+      const leaderDur = finishedOnly.length ? finishedOnly[0].dur : null;
 
-      // Datos
-      const head = [['#','PARTICIPANTE','TIEMPO']];
-      const onlyFinished = orderedRows.filter(r => r.dur != null);
       const body = orderedRows.map((r)=>{
-        const rank = (r.dur!=null) ? (onlyFinished.indexOf(r)+1) : '—';
+        const rank = (r.dur!=null) ? (finishedOnly.indexOf(r)+1) : '—';
         const time = (r.dur!=null) ? fmt(r.dur) : '—';
-        return [String(rank), r.name, time];
+        let delta = '—';
+        if (leaderDur!=null && r.dur!=null) {
+          const diff = r.dur - leaderDur;
+          delta = diff===0 ? '+00:00.000' : ('+' + fmt(diff));
+        }
+        return [String(rank), r.name, time, delta];
       });
 
       doc.autoTable({
-        head,
-        body,
+        head, body,
         startY: 74,
         styles: { font: 'helvetica', fontSize: 11, lineColor: [210,210,210], lineWidth: 0.5 },
         headStyles: { fillColor: [110,176,255], textColor: 20, halign: 'left' },
         bodyStyles: { fillColor: [250,250,250] },
         alternateRowStyles: { fillColor: [240,240,240] },
         columnStyles: {
-          0: { cellWidth: 50, halign:'center', fontStyle:'bold' },
-          1: { cellWidth: 320, fontStyle:'bold' },
-          2: { cellWidth: 100, halign:'right', fontStyle:'bold' }
+          0: { cellWidth: 50,  halign:'center', fontStyle:'bold' },
+          1: { cellWidth: 280, fontStyle:'bold' },
+          2: { cellWidth: 120, halign:'right', fontStyle:'bold' },
+          3: { cellWidth: 120, halign:'right' }
         },
         margin: { left: 40, right: 40 }
       });
