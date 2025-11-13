@@ -1,292 +1,350 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Mi Crono — CÁMARA</title>
-<style>
-  :root{
-    --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
-    --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342; --accent:#6eb0ff;
-    --ok:#79ffa8; --bad:#ff7b8c;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0f141c;color:#eaf0f8}
-  .bar{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#0e131b;border-bottom:1px solid #2a3342}
-  .bar .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-  .bar .right{display:flex;gap:10px}
-  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid #2a3342;background:#111827;color:#eaf0f8;text-decoration:none;cursor:pointer;text-transform:uppercase;font-weight:900}
-  .btn.primary{background:var(--accent);color:#0a1525;border-color:var(--accent)}
-  .wrap{padding:12px}
-  .camera{position:relative;background:#000;border:1px solid #2a3342;border-radius:12px;overflow:hidden;aspect-ratio:9/16;max-height:70vh}
-  video{width:100%;height:100%;object-fit:cover}
-  .stripes{position:absolute;inset:0;pointer-events:none}
-  .stripe{position:absolute;top:0;bottom:0;width:4px;background:#ff3948;opacity:.9}
-  .stripe.left{left:35%}.stripe.right{right:35%}
-  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;background:rgba(0,0,0,.0);pointer-events:none}
-  .status{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
-  .pill{padding:6px 10px;border-radius:999px;border:1px solid #2a3342;background:#161c24}
-  .list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
-  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#161c24;border:1px solid #2a3342;border-radius:10px;padding:10px}
-  .name{font-weight:900;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:52%}
-  .time{font-weight:900;letter-spacing:.4px}
-  .delta{min-width:72px;text-align:right;font-weight:900}
-  .delta.good{color:var(--ok)} .delta.bad{color:var(--bad)}
-  .delta.hidden{visibility:hidden}
-</style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Mi Crono — CÁMARA</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <style>
+    :root{
+      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{color:var(--accent-2)}
+    .wrap{max-width:1000px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .tag{opacity:.9}
+    .grid.one{display:grid;gap:16px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+
+    /* Controles */
+    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
+    .btn{
+      display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;transition:transform .05s, background .15s, border-color .15s, color .15s;
+      text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px;line-height:1;text-decoration:none;
+    }
+    .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+
+    /* Cámara */
+    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
+    video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none}
+
+    /* HUD superior (solo estado/siguiente) */
+    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
+
+    /* Paneles inferiores */
+    .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
+    label{display:block;margin-bottom:6px;font-weight:700}
+    input[type=range]{width:100%}
+    .list{margin-top:12px}
+    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
+    .badge{font-weight:800;color:#cfe1ff;opacity:.9}
+    .rname{font-weight:800;text-transform:uppercase}
+    .rtime{font-weight:900;letter-spacing:.4px}
+    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
+  </style>
 </head>
-<body>
-  <div class="bar">
-    <div class="title">CÁMARA</div>
-    <div class="right">
-      <a href="index.html" class="btn">INICIO</a>
-      <button id="btnCam" class="btn">ACTIVAR CÁMARA</button>
-      <a id="btnRes" class="btn" href="#">VER RESULTADO</a>
-    </div>
-  </div>
+<body class="wrap">
+  <header class="top">
+    <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">MODO</h1>
+    <p class="tag" id="tag">Conectando…</p>
+  </header>
 
-  <div class="wrap">
-    <div class="status">
-      <div class="pill">Evento: <b id="ev">—</b></div>
-      <div class="pill">Modo: <b id="mode">—</b></div>
-      <div class="pill" id="conn">Conectando…</div>
-    </div>
+  <main class="grid one">
+    <section class="card warn" id="noCodeBox" style="display:none">
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y crea/únete a un evento.
+    </section>
 
-    <div class="camera" id="camBox">
-      <video id="video" autoplay playsinline muted></video>
-      <div class="stripes">
-        <div class="stripe left"></div>
-        <div class="stripe right"></div>
+    <section class="card">
+      <div class="controls">
+        <button id="btnEnableCam" class="btn primary">ACTIVAR CÁMARA</button>
+        <a id="btnResult" class="btn" href="#">VER RESULTADO</a>
       </div>
-      <div class="overlay" id="ovl"></div>
-    </div>
+      <small class="muted">iOS: Safari + HTTPS + permitir Cámara.</small>
 
-    <div class="list" id="liveList">
-      <!-- filas de participantes activos -->
-    </div>
-  </div>
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay" class="overlay"></canvas>
 
-<script type="module">
-  const $=(id)=>document.getElementById(id);
-  const qs=new URL(location.href).searchParams;
-  const code=(qs.get('code')||'').toUpperCase();
-  const mode=(qs.get('mode')||'start').toLowerCase(); // start | split | finish
+        <div class="hud" id="hudTop">
+          <span id="hudStatus">Listo</span>
+          • <span id="hudNext" class="pill">Siguiente: —</span>
+        </div>
+      </div>
 
-  $('ev').textContent=code||'—';
-  $('mode').textContent=mode==='start'?'SALIDA':(mode==='split'?'SPLIT':'META');
-  $('btnRes').href = `result.html?code=${encodeURIComponent(code)}`;
+      <div class="sub">
+        <label>Sensibilidad detector (franja roja)</label>
+        <input id="sens" type="range" min="1" max="100" value="25"/>
+        <small class="muted">Más a la derecha = más sensible.</small>
+      </div>
 
-  // Cooldowns y UI
-  const COOLDOWN_START_MS  = 2000;
-  const COOLDOWN_SPLIT_MS  = 900;
-  const COOLDOWN_FINISH_MS = 900;
-  const DIFF_VISIBLE_MS    = 4000;
+      <div class="sub list">
+        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
+        <div id="runningList">—</div>
+      </div>
+    </section>
 
-  // Firebase
-  import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-  import {
-    getFirestore, doc, collection, query, where, orderBy, getDocs, getDoc,
-    onSnapshot, updateDoc, serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+    <section class="card">
+      <h2 style="text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px 0">Estado</h2>
+      <div>Firebase: <span id="fbState">—</span></div>
+      <div>Evento: <span id="evState">—</span></div>
+      <div>Última acción: <span id="lastAction">—</span></div>
+    </section>
+  </main>
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-    authDomain: "mi-crono-time-888b7.firebaseapp.com",
-    projectId: "mi-crono-time-888b7",
-    storageBucket: "mi-crono-time-888b7.appspot.com",
-    messagingSenderId: "379025900327",
-    appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-  };
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
+  <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
-  // Cámara (simplificado: se muestra preview; la detección real la tienes ya – aquí solo
-  // disparamos al pulsar en la zona entre franjas o por movimiento si ya lo tenías).
-  let stream=null, lastTrigger=0;
+  <script type="module">
+    // ---------- Utils ----------
+    const $=(id)=>document.getElementById(id);
+    const two=(n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
+    const code=(getParam('code')||'').toUpperCase();
+    const mode=(getParam('mode')||'start'); // start|finish
 
-  async function startCamera(){
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
+    const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const octx=overlay.getContext('2d',{willReadFrequently:true});
+
+    tag.textContent=`Evento ${code||'—'}`;
+    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
+    else { evState.textContent=code; evState.className='ok'; }
+    btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
+
+    // ---------- Reloj sincronizado con servidor ----------
+    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
+    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+
+    // ---------- Firebase ----------
     try{
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
-      $('video').srcObject = stream;
-    }catch(e){
-      alert('No se pudo abrir la cámara: ' + (e.message||e));
-    }
-  }
-  $('btnCam').onclick=()=>startCamera();
+      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+      const {
+        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc
+      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-  // Utilidades
-  const two=(n)=>String(n).padStart(2,'0');
-  const three=(n)=>String(n).padStart(3,'0');
-  const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
-    const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-    return `${two(m)}:${two(s)}.${three(ms3)}`; };
-  const tsMs=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+      const firebaseConfig = {
+        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+        authDomain: "mi-crono-time-888b7.firebaseapp.com",
+        projectId: "mi-crono-time-888b7",
+        storageBucket: "mi-crono-time-888b7.appspot.com",
+        messagingSenderId: "379025900327",
+        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+      };
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
 
-  // UI lista en vivo
-  const liveMap = new Map(); // pid -> {row, deltaEl}
-  function ensureRow(p){
-    if(liveMap.has(p.id)) return liveMap.get(p.id);
-    const row=document.createElement('div'); row.className='row';
-    const name=document.createElement('div'); name.className='name'; name.textContent=p.name;
-    const time=document.createElement('div'); time.className='time'; time.id=`t_${p.id}`; time.textContent='00:00.000';
-    const delta=document.createElement('div'); delta.className='delta hidden'; delta.id=`d_${p.id}`; delta.textContent='';
-    row.appendChild(name); row.appendChild(time); row.appendChild(delta);
-    $('liveList').appendChild(row);
-    const ent={row, timeEl:time, deltaEl:delta};
-    liveMap.set(p.id, ent);
-    return ent;
-  }
+      // refs
+      const eventRef = doc(db,'events',code);
+      const partsCol = collection(eventRef,'participants');
+      const syncCol  = collection(eventRef,'sync');
 
-  // Suscripción a participantes del evento para ver cronos en vivo (tanto en start/split/finish)
-  let unsub=null;
-  async function subscribe(){
-    if(!code) return;
-    const evRef = doc(db,'events',code);
-    const partsCol = collection(evRef,'participants');
-    const q = query(partsCol, orderBy('order','asc'));
-    unsub = onSnapshot(q, (snap)=>{
-      $('conn').textContent = 'Conectado';
-      const parts = snap.docs.map(d=>({ id:d.id, ...d.data() }));
-      // Active = startTS != null && stopTS == null
-      const active = parts.filter(x=>x.startTS && !x.stopTS);
-      $('liveList').innerHTML='';
-      liveMap.clear();
-      active.forEach(p=>{
-        const ent = ensureRow(p);
-        // pintar tiempo en vivo en cliente (desde startTS a now, salvo si stopTS)
-        const startMS = tsMs(p.startTS);
-        const stopMS  = p.stopTS ? tsMs(p.stopTS) : null;
-        const tick = ()=>{
-          const now = stopMS ?? Date.now();
-          const ms = (startMS!=null) ? (now - startMS) : 0;
-          ent.timeEl.textContent = fmt(ms);
-          if(!stopMS) requestAnimationFrame(tick);
-        };
-        tick();
+      // Crea evento si no existe
+      const s=await getDoc(eventRef);
+      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
+
+      // Offset con servidor (1 ping)
+      try{
+        const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
+        const pingSnap = await getDoc(pingRef);
+        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
+        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
+      }catch(_){ serverOffsetMS=0; }
+
+      // Estado participantes
+      let participants=[];
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
+      const nextToStart = ()=> participants.find(p=>!p.startTS);
+      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+
+      // Acciones (serverTimestamp)
+      async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
+        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
+      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
+
+      // Suscripción -> cronos en vivo (ambas pantallas)
+      let currentLive=[];
+      onSnapshot(partsCol, async ()=>{
+        await reload();
+        const run = runningSorted().map(p=>({
+          order: p.order||0,
+          name: (p.name||'').toUpperCase(),
+          startMS: tsToMillis(p.startTS)
+        }));
+        currentLive = run;
+
+        const nxt = nextToStart();
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+
+        // Estado textual
+        const hasStart = participants.some(p=>p.startTS);
+        const hasStop  = participants.some(p=>p.stopTS);
+        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+
+        // Panel inferior informativo
+        renderList(currentLive);
       });
-    }, err=>{
-      $('conn').textContent = 'ERROR';
-      console.error(err);
-    });
-  }
-  subscribe();
 
-  // Mejor tiempo de split del evento (mínimo splitDur = splitTS - startTS)
-  async function fetchBestSplitMs(){
-    const evRef = doc(db,'events',code);
-    const partsCol = collection(evRef,'participants');
-    const snap = await getDocs(partsCol);
-    let best=null;
-    snap.forEach(d=>{
-      const x=d.data();
-      if(x.startTS && x.splitTS){
-        const s=tsMs(x.startTS), sp=tsMs(x.splitTS);
-        const dur = sp - s;
-        if(dur>=0) best = (best==null ? dur : Math.min(best, dur));
+      // ===== Cámara + detección =====
+      btnEnable.onclick = async ()=>{
+        try{
+          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
+          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+          let stream=null,lastErr=null;
+          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+          requestAnimationFrame(loop);
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
+      };
+
+      // === Detector por diferencia, con "refractario" por modo ===
+      const COOLDOWN_START_MS  = 3000; // 3 s tras marcar SALIDA
+      const COOLDOWN_FINISH_MS = 1500;  // 1.5 s tras marcar META
+      let prev=null, armed=true, cooldownTimer=null;
+
+      const armAfter = (ms)=>{
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
+      };
+
+      const trigger = async ()=>{
+        if(!armed) return;
+        armed=false;
+
+        // aplica cooldown según modo
+        armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
+
+        if(mode==='start'){
+          const p=await startNext();
+          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+        }else{
+          const p=await stopEarliest();
+          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+        }
+      };
+
+      // Dibujo principal en overlay
+      function loop(){
+        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
+
+        // Franjas rojas
+        const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+        octx.clearRect(0,0,w,h);
+        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+
+        // Cronos por participante (nuevo arriba), tamaño pensado para iPhone
+        drawOverlayTimes(w,h,currentLive);
+
+        // Detector por diferencia
+        const vw=video.videoWidth, vh=video.videoHeight;
+        if(vw && vh){
+          const scaleX = vw / stage.clientWidth;
+          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+          const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
+          const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
+          const frame=tctx.getImageData(sx,0,sw,vh);
+
+          if(prev && prev.width===sw && prev.height===vh){
+            const sensV=Number(sens.value);
+            const thr=20+Math.round((100-sensV)*1.2);
+            const pct=0.04+(100-sensV)*0.0006;
+            let diff=0,total=0;
+            for(let i=0;i<frame.data.length;i+=16){
+              const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
+              if(d>thr) diff++; total++;
+            }
+            if((diff/Math.max(1,total))>pct) trigger();
+          }
+          prev=frame;
+        }
+        requestAnimationFrame(loop);
       }
-    });
-    return best; // ms o null
-  }
 
-  // Selecciona el participante objetivo según el modo
-  async function pickTarget(){
-    const evRef = doc(db,'events',code);
-    const partsCol = collection(evRef,'participants');
-    const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-    const arr = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-    if(mode==='start'){
-      // primero sin startTS
-      return arr.find(p=>!p.startTS) || null;
-    }else if(mode==='split'){
-      // primero con startTS y sin splitTS y sin stopTS
-      return arr.find(p=>p.startTS && !p.splitTS && !p.stopTS) || null;
-    }else{
-      // finish: primero con startTS y sin stopTS
-      return arr.find(p=>p.startTS && !p.stopTS) || null;
-    }
-  }
+      function drawOverlayTimes(w,h,rows){
+        if(!rows.length) return;
+        const nowSync = Date.now() + serverOffsetMS;
 
-  function inCooldown(){
-    const now=Date.now();
-    const cd = mode==='start'?COOLDOWN_START_MS: (mode==='split'?COOLDOWN_SPLIT_MS:COOLDOWN_FINISH_MS);
-    if(now - lastTrigger < cd) return true;
-    lastTrigger = now;
-    return false;
-  }
+        // Orden: más reciente ARRIBA
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-  async function triggerAction(){
-    if(!code) return;
-    if(inCooldown()) return;
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // pequeño para iPhone
+        const gap = Math.max(5, Math.floor(h*0.011));
+        const leftPad = Math.floor(w*0.06);
+        const rightPad= Math.floor(w*0.06);
+        const topPad = Math.floor(h*0.14); // deja aire para HUD
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
-    const target = await pickTarget();
-    if(!target){ flash('Sin participante objetivo', '#ff9'); return; }
+        octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        octx.textBaseline = 'top';
+        octx.fillStyle = '#ffffff';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
-    const now = serverTimestamp();
-    const ref = target.ref;
+        let y = topPad;
+        for(let i=0;i<maxRows;i++){
+          const r = sorted[i];
+          const elapsed = nowSync - (r.startMS||nowSync);   // empieza en 0 al marcar salida
+          const tText = fmt(elapsed);
+          const nText = r.name || '—';
 
-    try{
-      if(mode==='start' && !target.startTS){
-        await updateDoc(ref, { startTS: now });
-        flash('SALIDA ✓', '#9f9');
-      }else if(mode==='split' && target.startTS && !target.splitTS && !target.stopTS){
-        await updateDoc(ref, { splitTS: now });
-        flash('SPLIT ✓', '#9f9');
-        showSplitDiff(target.id); // calcula y muestra diferencia durante 4s
-      }else if(mode==='finish' && target.startTS && !target.stopTS){
-        await updateDoc(ref, { stopTS: now });
-        flash('META ✓', '#9f9');
-      }else{
-        flash('No aplica', '#faa');
+          // tiempo (izq)
+          octx.textAlign='left';
+          octx.strokeText(tText, leftPad, y);
+          octx.fillText  (tText, leftPad, y);
+
+          // nombre (der)
+          octx.textAlign='right';
+          octx.strokeText(nText, w - rightPad, y);
+          octx.fillText  (nText, w - rightPad, y);
+
+          y += baseSize + gap;
+        }
       }
+
+      function renderList(run){
+        const nowSync = Date.now() + serverOffsetMS;
+        const list = $('runningList');
+        if(!run.length){ list.innerHTML='—'; return; }
+        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+          .join('');
+      }
+
     }catch(e){
-      console.error(e);
-      flash('Error', '#faa');
+      window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
+      alert('Firebase error: '+(e.message||e));
     }
-  }
-
-  // Mostrar overlay breve
-  function flash(text, color){
-    const el=$('ovl');
-    el.textContent=text;
-    el.style.color=color||'#fff';
-    el.style.background='rgba(0,0,0,.25)';
-    setTimeout(()=>{ el.textContent=''; el.style.background='rgba(0,0,0,0)'; }, 600);
-  }
-
-  // Diferencial split (verde mejor, rojo peor) durante 4s al lado del crono del participante
-  async function showSplitDiff(participantId){
-    const evRef = doc(db,'events',code);
-    const pSnap = await getDoc(doc(evRef,'participants',participantId));
-    if(!pSnap.exists()) return;
-    const p = pSnap.data();
-    if(!p.startTS || !p.splitTS) return;
-
-    const s=tsMs(p.startTS), sp=tsMs(p.splitTS);
-    const my = sp - s;
-
-    const best = await fetchBestSplitMs(); // incluye ya el actual (ok)
-    if(best==null){ return; } // primer split: no mostramos delta
-    const diff = my - best;
-
-    const ent = liveMap.get(participantId);
-    if(!ent) return;
-    ent.deltaEl.classList.remove('hidden','good','bad');
-    ent.deltaEl.textContent = (diff<=0 ? (diff===0? '+00:00.000' : ('-' + fmt(Math.abs(diff)))) : ('+' + fmt(diff)));
-    ent.deltaEl.classList.add(diff<=0 ? 'good' : 'bad');
-
-    setTimeout(()=>{
-      ent.deltaEl.classList.add('hidden');
-      ent.deltaEl.textContent='';
-      ent.deltaEl.classList.remove('good','bad');
-    }, DIFF_VISIBLE_MS);
-  }
-
-  // Click en la zona entre franjas => trigger
-  $('camBox').addEventListener('click', (e)=>{
-    const box = $('camBox').getBoundingClientRect();
-    const x = (e.clientX - box.left) / box.width;
-    if(x>=0.35 && x<=0.65){ triggerAction(); }
-  });
-</script>
+  </script>
 </body>
 </html>
