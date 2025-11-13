@@ -21,7 +21,7 @@
       color:var(--text);
     }
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .top{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px}
+    .top{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 10px}
     .clock{font-size:22px;line-height:1;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
     .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
     .muted{color:var(--muted)}
@@ -53,49 +53,65 @@
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#210a12}
     .cluster{display:flex;gap:10px;flex-wrap:wrap}
     .cluster .btn{flex:1 1 120px}
+
+    /* Selector de idioma (no cambia estilos generales) */
+    .langbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px}
+    .langbtn{
+      background:transparent;border:1px solid var(--border);color:var(--muted);
+      padding:6px 10px;border-radius:999px;cursor:pointer;font-weight:900;letter-spacing:.03em;
+      text-transform:uppercase
+    }
+    .langbtn.active{color:var(--text);border-color:var(--accent)}
   </style>
 </head>
 <body>
   <div class="wrap">
+    <!-- Selector de idioma (CAT por defecto) -->
+    <div class="langbar" aria-label="Idioma">
+      <button class="langbtn" data-lang="ca">CAT</button>
+      <button class="langbtn" data-lang="en">ENG</button>
+      <button class="langbtn" data-lang="es">ESP</button>
+    </div>
+
     <!-- CABECERA (con reloj) -->
     <div class="top">
       <span class="clock" aria-hidden="true">⏱️</span>
-      <h1 class="title">MI CRONO WEB</h1>
+      <h1 class="title" id="t-app">MI CRONO WEB</h1>
     </div>
 
     <div class="grid">
       <!-- CREAR EVENTO -->
       <section class="card">
-        <h2>Crear evento</h2>
-        <label for="newCode">Código del evento</label>
+        <h2 id="t-create">Crear evento</h2>
+        <label for="newCode" id="t-codeLbl">Código del evento</label>
         <input id="newCode" class="uppercase" placeholder="P.EJ. TEST1" />
 
-        <label for="newList">Participantes (uno por línea, en orden de salida)</label>
+        <label for="newList" id="t-partLbl">Participantes (uno por línea, en orden de salida)</label>
         <textarea id="newList" class="uppercase" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
 
-        <div class="hint">
+        <div class="hint" id="t-resetWarn">
           Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y
           tiempos) y se crean estos nuevos.
         </div>
 
         <div style="margin-top:14px">
-          <button id="btnSave" class="btn primary">Guardar evento</button>
+          <button id="btnSave" class="btn primary"><span id="t-save">Guardar evento</span></button>
         </div>
       </section>
 
       <!-- UNIRSE A UN EVENTO -->
       <section class="card">
-        <h2>Unirse a un evento</h2>
-        <label for="joinCode">Código</label>
+        <h2 id="t-join">Unirse a un evento</h2>
+        <label for="joinCode" id="t-joinCode">Código</label>
         <input id="joinCode" class="uppercase" placeholder="TEST1" />
 
         <div class="cluster" style="margin-top:12px">
-          <a id="goStart"  class="btn" href="#">🏁&nbsp;Salida</a>
-          <a id="goFinish" class="btn" href="#">🚩&nbsp;Meta</a>
-          <a id="goResult" class="btn" href="#">⬜&nbsp;Resultados</a>
+          <a id="goStart"  class="btn" href="#">🏁&nbsp;<span id="t-start">Salida</span></a>
+          <a id="goFinish" class="btn" href="#">🚩&nbsp;<span id="t-finish">Meta</span></a>
+          <a id="goResult" class="btn" href="#">⬜&nbsp;<span id="t-results">Resultados</span></a>
         </div>
 
-        <div class="hint">
+        <div class="hint" id="t-hintJoin">
           Abre <b>Salida</b> en la salida y <b>Meta</b> en la llegada. Ambos con el mismo <b>código</b>.
         </div>
       </section>
@@ -103,26 +119,116 @@
 
     <!-- HERRAMIENTAS -->
     <section class="card" style="margin-top:18px">
-      <h2>Herramientas</h2>
-      <div class="hint">
+      <h2 id="t-tools">Herramientas</h2>
+      <div class="hint" id="t-nukeHint">
         <b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.
         Úsalo solo si quieres limpiar por completo.
       </div>
       <div style="margin-top:10px">
-        <button id="btnNuke" class="btn danger">Reset eventos</button>
+        <button id="btnNuke" class="btn danger"><span id="t-nuke">Reset eventos</span></button>
       </div>
     </section>
 
     <p class="muted" style="text-align:center;margin-top:14px">—</p>
   </div>
 
-  <!-- Firebase (CDN, módulos ES) -->
+  <!-- Firebase (CDN, módulos ES) + lógica existente (intacta) -->
   <script type="module">
-    // ===== Helpers de UI =====
-    const $  = (id)=>document.getElementById(id);
-    const UP = (s)=> (s||'').trim().toUpperCase();
+    // ===== i18n (solo textos) =====
+    const L = (()=>({
+      ca: {
+        app:"MI CRONO WEB",
+        create:"Crear esdeveniment",
+        codeLbl:"Codi de l'esdeveniment",
+        partLbl:"Participants (un per línia, en ordre de sortida)",
+        resetWarn:"Si l'esdeveniment ja existeix, es <b>RESETEJA completament</b> (esborra participants i temps) i es creen aquests nous.",
+        save:"GUARDAR ESDEVENIMENT",
+        join:"Unir-se a un esdeveniment",
+        joinCode:"Codi",
+        start:"SORTIDA",
+        finish:"META",
+        results:"RESULTATS",
+        hintJoin:"Obre <b>Sortida</b> a la sortida i <b>Meta</b> a l'arribada. Tots dos amb el mateix <b>codi</b>.",
+        tools:"Eines",
+        nukeHint:"<b>Reset esdeveniments</b> elimina <u>tots</u> els esdeveniments i participants de la base de dades. Fes-ho només si vols netejar-ho completament.",
+        nuke:"RESET ESDEVENIMENTS",
+        confirmNuke:"⚠️ Això esborrarà TOTS els esdeveniments i participants. Segur que vols continuar?"
+      },
+      en: {
+        app:"MI CRONO WEB",
+        create:"Create event",
+        codeLbl:"Event code",
+        partLbl:"Participants (one per line, start order)",
+        resetWarn:"If the event already exists, it is <b>RESET completely</b> (removes participants and times) and these new ones are created.",
+        save:"SAVE EVENT",
+        join:"Join an event",
+        joinCode:"Code",
+        start:"START",
+        finish:"FINISH",
+        results:"RESULTS",
+        hintJoin:"Open <b>Start</b> at the start and <b>Finish</b> at the finish. Both with the same <b>code</b>.",
+        tools:"Tools",
+        nukeHint:"<b>Reset events</b> deletes <u>all</u> events and participants from the database. Use only if you want a full clean up.",
+        nuke:"RESET EVENTS",
+        confirmNuke:"⚠️ This will delete ALL events and participants. Are you sure?"
+      },
+      es: {
+        app:"MI CRONO WEB",
+        create:"Crear evento",
+        codeLbl:"Código del evento",
+        partLbl:"Participantes (uno por línea, en orden de salida)",
+        resetWarn:"Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.",
+        save:"GUARDAR EVENTO",
+        join:"Unirse a un evento",
+        joinCode:"Código",
+        start:"SALIDA",
+        finish:"META",
+        results:"RESULTADOS",
+        hintJoin:"Abre <b>Salida</b> en la salida y <b>Meta</b> en la llegada. Ambos con el mismo <b>código</b>.",
+        tools:"Herramientas",
+        nukeHint:"<b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos. Úsalo solo si quieres limpiar por completo.",
+        nuke:"RESET EVENTOS",
+        confirmNuke:"⚠️ Esto borrará TODOS los eventos y participantes. ¿Seguro que quieres continuar?"
+      }
+    }))();
 
-    // Forzamos mayúsculas "reales" al escribir (no solo visual)
+    const lang = localStorage.getItem('lang') || 'ca';
+    const $$ = sel => document.querySelector(sel);
+    function applyI18n(){
+      const t=L[lang];
+      $('#t-app').textContent=t.app;
+      $('#t-create').textContent=t.create;
+      $('#t-codeLbl').textContent=t.codeLbl;
+      $('#t-partLbl').textContent=t.partLbl;
+      $('#t-resetWarn').innerHTML=t.resetWarn;
+      $('#t-save').textContent=t.save;
+      $('#t-join').textContent=t.join;
+      $('#t-joinCode').textContent=t.joinCode;
+      $('#t-start').textContent=t.start;
+      $('#t-finish').textContent=t.finish;
+      $('#t-results').textContent=t.results;
+      $('#t-hintJoin').innerHTML=t.hintJoin;
+      $('#t-tools').textContent=t.tools;
+      $('#t-nukeHint').innerHTML=t.nukeHint;
+      $('#t-nuke').textContent=t.nuke;
+      // Selector activo
+      document.querySelectorAll('.langbtn').forEach(b=>{
+        b.classList.toggle('active', b.dataset.lang===lang);
+      });
+    }
+    function $(id){ return document.getElementById(id); }
+
+    // Idioma: clicks
+    document.querySelectorAll('.langbtn').forEach(b=>{
+      b.onclick = ()=>{
+        localStorage.setItem('lang', b.dataset.lang);
+        location.reload();
+      };
+    });
+    applyI18n();
+
+    // ===== Helpers de UI ===== (existentes)
+    const UP = (s)=> (s||'').trim().toUpperCase();
     function forceUpper(){
       ['newCode','joinCode'].forEach(id=>{
         const el=$(id); if(!el) return;
@@ -141,12 +247,10 @@
         });
       }
     }
-
-    // Navegación
     function wireJoin(){
       const nav=(mode)=>{
         const code=UP($('joinCode').value);
-        if(!code){ alert('Escribe un código de evento.'); return; }
+        if(!code){ alert(lang==='en'?'Enter a code.':(lang==='ca'?'Escriu un codi.':'Escribe un código.')); return; }
         if(mode==='result') location.href=`result.html?code=${encodeURIComponent(code)}`;
         else location.href=`camera.html?code=${encodeURIComponent(code)}&mode=${mode}`;
       };
@@ -178,16 +282,15 @@
     $('btnSave').onclick = async ()=>{
       try{
         const code = UP($('newCode').value);
-        if(!code){ alert('Escribe un código de evento.'); return; }
+        if(!code){ alert(lang==='en'?'Enter an event code.':(lang==='ca'?'Escriu un codi d\'esdeveniment.':'Escribe un código de evento.')); return; }
 
         // Crea/actualiza doc del evento
         const evRef = doc(db,'events',code);
         await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
 
-        // Elimina participantes existentes (batch; si falla, borra uno a uno)
+        // Elimina participantes existentes (batch)
         const partsCol = collection(evRef,'participants');
         const existing = await getDocs(partsCol);
-
         try{
           const batch = writeBatch(db);
           existing.forEach(d=>batch.delete(d.ref));
@@ -198,7 +301,7 @@
           }
         }
 
-        // Inserta nuevos participantes (uno por línea)
+        // Inserta nuevos participantes
         const lines = UP($('newList').value).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
         let order=1;
         for(const name of lines){
@@ -206,16 +309,17 @@
           order++;
         }
 
-        alert('Evento guardado correctamente.');
+        alert(lang==='en'?'Event saved.':(lang==='ca'?'Esdeveniment desat.':'Evento guardado.'));
         $('joinCode').value = code;
       }catch(e){
-        alert('Error guardando evento: ' + (e.message||e));
+        alert((lang==='en'?'Error saving event: ':(lang==='ca'?'Error en desar l\'esdeveniment: ':'Error guardando evento: ')) + (e.message||e));
       }
     };
 
     // ===== Reset total (con confirmación) =====
     $('btnNuke').onclick = async ()=>{
-      const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos. ¿Seguro que quieres continuar?');
+      const t = L[lang];
+      const ok = confirm(t.confirmNuke);
       if(!ok) return;
 
       try{
@@ -225,9 +329,9 @@
           for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch(e){ console.error('Del participant',p.id,e); } }
           try{ await deleteDoc(ev.ref); }catch(e){ console.error('Del event',ev.id,e); }
         }
-        alert('Base de datos limpia.');
+        alert(lang==='en'?'Database cleaned.':(lang==='ca'?'Base de dades neta.':'Base de datos limpia.'));
       }catch(e){
-        alert('Error al eliminar: ' + (e.message||e));
+        alert((lang==='en'?'Delete error: ':(lang==='ca'?'Error en eliminar: ':'Error al eliminar: ')) + (e.message||e));
       }
     };
 
