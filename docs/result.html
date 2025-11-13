@@ -61,8 +61,10 @@
       </div>
     </div>
 
+    <!-- Tarjeta de cabecera con código y FECHA/HORA del evento -->
     <div class="card" style="margin-bottom:12px">
       <div>Evento: <b id="evCode">—</b></div>
+      <div>Fecha: <b id="evDate">—</b></div>
       <div class="muted" id="meta">—</div>
     </div>
 
@@ -99,10 +101,13 @@
     const code=(qp.get('code')||'').toUpperCase();
     $('evCode').textContent = code || '—';
 
+    // Guardamos fecha para PDF
+    let evDateStr = '—';
+
     // ===== Firebase (CDN) =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
     import {
-      getFirestore, doc, collection, getDocs, query, orderBy
+      getFirestore, doc, collection, getDocs, query, orderBy, getDoc
     } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -125,7 +130,25 @@
         return;
       }
 
+      // === 1) Leer FECHA/HORA del evento (updatedAt || createdAt)
       const evRef = doc(db,'events',code);
+      const evSnap = await getDoc(evRef);
+      if (evSnap.exists()) {
+        const d = evSnap.data();
+        const baseTS = d.updatedAt || d.createdAt || null;
+        const ms = tsMs(baseTS);
+        if (ms) {
+          evDateStr = new Date(ms).toLocaleString('es-ES');
+          $('evDate').textContent = evDateStr;
+        } else {
+          evDateStr = '—';
+          $('evDate').textContent = '—';
+        }
+      } else {
+        $('evDate').textContent = '—';
+      }
+
+      // === 2) Participantes y ordenación por tiempo (mejor→peor)
       const partsCol = collection(evRef,'participants');
       const snap = await getDocs(query(partsCol, orderBy('order','asc')));
 
@@ -141,7 +164,6 @@
         };
       });
 
-      // Ordenación por tiempo (mejor→peor). No finalizados al final con tiempo '—'
       const finished   = rows.filter(r=>r.dur!=null).sort((a,b)=> a.dur - b.dur);
       const unfinished = rows.filter(r=>r.dur==null);
       orderedRows = [...finished, ...unfinished];
@@ -154,7 +176,7 @@
         return;
       }
 
-      tbody.innerHTML = orderedRows.map((r,idx)=>{
+      tbody.innerHTML = orderedRows.map((r)=>{
         const t = r.dur!=null ? fmt(r.dur) : '—';
         const pos = (r.dur!=null) ? (finished.indexOf(r)+1) : '—';
         return `
@@ -175,24 +197,29 @@
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit:'pt', format:'a4' }); // 72pt = 1in
 
+      // Título + Fecha
       const title = `RESULTADOS — ${code || 'EVENTO'}`;
       doc.setFont('helvetica','bold');
       doc.setFontSize(16);
       doc.text(title, 40, 40);
 
-      // Construimos datos
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(11);
+      doc.text(`Fecha: ${evDateStr}`, 40, 58);
+
+      // Datos
       const head = [['#','PARTICIPANTE','TIEMPO']];
-      const body = orderedRows.map((r, i)=>{
-        const rank = (r.dur!=null) ? (orderedRows.filter(x=>x.dur!=null).indexOf(r)+1) : '—';
+      const onlyFinished = orderedRows.filter(r => r.dur != null);
+      const body = orderedRows.map((r)=>{
+        const rank = (r.dur!=null) ? (onlyFinished.indexOf(r)+1) : '—';
         const time = (r.dur!=null) ? fmt(r.dur) : '—';
         return [String(rank), r.name, time];
       });
 
-      // AutoTable
       doc.autoTable({
         head,
         body,
-        startY: 60,
+        startY: 74,
         styles: { font: 'helvetica', fontSize: 11, lineColor: [210,210,210], lineWidth: 0.5 },
         headStyles: { fillColor: [110,176,255], textColor: 20, halign: 'left' },
         bodyStyles: { fillColor: [250,250,250] },
