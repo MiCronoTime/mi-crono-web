@@ -27,6 +27,7 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
+    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -38,13 +39,16 @@
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
+    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
+    /* HUD superior (solo estado/siguiente) */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
 
+    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
@@ -64,15 +68,15 @@
 
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
-      <b id="i-missCode">Falta el código de evento.</b> <span id="i-goHome">Vuelve a</span> <a href="index.html" id="i-home">Inicio</a> <span id="i-andJoin">y crea/únete a un evento.</span>
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y crea/únete a un evento.
     </section>
 
     <section class="card">
       <div class="controls">
-        <button id="btnEnableCam" class="btn primary"><span id="i-enable">ACTIVAR CÁMARA</span></button>
-        <a id="btnResult" class="btn" href="#"><span id="i-result">VER RESULTADO</span></a>
+        <button id="btnEnableCam" class="btn primary">ACTIVAR CÁMARA</button>
+        <a id="btnResult" class="btn" href="#">VER RESULTADO</a>
       </div>
-      <small class="muted" id="i-ios">iOS: Safari + HTTPS + permitir Cámara.</small>
+      <small class="muted">iOS: Safari + HTTPS + permitir Cámara.</small>
 
       <div class="stage" id="stage">
         <video id="video" playsinline muted></video>
@@ -85,91 +89,28 @@
       </div>
 
       <div class="sub">
-        <label id="i-sensLbl">Sensibilidad detector (franja roja)</label>
+        <label>Sensibilidad detector (franja roja)</label>
         <input id="sens" type="range" min="1" max="100" value="25"/>
-        <small class="muted" id="i-sensHint">Más a la derecha = más sensible.</small>
+        <small class="muted">Más a la derecha = más sensible.</small>
       </div>
 
       <div class="sub list">
-        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em" id="i-running">En curso</h2>
+        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
         <div id="runningList">—</div>
       </div>
     </section>
 
     <section class="card">
-      <h2 style="text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px 0" id="i-status">Estado</h2>
+      <h2 style="text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px 0">Estado</h2>
       <div>Firebase: <span id="fbState">—</span></div>
-      <div id="i-eventLbl">Evento:</div> <span id="evState">—</span>
-      <div id="i-lastLbl">Última acción:</div> <span id="lastAction">—</span>
+      <div>Evento: <span id="evState">—</span></div>
+      <div>Última acción: <span id="lastAction">—</span></div>
     </section>
   </main>
 
-  <footer style="margin-top:10px"><a class="muted" href="index.html" id="i-back">⇦ Volver a Inicio</a></footer>
+  <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    // ===== i18n (solo textos) =====
-    const L = {
-      ca:{
-        modeStart:'MODE SORTIDA', modeFinish:'MODE META',
-        connecting:'Connectant…', missCode:'Falta el codi d\'esdeveniment.',
-        goHome:'Torna a', home:'Inici', andJoin:'i crea/uneix-te a un esdeveniment.',
-        enable:'ACTIVA LA CÀMERA', result:'VEURE RESULTATS',
-        ios:'iOS: Safari + HTTPS + permetre Càmera.',
-        sensLbl:'Sensibilitat del detector (franja vermella)',
-        sensHint:'Més a la dreta = més sensible.',
-        running:'En curs', status:'Estat', eventLbl:'Esdeveniment:', lastLbl:'Darrera acció:',
-        ready:'A punt', next:'Següent: '
-      },
-      en:{
-        modeStart:'START MODE', modeFinish:'FINISH MODE',
-        connecting:'Connecting…', missCode:'Event code is missing.',
-        goHome:'Go back to', home:'Home', andJoin:'and create/join an event.',
-        enable:'ENABLE CAMERA', result:'SEE RESULTS',
-        ios:'iOS: Safari + HTTPS + allow Camera.',
-        sensLbl:'Detector sensitivity (red band)',
-        sensHint:'Right = more sensitive.',
-        running:'In progress', status:'Status', eventLbl:'Event:', lastLbl:'Last action:',
-        ready:'Ready', next:'Next: '
-      },
-      es:{
-        modeStart:'MODO SALIDA', modeFinish:'MODO META',
-        connecting:'Conectando…', missCode:'Falta el código de evento.',
-        goHome:'Vuelve a', home:'Inicio', andJoin:'y crea/únete a un evento.',
-        enable:'ACTIVAR CÁMARA', result:'VER RESULTADOS',
-        ios:'iOS: Safari + HTTPS + permitir Cámara.',
-        sensLbl:'Sensibilidad detector (franja roja)',
-        sensHint:'Más a la derecha = más sensible.',
-        running:'En curso', status:'Estado', eventLbl:'Evento:', lastLbl:'Última acción:',
-        ready:'Listo', next:'Siguiente: '
-      }
-    };
-    const lang = localStorage.getItem('lang') || 'ca';
-    function tApply(){
-      const T=L[lang];
-      const getParam=(k)=> new URL(location.href).searchParams.get(k);
-      const mode=(getParam('mode')||'start');
-      document.getElementById('title').textContent = (mode==='start'?T.modeStart:T.modeFinish);
-      document.getElementById('tag').textContent = T.connecting;
-      document.getElementById('i-missCode').textContent = T.missCode;
-      document.getElementById('i-goHome').textContent = T.goHome;
-      document.getElementById('i-home').textContent = T.home;
-      document.getElementById('i-andJoin').textContent = T.andJoin;
-      document.getElementById('i-enable').textContent = T.enable;
-      document.getElementById('i-result').textContent = T.result;
-      document.getElementById('i-ios').textContent = T.ios;
-      document.getElementById('i-sensLbl').textContent = T.sensLbl;
-      document.getElementById('i-sensHint').textContent = T.sensHint;
-      document.getElementById('i-running').textContent = T.running;
-      document.getElementById('i-status').textContent = T.status;
-      document.getElementById('i-eventLbl').firstChild && (document.getElementById('i-eventLbl').firstChild.textContent = T.eventLbl+' ');
-      document.getElementById('i-eventLbl').textContent = T.eventLbl;
-      document.getElementById('i-lastLbl').textContent = T.lastLbl;
-      document.getElementById('i-back').textContent = (lang==='en'?'⇦ Back to Home':(lang==='ca'?'⇦ Tornar a Inici':'⇦ Volver a Inicio'));
-      document.getElementById('hudStatus').textContent = T.ready;
-      // Hud "Siguiente/Next/Següent" se compone dinámicamente más abajo
-    }
-    tApply();
-
     // ---------- Utils ----------
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
@@ -181,17 +122,18 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    tag.textContent=`${L[lang].connecting}`;
-    if(!code){ $('noCodeBox').style.display=''; evState.textContent=(lang==='en'?'NO CODE':(lang==='ca'?'SENSE CODI':'SIN CÓDIGO')); evState.className='err'; }
+    tag.textContent=`Evento ${code||'—'}`;
+    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // ---------- Reloj sincronizado ----------
+    // ---------- Reloj sincronizado con servidor ----------
     let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
@@ -240,13 +182,13 @@
       const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      // Acciones
+      // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
       async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-      // Suscripción -> cronos en vivo
+      // Suscripción -> cronos en vivo (ambas pantallas)
       let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
@@ -255,38 +197,38 @@
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
-        currentLive = run;
+        currentLive = run; // para overlay y lista
 
         const nxt = nextToStart();
-        document.getElementById('hudNext').textContent = L[lang].next + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
+        // Estado textual
         const hasStart = participants.some(p=>p.startTS);
         const hasStop  = participants.some(p=>p.stopTS);
-        tag.textContent = `${(lang==='en'?'Event':(lang==='ca'?'Esdeveniment':'Evento'))} ${code} • ${hasStart?(lang==='en'?'Start OK':(lang==='ca'?'Inici OK':'Inicio OK')):(lang==='en'?'No start':(lang==='ca'?'Sense inici':'Sin inicio'))} ${hasStop?'• '+(lang==='en'?'Some finish':(lang==='ca'?'Algun fi':'Algún fin')):''}`;
+        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
+        // Panel inferior informativo (render inicial)
         renderList(run);
       });
 
       // ===== Cámara + detección =====
-      const T = L[lang];
       btnEnable.onclick = async ()=>{
         try{
-          if(!navigator.mediaDevices?.getUserMedia){ alert(lang==='en'?'Browser without camera':(lang==='ca'?'Navegador sense càmera':'Navegador sin cámara')); return; }
+          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
           const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
           let stream=null,lastErr=null;
           for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
-          if(!stream){ alert((lang==='en'?'Cannot open camera: ':(lang==='ca'?'No s\'ha pogut obrir la càmera: ':'No se pudo abrir la cámara: '))+(lastErr?.name?lastErr.name+': ':'')+(lastErr?.message||'')); return; }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
           video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
-          btnEnable.textContent= T.enable;
-          btnEnable.disabled=true;
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
           requestAnimationFrame(loop);
-        }catch(e){ alert((lang==='en'?'Camera error: ':(lang==='ca'?'Error càmera: ':'Error cámara: '))+(e?.message||e)); }
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // === Detector por diferencia, con refractario por modo ===
-      const COOLDOWN_START_MS  = 3000;
-      const COOLDOWN_FINISH_MS = 1500;
+      // === Detector por diferencia, con "refractario" por modo ===
+      const COOLDOWN_START_MS  = 3000; // 3 s tras marcar SALIDA
+      const COOLDOWN_FINISH_MS = 1500; // 1.5 s tras marcar META
       let prev=null, armed=true, cooldownTimer=null;
 
       const armAfter = (ms)=>{
@@ -297,17 +239,20 @@
       const trigger = async ()=>{
         if(!armed) return;
         armed=false;
+
+        // aplica cooldown según modo
         armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
 
         if(mode==='start'){
           const p=await startNext();
-          if(p){ lastAction.textContent=(lang==='en'?'Start: ':(lang==='ca'?'Inici: ':'Inicio: '))+(p.name||p.id); }
+          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
         }else{
           const p=await stopEarliest();
-          if(p){ lastAction.textContent=(lang==='en'?'Finish: ':(lang==='ca'?'Fi: ':'Fin: '))+(p.name||p.id); }
+          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
         }
       };
 
+      // Dibujo principal en overlay
       function loop(){
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
@@ -317,10 +262,10 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos superpuestos
+        // ⬇ Tiempos superpuestos sobre el vídeo (overlay)
         drawOverlayTimes(w,h,currentLive);
 
-        // Detector
+        // Detector por diferencia
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -346,17 +291,19 @@
         requestAnimationFrame(loop);
       }
 
+      // Dibuja nombres/tiempos sobre el overlay (HUD), en vivo
       function drawOverlayTimes(w,h,rows){
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
+
+        // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026));
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // tamaño pensado para iPhone
         const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14);
-
+        const topPad = Math.floor(h*0.14); // deja aire para HUD
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
@@ -368,14 +315,16 @@
         let y = topPad;
         for(let i=0;i<maxRows;i++){
           const r = sorted[i];
-          const elapsed = nowSync - (r.startMS||nowSync);
+          const elapsed = nowSync - (r.startMS||nowSync);   // empieza en 0 al marcar salida
           const tText = fmt(elapsed);
           const nText = r.name || '—';
 
+          // tiempo (izq)
           octx.textAlign='left';
           octx.strokeText(tText, leftPad, y);
           octx.fillText  (tText, leftPad, y);
 
+          // nombre (der)
           octx.textAlign='right';
           octx.strokeText(nText, w - rightPad, y);
           octx.fillText  (nText, w - rightPad, y);
@@ -384,6 +333,7 @@
         }
       }
 
+      // Render de la lista lateral “En curso”
       function renderList(run){
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
@@ -398,7 +348,7 @@
           `).join('');
       }
 
-      // Ticker “En curso”
+      // ====== Ticker de la lista “En curso” (LIVE) ======
       (function liveListTicker(){
         function tick(){
           const nowSync = Date.now() + serverOffsetMS;
