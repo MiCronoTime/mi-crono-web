@@ -57,12 +57,14 @@
 </head>
 <body>
   <div class="wrap">
+    <!-- CABECERA (con reloj) -->
     <div class="top">
       <span class="clock" aria-hidden="true">⏱️</span>
       <h1 class="title">MI CRONO WEB</h1>
     </div>
 
     <div class="grid">
+      <!-- CREAR EVENTO -->
       <section class="card">
         <h2>Crear evento</h2>
         <label for="newCode">Código del evento</label>
@@ -81,6 +83,7 @@
         </div>
       </section>
 
+      <!-- UNIRSE A UN EVENTO -->
       <section class="card">
         <h2>Unirse a un evento</h2>
         <label for="joinCode">Código</label>
@@ -88,17 +91,17 @@
 
         <div class="cluster" style="margin-top:12px">
           <a id="goStart"  class="btn" href="#">🏁&nbsp;Salida</a>
-          <a id="goSplit"  class="btn" href="#">⏱️&nbsp;Split</a>
           <a id="goFinish" class="btn" href="#">🚩&nbsp;Meta</a>
           <a id="goResult" class="btn" href="#">⬜&nbsp;Resultados</a>
         </div>
 
         <div class="hint">
-          Abre <b>Salida</b> en la salida, <b>Split</b> en el punto intermedio y <b>Meta</b> en la llegada. Todos con el mismo <b>código</b>.
+          Abre <b>Salida</b> en la salida y <b>Meta</b> en la llegada. Ambos con el mismo <b>código</b>.
         </div>
       </section>
     </div>
 
+    <!-- HERRAMIENTAS -->
     <section class="card" style="margin-top:18px">
       <h2>Herramientas</h2>
       <div class="hint">
@@ -113,10 +116,13 @@
     <p class="muted" style="text-align:center;margin-top:14px">—</p>
   </div>
 
+  <!-- Firebase (CDN, módulos ES) -->
   <script type="module">
+    // ===== Helpers de UI =====
     const $  = (id)=>document.getElementById(id);
     const UP = (s)=> (s||'').trim().toUpperCase();
 
+    // Forzamos mayúsculas "reales" al escribir (no solo visual)
     function forceUpper(){
       ['newCode','joinCode'].forEach(id=>{
         const el=$(id); if(!el) return;
@@ -136,6 +142,7 @@
       }
     }
 
+    // Navegación
     function wireJoin(){
       const nav=(mode)=>{
         const code=UP($('joinCode').value);
@@ -143,12 +150,12 @@
         if(mode==='result') location.href=`result.html?code=${encodeURIComponent(code)}`;
         else location.href=`camera.html?code=${encodeURIComponent(code)}&mode=${mode}`;
       };
-      $('goStart').onclick  =(e)=>{ e.preventDefault(); nav('start'); };
-      $('goSplit').onclick  =(e)=>{ e.preventDefault(); nav('split'); };
-      $('goFinish').onclick =(e)=>{ e.preventDefault(); nav('finish'); };
-      $('goResult').onclick =(e)=>{ e.preventDefault(); nav('result'); };
+      $('goStart').onclick =(e)=>{ e.preventDefault(); nav('start'); };
+      $('goFinish').onclick=(e)=>{ e.preventDefault(); nav('finish'); };
+      $('goResult').onclick=(e)=>{ e.preventDefault(); nav('result'); };
     }
 
+    // ===== Firebase (CDN) =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
     import {
       getFirestore, doc, setDoc, collection, getDocs, deleteDoc, addDoc,
@@ -163,17 +170,21 @@
       messagingSenderId: "379025900327",
       appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
     };
+
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
+    // ===== Guardar / resetear evento =====
     $('btnSave').onclick = async ()=>{
       try{
         const code = UP($('newCode').value);
         if(!code){ alert('Escribe un código de evento.'); return; }
 
+        // Crea/actualiza doc del evento
         const evRef = doc(db,'events',code);
         await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
 
+        // Elimina participantes existentes (batch; si falla, borra uno a uno)
         const partsCol = collection(evRef,'participants');
         const existing = await getDocs(partsCol);
 
@@ -181,14 +192,17 @@
           const batch = writeBatch(db);
           existing.forEach(d=>batch.delete(d.ref));
           await batch.commit();
-        }catch{
-          for(const d of existing.docs){ try{ await deleteDoc(d.ref); }catch{} }
+        }catch(errBatch){
+          for(const d of existing.docs){
+            try{ await deleteDoc(d.ref); }catch(e){ console.error('Error borrando', d.id, e); }
+          }
         }
 
+        // Inserta nuevos participantes (uno por línea)
         const lines = UP($('newList').value).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
         let order=1;
         for(const name of lines){
-          await addDoc(partsCol, { name, order, startTS:null, splitTS:null, stopTS:null, createdAt: serverTimestamp() });
+          await addDoc(partsCol, { name, order, startTS:null, stopTS:null, createdAt: serverTimestamp() });
           order++;
         }
 
@@ -199,15 +213,17 @@
       }
     };
 
+    // ===== Reset total (con confirmación) =====
     $('btnNuke').onclick = async ()=>{
       const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos. ¿Seguro que quieres continuar?');
       if(!ok) return;
+
       try{
         const evs = await getDocs(collection(db,'events'));
         for(const ev of evs.docs){
           const parts = await getDocs(collection(ev.ref,'participants'));
-          for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch{} }
-          try{ await deleteDoc(ev.ref); }catch{}
+          for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch(e){ console.error('Del participant',p.id,e); } }
+          try{ await deleteDoc(ev.ref); }catch(e){ console.error('Del event',ev.id,e); }
         }
         alert('Base de datos limpia.');
       }catch(e){
