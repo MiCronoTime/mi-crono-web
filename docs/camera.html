@@ -8,7 +8,6 @@
     :root{
       --bg:#0f141c; --panel:#161c24; --panel2:#1b2330; --border:#2a3342;
       --text:#eaf0f8; --muted:#b5c0d1; --accent:#6eb0ff; --good:#6ff0a8; --bad:#ff7a8a;
-      --warn:#ffd166;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -26,34 +25,25 @@
     .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px}
     .videoBox{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:#000}
     video{width:100%;display:block;background:#000}
-    /* Franjas rojas */
     .gate{
       position:absolute; top:0; bottom:0; width:8%; min-width:24px; pointer-events:none;
       background:linear-gradient(90deg, rgba(255,0,0,.25), rgba(255,0,0,.35));
       border-left:2px solid rgba(255,0,0,.6); border-right:2px solid rgba(255,0,0,.6);
-      left:50%; transform:translateX(-50%); filter:saturate(1.2);
+      left:50%; transform:translateX(-50%);
     }
 
     .status{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .status .dot{width:10px;height:10px;border-radius:50%;background:#ffb703}
-    .status .ok .dot{background:#4ade80}
-    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .status.ok .dot{background:#4ade80}
 
-    /* Badge diferencial Split1 */
-    .delta-badge{
-      position:absolute; top:10px; right:10px;
-      background:rgba(0,0,0,.55); border:1px solid var(--border); padding:8px 10px;
-      border-radius:10px; font-weight:900; letter-spacing:.3px; font-size:14px;
-      display:none;
-    }
-    .delta-badge.good{color:var(--good); display:block;}
-    .delta-badge.bad{color:var(--bad); display:block;}
-
-    /* Cronos por participante (compacto) */
+    /* Lista LIVE — crono + delta pequeñito a la derecha (solo en SPLIT) */
     .liveList{display:flex;flex-direction:column;gap:8px; max-height:50vh; overflow:auto}
     .item{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
     .name{font-weight:900;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .time{margin-left:auto;font-weight:900;letter-spacing:.4px}
+    .mini-delta{margin-left:8px;font-size:12px;font-weight:900;opacity:.9;display:none}
+    .mini-delta.good{display:inline;color:var(--good)}
+    .mini-delta.bad{display:inline;color:var(--bad)}
     .muted{color:var(--muted)}
   </style>
 </head>
@@ -70,25 +60,19 @@
 
     <div class="grid">
       <section class="card">
-        <div class="row" style="justify-content:space-between;align-items:center;margin:4px 0 8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px">
           <div><b>Evento:</b> <span id="evCode">—</span></div>
-          <div class="row">
-            <button id="btnCam" class="btn">ACTIVAR CÁMARA</button>
-          </div>
+          <button id="btnCam" class="btn">ACTIVAR CÁMARA</button>
         </div>
-
         <div class="videoBox">
           <video id="video" playsinline muted></video>
           <div class="gate"></div>
-          <div id="deltaBadge" class="delta-badge">+0.000</div>
         </div>
         <div class="muted" style="margin-top:6px">Coloca al corredor para que cruce entre las franjas rojas.</div>
       </section>
 
       <aside class="card">
-        <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div class="title">EN VIVO</div>
-        </div>
+        <div class="title" style="margin-bottom:8px">EN VIVO</div>
         <div id="liveList" class="liveList">
           <div class="muted">Cargando…</div>
         </div>
@@ -97,23 +81,24 @@
   </div>
 
   <script type="module">
-    // ====== Parámetros ======
+    // ===== Parámetros =====
     const qp = new URL(location.href).searchParams;
     const CODE = (qp.get('code')||'').toUpperCase();
-    const MODE = (qp.get('mode')||'').toLowerCase(); // start | split1 | finish
+    let MODE = (qp.get('mode')||'').toLowerCase();
+    if(MODE==='split1') MODE='split'; // alias
     const $ = id => document.getElementById(id);
 
     $('evCode').textContent = CODE || '—';
-    $('modePill').textContent = MODE==='start'?'SALIDA':(MODE==='finish'?'META':(MODE==='split1'?'SPLIT1':'—'));
+    $('modePill').textContent = MODE==='start'?'SALIDA':(MODE==='finish'?'META':(MODE==='split'?'SPLIT':'—'));
 
-    // ====== Cooldowns ======
-    const COOLDOWN_START_MS  = 2000; // evitar dobles en salida
-    const COOLDOWN_SPLIT_MS  = 900;  // evitar dobles en split1
-    const COOLDOWN_FINISH_MS = 900;  // evitar dobles en meta
+    // ===== Cooldowns =====
+    const COOLDOWN_START_MS  = 2000;
+    const COOLDOWN_SPLIT_MS  = 900;
+    const COOLDOWN_FINISH_MS = 900;
     let cooling = false;
     const setCooldown = (ms)=>{ cooling = true; setTimeout(()=> cooling=false, ms); };
 
-    // ====== Firebase ======
+    // ===== Firebase =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
     import {
       getFirestore, doc, collection, query, orderBy, where, getDocs, onSnapshot, updateDoc, getDoc, serverTimestamp
@@ -133,7 +118,7 @@
     const evRef  = doc(db,'events',CODE);
     const partsC = collection(evRef,'participants');
 
-    // ====== Utilidades ======
+    // ===== Utils =====
     const two = n => String(n).padStart(2,'0');
     const thr = n => String(n).padStart(3,'0');
     const tsMs = ts => ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
@@ -141,40 +126,30 @@
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${thr(ms3)}`; };
 
-    // ====== Estado UI ======
+    // ===== Estado UI =====
     const statusEl = $('status'); const statText = $('statText');
-    function setOK(ok){
-      statusEl.classList.toggle('ok', !!ok);
-      statText.textContent = ok ? 'Conectado' : 'Conectando…';
-    }
+    function setOK(ok){ statusEl.classList.toggle('ok', !!ok); statText.textContent = ok ? 'Conectado' : 'Conectando…'; }
 
-    // ====== Vídeo/cámara ======
+    // ===== Cámara =====
     const video = $('video');
     let stream=null;
     $('btnCam').onclick = async ()=>{
       try{
-        if(stream) { // toggle off
-          stream.getTracks().forEach(t=>t.stop()); stream=null; video.srcObject=null;
-          $('btnCam').textContent = 'ACTIVAR CÁMARA';
-          return;
-        }
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio:false });
+        if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; video.srcObject=null; $('btnCam').textContent='ACTIVAR CÁMARA'; return; }
+        stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
         video.srcObject = stream; await video.play();
-        $('btnCam').textContent = 'DESACTIVAR CÁMARA';
-      }catch(e){
-        alert('No se pudo activar la cámara: ' + (e.message||e));
-      }
+        $('btnCam').textContent='DESACTIVAR CÁMARA';
+      }catch(e){ alert('No se pudo activar la cámara: ' + (e.message||e)); }
     };
 
-    // ====== Detector de movimiento simple (umbral por diferencia de frames) ======
-    // Nota: sencillo para web móvil; en producción podrías mejorar con ML o sensores físicos.
+    // ===== Detector de movimiento simple =====
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    const ctx = canvas.getContext('2d',{ willReadFrequently:true });
     let lastFrame=null;
-    const MOTION_PIXELS = 1200; // sensibilidad
-    function tick(){
-      if(!video.videoWidth) { requestAnimationFrame(tick); return; }
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const MOTION_PIXELS = 1200;
+    function motionLoop(){
+      if(!video.videoWidth){ requestAnimationFrame(motionLoop); return; }
+      canvas.width=video.videoWidth; canvas.height=video.videoHeight;
       ctx.drawImage(video,0,0);
       const curr = ctx.getImageData(0,0,canvas.width,canvas.height).data;
       let changes=0;
@@ -185,12 +160,12 @@
         }
       }
       lastFrame = new Uint8ClampedArray(curr);
-      if(changes > MOTION_PIXELS) onMotionDetected();
-      requestAnimationFrame(tick);
+      if(changes>MOTION_PIXELS) onMotionDetected();
+      requestAnimationFrame(motionLoop);
     }
-    requestAnimationFrame(tick);
+    requestAnimationFrame(motionLoop);
 
-    // ====== Lógica de negocio ======
+    // ===== Búsquedas =====
     async function nextToStart(){
       const q = query(partsC, where('startTS','==',null), orderBy('order','asc'));
       const s = await getDocs(q);
@@ -199,101 +174,73 @@
     async function nextToSplit(){
       const q = query(partsC, where('startTS','!=',null), orderBy('order','asc'));
       const s = await getDocs(q);
-      const docx = s.docs.find(d => !d.data().split1TS); // primero con start y sin split
-      return docx || null;
+      return s.docs.find(d => !d.data().split1TS) || null;
     }
     async function nextToFinish(){
       const q = query(partsC, where('startTS','!=',null), orderBy('order','asc'));
       const s = await getDocs(q);
-      const docx = s.docs.find(d => !d.data().stopTS); // primero con start y sin stop
-      return docx || null;
+      return s.docs.find(d => !d.data().stopTS) || null;
     }
 
+    // Mejor split actual (duración mínima split1 - start)
     async function bestSplit1DurMS(){
-      // devuelve {bestMS, bestId} con el mejor split1 registrado (split1TS - startTS)
       const q = query(partsC, where('split1TS','!=',null));
       const s = await getDocs(q);
-      let best = { bestMS: null, bestId: null };
+      let best = null;
       for(const d of s.docs){
         const x=d.data(); const a=tsMs(x.startTS), b=tsMs(x.split1TS);
         if(a!=null && b!=null){
           const dur=b-a;
-          if(best.bestMS==null || dur<best.bestMS) best={bestMS:dur, bestId:d.id};
+          if(best==null || dur<best) best=dur;
         }
       }
-      return best;
+      return best; // ms o null
     }
 
+    // ===== Lógica detección =====
     async function onMotionDetected(){
-      if(cooling) return;
-      if(!CODE || !MODE) return;
-
+      if(cooling || !CODE || !MODE) return;
       try{
         if(MODE==='start'){
-          const n = await nextToStart();
-          if(!n){ flashStatus('Sin participantes por salir', 'warn'); setCooldown(COOLDOWN_START_MS); return; }
-          await updateDoc(n.ref, { startTS: serverTimestamp() });
-          flashStatus(`SALIDA: ${n.data().name}`, 'ok');
+          const n=await nextToStart();
+          if(!n){ flash('Sin participantes por salir'); setCooldown(COOLDOWN_START_MS); return; }
+          await updateDoc(n.ref,{ startTS: serverTimestamp() });
+          flash(`SALIDA: ${n.data().name}`);
           setCooldown(COOLDOWN_START_MS);
-        }
-        else if(MODE==='split1'){
-          const n = await nextToSplit();
-          if(!n){ flashStatus('Nadie en pista para Split1', 'warn'); setCooldown(COOLDOWN_SPLIT_MS); return; }
-          // Guardar split1 y mostrar diferencial vs mejor split previo
-          await updateDoc(n.ref, { split1TS: serverTimestamp() });
+        }else if(MODE==='split'){
+          const n=await nextToSplit();
+          if(!n){ flash('Nadie en pista para Split'); setCooldown(COOLDOWN_SPLIT_MS); return; }
+          await updateDoc(n.ref,{ split1TS: serverTimestamp() });
 
-          // Espera breve para que el serverTimestamp esté disponible al leer
+          // Tras guardar, calcular delta vs mejor
           setTimeout(async ()=>{
-            const curr = await getDoc(n.ref);
-            const x = curr.data();
-            const a = tsMs(x.startTS), b = tsMs(x.split1TS);
+            const snap=await getDoc(n.ref); const x=snap.data();
+            const a=tsMs(x.startTS), b=tsMs(x.split1TS);
             if(a!=null && b!=null){
-              const currDur = b-a;
-              const best = await bestSplit1DurMS(); // mejor antes de éste o incluyendo si ya replicó
-              // Si el actual es el mejor, delta negativo hacia sí mismo (0.000 → mostramos -0.000)
-              let delta = 0;
-              if(best.bestMS!=null){
-                delta = currDur - Math.min(best.bestMS, currDur);
-              }
-              showDelta(delta); // verde si <=0, rojo si >0
+              const curr=b-a;
+              const best=await bestSplit1DurMS();
+              const diff = (best==null) ? 0 : (curr - Math.min(best,curr));
+              showMiniDeltaFor(n.id, diff); // 4 s
             }
           }, 200);
 
-          flashStatus(`SPLIT1: ${n.data().name}`, 'ok');
+          flash(`SPLIT: ${n.data().name}`);
           setCooldown(COOLDOWN_SPLIT_MS);
-        }
-        else if(MODE==='finish'){
-          const n = await nextToFinish();
-          if(!n){ flashStatus('No hay corredor por finalizar', 'warn'); setCooldown(COOLDOWN_FINISH_MS); return; }
-          await updateDoc(n.ref, { stopTS: serverTimestamp() });
-          flashStatus(`META: ${n.data().name}`, 'ok');
+        }else if(MODE==='finish'){
+          const n=await nextToFinish();
+          if(!n){ flash('No hay corredor por finalizar'); setCooldown(COOLDOWN_FINISH_MS); return; }
+          await updateDoc(n.ref,{ stopTS: serverTimestamp() });
+          flash(`META: ${n.data().name}`);
           setCooldown(COOLDOWN_FINISH_MS);
         }
       }catch(e){
-        console.error(e);
-        flashStatus('Error al actualizar tiempo', 'bad');
+        console.error(e); flash('Error al actualizar');
       }
     }
 
-    // ====== Delta badge (4 s) ======
-    const deltaEl = $('deltaBadge');
-    let deltaTO=null;
-    function showDelta(diffMS){
-      if(deltaTO){ clearTimeout(deltaTO); deltaTO=null; }
-      const sign = diffMS<=0 ? '' : '+';
-      deltaEl.textContent = `${sign}${msFmt(Math.abs(diffMS))}`;
-      deltaEl.className = 'delta-badge ' + (diffMS<=0 ? 'good' : 'bad');
-      deltaTO = setTimeout(()=>{ deltaEl.className='delta-badge'; }, 4000);
-    }
+    function flash(t){ statText.textContent=t; setOK(true); setTimeout(()=>{ setOK(true); statText.textContent='Conectado'; },1500); }
 
-    function flashStatus(text, kind){
-      statText.textContent = text;
-      if(kind==='ok') setOK(true); else setOK(false);
-      // vuelve a “Conectado” tras 1.5s
-      setTimeout(()=>{ setOK(true); }, 1500);
-    }
-
-    // ====== Live list (cronos en vivo en ambos modos) ======
+    // ===== LIVE list (tiempos y mini-delta) =====
     const liveList = $('liveList');
     function renderLive(rows){
       if(!rows.length){ liveList.innerHTML = `<div class="muted">Sin corredores</div>`; return; }
@@ -301,63 +248,59 @@
         return `<div class="item">
           <div class="name">${(r.name||'').toUpperCase()}</div>
           <div class="time" data-id="${r.id}">00:00.000</div>
+          <span class="mini-delta" id="md-${r.id}">+0.000</span>
         </div>`;
       }).join('');
     }
-    let unsub=null;
-    function startLive(){
-      if(unsub) unsub();
-      // Mostrar todos con startTS no nulo y sin stopTS (en pista), orden por order asc
-      const qLive = query(partsC, where('startTS','!=',null), orderBy('order','asc'));
-      unsub = onSnapshot(qLive, snap=>{
-        const rows = snap.docs.map(d=>{
-          const x=d.data();
-          return { id:d.id, name:x.name||'', startMS:tsMs(x.startTS), stopMS:tsMs(x.stopTS) };
-        });
-        renderLive(rows);
-      });
-      rafLoop();
-    }
-    function rafLoop(){
-      const els = liveList.querySelectorAll('.time');
-      els.forEach(el=>{
-        const id = el.getAttribute('data-id');
-        // No tenemos el startMS aquí; hacemos una pequeña lectura del DOM auxiliar
-      });
-      requestAnimationFrame(rafLoop);
-    }
 
-    // Para cronómetro local fiable en vivo, haremos una suscripción paralela con datos necesarios:
+    // Suscripción de “en pista”
     let liveState = new Map(); // id -> {startMS, stopMS}
-    function startTick(){
+    function startLive(){
       const qLive = query(partsC, where('startTS','!=',null), orderBy('order','asc'));
       onSnapshot(qLive, snap=>{
         liveState.clear();
+        const rows=[];
         snap.docs.forEach(d=>{
           const x=d.data();
-          liveState.set(d.id,{ startMS:tsMs(x.startTS), stopMS:tsMs(x.stopTS) });
+          rows.push({ id:d.id, name:x.name||'' });
+          liveState.set(d.id, { startMS:tsMs(x.startTS), stopMS:tsMs(x.stopTS), split1MS:tsMs(x.split1TS) });
         });
+        renderLive(rows);
       });
 
-      function tickTimes(){
-        const els = liveList.querySelectorAll('.time');
-        const now = Date.now();
-        els.forEach(el=>{
-          const id = el.getAttribute('data-id');
-          const st = liveState.get(id);
-          if(!st || !st.startMS){ el.textContent='00:00.000'; return; }
+      // pintar tiempos en vivo
+      const loop=()=> {
+        const now=Date.now();
+        liveState.forEach((st,id)=>{
+          const el = document.querySelector(`.time[data-id="${id}"]`);
+          if(!el) return;
+          if(!st.startMS){ el.textContent='00:00.000'; return; }
           const ms = st.stopMS ? (st.stopMS - st.startMS) : (now - st.startMS);
           el.textContent = msFmt(ms);
         });
-        requestAnimationFrame(tickTimes);
-      }
-      requestAnimationFrame(tickTimes);
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
     }
 
-    // ====== Inicio ======
+    // Mostrar mini-delta 4 s junto al crono (solo en SPLIT)
+    const deltaTimers = new Map();
+    function showMiniDeltaFor(id, diffMS){
+      if(MODE!=='split') return; // no mostrar en start/finish
+      const el = document.getElementById(`md-${id}`); if(!el) return;
+      // limpiar timer anterior
+      if(deltaTimers.has(id)){ clearTimeout(deltaTimers.get(id)); deltaTimers.delete(id); }
+      const sign = diffMS<=0 ? '' : '+';
+      el.textContent = `${sign}${msFmt(Math.abs(diffMS))}`;
+      el.className = 'mini-delta ' + (diffMS<=0 ? 'good' : 'bad');
+      const to = setTimeout(()=>{ el.className='mini-delta'; }, 4000);
+      deltaTimers.set(id,to);
+    }
+
+    // ===== Init =====
     setOK(true);
     startLive();
-    startTick();
+
   </script>
 </body>
 </html>
