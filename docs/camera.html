@@ -142,7 +142,7 @@
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-        serverTimestamp, collection, query, orderBy, getDocs, addDoc
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc, where
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -189,7 +189,6 @@
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
       // Suscripción -> cronos en vivo (ambas pantallas)
-      let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
         const run = runningSorted().map(p=>({
@@ -197,7 +196,6 @@
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
-        currentLive = run;
 
         const nxt = nextToStart();
         document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
@@ -207,8 +205,8 @@
         const hasStop  = participants.some(p=>p.stopTS);
         tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
-        // Panel inferior informativo
-        renderList(currentLive);
+        // Panel inferior informativo (render inicial)
+        renderList(run);
       });
 
       // ===== Cámara + detección =====
@@ -262,9 +260,6 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos por participante (nuevo arriba), tamaño pensado para iPhone
-        drawOverlayTimes(w,h,currentLive);
-
         // Detector por diferencia
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
@@ -291,6 +286,7 @@
         requestAnimationFrame(loop);
       }
 
+      // Dibuja nombres/tiempos sobre el overlay (HUD), en vivo
       function drawOverlayTimes(w,h,rows){
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
@@ -332,14 +328,34 @@
         }
       }
 
+      // Render de la lista lateral “En curso”
       function renderList(run){
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
         if(!run.length){ list.innerHTML='—'; return; }
         list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
-          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
-          .join('');
+          .map(p=>`
+            <div class="runner" data-start="${p.startMS || nowSync}">
+              <div class="badge">#${p.order}</div>
+              <div class="rname">${p.name}</div>
+              <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
+            </div>
+          `).join('');
       }
+
+      // ====== Ticker de la lista “En curso” (LIVE) ======
+      (function liveListTicker(){
+        function tick(){
+          const nowSync = Date.now() + serverOffsetMS;
+          document.querySelectorAll('#runningList .runner').forEach(el=>{
+            const start = Number(el.dataset.start || 0);
+            const tEl = el.querySelector('.rtime');
+            if (start && tEl) tEl.textContent = fmt(nowSync - start);
+          });
+          requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+      })();
 
     }catch(e){
       window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
