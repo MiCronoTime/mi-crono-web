@@ -37,8 +37,9 @@
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
     .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
 
+    /* ---------- Tabla ---------- */
     .table-wrap{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch}
-    table{width:100%; border-collapse:separate; border-spacing:0 8px; min-width: 620px;}
+    table{width:100%; border-collapse:separate; border-spacing:0 8px; min-width: 520px;}
     thead th{
       text-align:left;padding:10px 12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
       white-space:nowrap;
@@ -47,28 +48,30 @@
     tbody td{padding:12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);vertical-align:middle}
     tbody tr td:first-child{border-left:1px solid var(--border);border-top-left-radius:10px;border-bottom-left-radius:10px}
     tbody tr td:last-child{border-right:1px solid var(--border);border-top-right-radius:10px;border-bottom-right-radius:10px}
-    .pos{width:56px;text-align:center;font-weight:900;white-space:nowrap}
-    .name{font-weight:900;text-transform:uppercase;max-width: 36vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-    .time,.split,.delta{font-weight:900;letter-spacing:.4px; white-space:nowrap}
-    .delta{font-weight:800;color:var(--muted); text-align:right}
+    .pos{width:64px;text-align:center;font-weight:900;white-space:nowrap}
+    .name{font-weight:900;text-transform:uppercase;max-width: 44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .time{font-weight:900;letter-spacing:.4px; white-space:nowrap}
+    .delta{font-weight:800;letter-spacing:.3px;color:var(--muted); white-space:nowrap; text-align:right}
+    .ok{color:var(--ok)} .err{color:var(--err)}
 
+    /* ---------- Responsive fino para iPhone ---------- */
     @media (max-width: 430px){
       .wrap{padding:12px}
       .card{padding:12px}
       thead th{padding:8px 10px; font-size:12px}
       tbody td{padding:8px 10px; font-size:13px}
       .pos{width:44px}
-      .name{max-width: 38vw}
-      .time,.split{font-size:13px}
+      .name{max-width: 46vw}
+      .time{font-size:13px}
       .delta{font-size:12px}
-      table{min-width:560px}
+      table{min-width:480px} /* aún permite ver todo; si no cabe, el contenedor permite scroll */
     }
     @media (max-width: 360px){
       thead th{font-size:11px}
       tbody td{font-size:12px}
-      .name{max-width: 34vw}
+      .name{max-width: 42vw}
       .delta{font-size:11px}
-      table{min-width:540px}
+      table{min-width:460px}
     }
   </style>
 </head>
@@ -82,7 +85,7 @@
       </div>
     </div>
 
-    <!-- Cabecera -->
+    <!-- Cabecera con código y FECHA/HORA del evento -->
     <div class="card" style="margin-bottom:12px">
       <div>Evento: <b id="evCode">—</b></div>
       <div>Fecha: <b id="evDate">—</b></div>
@@ -97,12 +100,11 @@
               <th>#</th>
               <th>Participante</th>
               <th>Tiempo</th>
-              <th>Split1</th>
-              <th></th> <!-- columna Δ sin título -->
+              <th></th> <!-- sin título para la columna de Δ -->
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="5" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
+            <tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -127,7 +129,7 @@
     $('evCode').textContent = code || '—';
 
     let evDateStr = '—';
-    let orderedRows = []; // para PDF (incluye dur y split)
+    let orderedRows = []; // para PDF (incluye dur)
 
     // ===== Firebase (CDN) =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
@@ -148,7 +150,7 @@
 
     async function load(){
       if(!code){
-        $('tbody').innerHTML = `<tr><td colspan="5" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
+        $('tbody').innerHTML = `<tr><td colspan="4" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
         return;
       }
 
@@ -159,22 +161,31 @@
         const d = evSnap.data();
         const baseTS = d.updatedAt || d.createdAt || null;
         const ms = tsMs(baseTS);
-        $('evDate').textContent = ms ? new Date(ms).toLocaleString('es-ES') : '—';
-        evDateStr = $('evDate').textContent;
+        if (ms) {
+          evDateStr = new Date(ms).toLocaleString('es-ES');
+          $('evDate').textContent = evDateStr;
+        } else {
+          evDateStr = '—';
+          $('evDate').textContent = '—';
+        }
       } else {
         $('evDate').textContent = '—';
       }
 
-      // 2) Participantes y orden por tiempo final
+      // 2) Participantes y orden por tiempo
       const partsCol = collection(evRef,'participants');
       const snap = await getDocs(query(partsCol, orderBy('order','asc')));
 
       const rows = snap.docs.map(d=>{
         const x=d.data();
-        const startMS=tsMs(x.startTS), splitMS=tsMs(x.split1TS), stopMS=tsMs(x.stopTS);
+        const startMS=tsMs(x.startTS), stopMS=tsMs(x.stopTS);
         const dur = (startMS!=null && stopMS!=null) ? (stopMS-startMS) : null;
-        const split1 = (startMS!=null && splitMS!=null) ? (splitMS-startMS) : null;
-        return { id:d.id, name:(x.name||'').toUpperCase(), order:x.order||0, startMS, split1, dur };
+        return {
+          id:d.id,
+          name:(x.name||'').toUpperCase(),
+          order:x.order||0,
+          startMS, stopMS, dur
+        };
       });
 
       const finished   = rows.filter(r=>r.dur!=null).sort((a,b)=> a.dur - b.dur);
@@ -183,17 +194,16 @@
 
       const leaderDur = finished.length ? finished[0].dur : null;
 
-      // 3) Pintar
+      // 3) Pintar tabla (con Δ)
       const tbody = $('tbody');
       if(orderedRows.length===0){
-        tbody.innerHTML = `<tr><td colspan="5" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
         $('meta').textContent = '0 participantes';
         return;
       }
 
       tbody.innerHTML = orderedRows.map((r)=>{
         const t = r.dur!=null ? fmt(r.dur) : '—';
-        const s = r.split1!=null ? fmt(r.split1) : '—';
         const pos = (r.dur!=null) ? (finished.indexOf(r)+1) : '—';
         let delta = '—';
         if (leaderDur!=null && r.dur!=null) {
@@ -205,7 +215,6 @@
             <td class="pos">${pos}</td>
             <td class="name">${r.name}</td>
             <td class="time">${t}</td>
-            <td class="split">${s}</td>
             <td class="delta">${delta}</td>
           </tr>`;
       }).join('');
@@ -215,35 +224,35 @@
       $('meta').textContent = `${total} participantes • ${fin} finalizados`;
     }
 
-    // ===== PDF (ajustado a A4, con SPLIT1) =====
+    // ===== PDF (anchos ajustados para no cortar) =====
     function downloadPDF(){
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit:'pt', format:'a4' });
+      const doc = new jsPDF({ unit:'pt', format:'a4' }); // 595pt ancho total
 
       // Título + Fecha
       const title = `RESULTADOS — ${code || 'EVENTO'}`;
       doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text(title, 40, 40);
       doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.text(`Fecha: ${evDateStr}`, 40, 58);
 
-      const head = [['#','PARTICIPANTE','TIEMPO','SPLIT1','']];
+      // Datos (encabezado con última columna SIN título)
+      const head = [['#','PARTICIPANTE','TIEMPO','']];
 
       const finishedOnly = orderedRows.filter(r => r.dur!=null);
       const leaderDur = finishedOnly.length ? finishedOnly[0].dur : null;
 
       const body = orderedRows.map((r)=>{
-        const rank  = (r.dur!=null) ? (finishedOnly.indexOf(r)+1) : '—';
-        const time  = (r.dur!=null) ? fmt(r.dur) : '—';
-        const split = (r.split1!=null) ? fmt(r.split1) : '—';
-        let delta   = '—';
+        const rank = (r.dur!=null) ? (finishedOnly.indexOf(r)+1) : '—';
+        const time = (r.dur!=null) ? fmt(r.dur) : '—';
+        let delta = '—';
         if (leaderDur!=null && r.dur!=null) {
           const diff = r.dur - leaderDur;
           delta = diff===0 ? '+00:00.000' : ('+' + fmt(diff));
         }
-        return [String(rank), r.name, time, split, delta];
+        return [String(rank), r.name, time, delta];
       });
 
-      // Márgenes y anchos para no cortar:
-      // útil ≈ 595 - 60 = 535 pt. Repartimos: 40 + 220 + 100 + 95 + 70 = 525
+      // Márgenes y anchos pensados para entrar en A4 sin corte:
+      // ancho útil ≈ 595 - (30+30) = 535 pt. Columnas: 40 + 240 + 110 + 100 = 490 pt.
       doc.autoTable({
         head, body,
         startY: 74,
@@ -254,10 +263,9 @@
         alternateRowStyles: { fillColor: [240,240,240] },
         columnStyles: {
           0: { cellWidth: 40,  halign:'center', fontStyle:'bold' },
-          1: { cellWidth: 220, fontStyle:'bold' },
-          2: { cellWidth: 100, halign:'right', fontStyle:'bold' },
-          3: { cellWidth: 95,  halign:'right' },
-          4: { cellWidth: 70,  halign:'right' }
+          1: { cellWidth: 240, fontStyle:'bold' },
+          2: { cellWidth: 110, halign:'right', fontStyle:'bold' },
+          3: { cellWidth: 100, halign:'right' }
         },
         tableWidth: 'wrap'
       });
