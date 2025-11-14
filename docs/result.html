@@ -37,7 +37,7 @@
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
     .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
 
-    /* ---------- Tabla ---------- */
+    /* ---------- Tabla (con responsive) ---------- */
     .table-wrap{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch}
     table{width:100%; border-collapse:separate; border-spacing:0 8px; min-width: 520px;}
     thead th{
@@ -64,7 +64,7 @@
       .name{max-width: 46vw}
       .time{font-size:13px}
       .delta{font-size:12px}
-      table{min-width:480px} /* aún permite ver todo; si no cabe, el contenedor permite scroll */
+      table{min-width:480px}
     }
     @media (max-width: 360px){
       thead th{font-size:11px}
@@ -80,7 +80,7 @@
     <div class="top">
       <h1 class="title">RESULTADOS</h1>
       <div class="actions">
-        <button id="btnRefresh" class="btn">Refrescar</button>
+        <!-- Quitado el botón Refrescar a petición -->
         <button id="btnPDF" class="btn primary">Descargar PDF</button>
       </div>
     </div>
@@ -100,7 +100,7 @@
               <th>#</th>
               <th>Participante</th>
               <th>Tiempo</th>
-              <th></th> <!-- sin título para la columna de Δ -->
+              <th></th> <!-- columna de Δ sin título -->
             </tr>
           </thead>
           <tbody id="tbody">
@@ -134,7 +134,7 @@
     // ===== Firebase (CDN) =====
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
     import {
-      getFirestore, doc, collection, getDocs, query, orderBy, getDoc
+      getFirestore, doc, collection, getDocs, query, orderBy, getDoc, onSnapshot
     } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -148,13 +148,8 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    async function load(){
-      if(!code){
-        $('tbody').innerHTML = `<tr><td colspan="4" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
-        return;
-      }
-
-      // 1) Fecha/hora del evento
+    // ===== Cargar fecha del evento una vez =====
+    async function loadEventDate(){
       const evRef = doc(db,'events',code);
       const evSnap = await getDoc(evRef);
       if (evSnap.exists()) {
@@ -171,30 +166,15 @@
       } else {
         $('evDate').textContent = '—';
       }
+    }
 
-      // 2) Participantes y orden por tiempo
-      const partsCol = collection(evRef,'participants');
-      const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-
-      const rows = snap.docs.map(d=>{
-        const x=d.data();
-        const startMS=tsMs(x.startTS), stopMS=tsMs(x.stopTS);
-        const dur = (startMS!=null && stopMS!=null) ? (stopMS-startMS) : null;
-        return {
-          id:d.id,
-          name:(x.name||'').toUpperCase(),
-          order:x.order||0,
-          startMS, stopMS, dur
-        };
-      });
-
+    // ===== Render de la tabla (mismo diseño e info) =====
+    function render(rows){
       const finished   = rows.filter(r=>r.dur!=null).sort((a,b)=> a.dur - b.dur);
       const unfinished = rows.filter(r=>r.dur==null);
       orderedRows = [...finished, ...unfinished];
-
       const leaderDur = finished.length ? finished[0].dur : null;
 
-      // 3) Pintar tabla (con Δ)
       const tbody = $('tbody');
       if(orderedRows.length===0){
         tbody.innerHTML = `<tr><td colspan="4" class="muted" style="padding:20px;text-align:center">Sin participantes</td></tr>`;
@@ -224,7 +204,30 @@
       $('meta').textContent = `${total} participantes • ${fin} finalizados`;
     }
 
-    // ===== PDF (anchos ajustados para no cortar) =====
+    // ===== Suscripción en tiempo real a participantes =====
+    function subscribeParticipants(){
+      const evRef = doc(db,'events',code);
+      const partsCol = collection(evRef,'participants');
+      const q = query(partsCol, orderBy('order','asc'));
+      return onSnapshot(q, (snap)=>{
+        const rows = snap.docs.map(d=>{
+          const x=d.data();
+          const startMS=tsMs(x.startTS), stopMS=tsMs(x.stopTS);
+          const dur = (startMS!=null && stopMS!=null) ? (stopMS-startMS) : null;
+          return {
+            id:d.id,
+            name:(x.name||'').toUpperCase(),
+            order:x.order||0,
+            startMS, stopMS, dur
+          };
+        });
+        render(rows);
+      }, (err)=>{
+        console.error('[onSnapshot] error', err);
+      });
+    }
+
+    // ===== PDF (sin cambios de diseño) =====
     function downloadPDF(){
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ unit:'pt', format:'a4' }); // 595pt ancho total
@@ -234,7 +237,7 @@
       doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text(title, 40, 40);
       doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.text(`Fecha: ${evDateStr}`, 40, 58);
 
-      // Datos (encabezado con última columna SIN título)
+      // Encabezado con última columna SIN título
       const head = [['#','PARTICIPANTE','TIEMPO','']];
 
       const finishedOnly = orderedRows.filter(r => r.dur!=null);
@@ -251,8 +254,7 @@
         return [String(rank), r.name, time, delta];
       });
 
-      // Márgenes y anchos pensados para entrar en A4 sin corte:
-      // ancho útil ≈ 595 - (30+30) = 535 pt. Columnas: 40 + 240 + 110 + 100 = 490 pt.
+      // Márgenes/anchos ajustados para no cortar en A4
       doc.autoTable({
         head, body,
         startY: 74,
@@ -273,10 +275,15 @@
       doc.save(`resultados_${(code||'EVENTO')}.pdf`);
     }
 
-    $('btnRefresh').onclick = ()=>load();
-    $('btnPDF').onclick = ()=>downloadPDF();
+    // === Init ===
+    if(!code){
+      $('tbody').innerHTML = `<tr><td colspan="4" class="err" style="padding:20px;text-align:center">Falta el parámetro ?code=EVENTO</td></tr>`;
+    }else{
+      loadEventDate();             // fecha del evento una vez
+      subscribeParticipants();     // resultados en tiempo real
+    }
 
-    load();
+    $('btnPDF').onclick = ()=>downloadPDF();
   </script>
 </body>
 </html>
