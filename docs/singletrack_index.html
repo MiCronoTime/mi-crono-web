@@ -75,7 +75,7 @@
         <textarea id="partsNew" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
 
         <div class="foot">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
+          Si el evento ya existe, se <b>RESETA</b> (borra participantes y tiempos) y se crean estos nuevos.
         </div>
 
         <div class="row" style="margin-top:12px">
@@ -104,7 +104,7 @@
     <!-- HERRAMIENTAS -->
     <section class="card" style="margin-top:18px">
       <h2>HERRAMIENTAS</h2>
-      <p class="muted"><b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos. Úsalo solo si quieres limpiar por completo.</p>
+      <p class="muted"><b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.</p>
       <button id="btnReset" class="btn danger">RESET EVENTOS</button>
     </section>
   </div>
@@ -113,7 +113,7 @@
     const fbStatus = document.getElementById('fbStatus');
 
     try{
-      // === Imports DINÁMICOS (fiables en iOS / CDN) ===
+      // === Imports DINÁMICOS ===
       const appMod = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const fsMod  = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
@@ -133,8 +133,19 @@
       };
 
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
 
+      // === (Opcional, pero recomendado) Auth anónima con try/catch ===
+      try{
+        const authMod = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js');
+        const { getAuth, signInAnonymously } = authMod;
+        const auth = getAuth(app);
+        await signInAnonymously(auth);
+      }catch(e){
+        // Si no está habilitada la auth anónima, ignoramos para no romper el resto.
+        console.warn('Auth anónima no disponible:', e?.message||e);
+      }
+
+      const db  = getFirestore(app);
       fbStatus.textContent = 'Firebase: conectado';
       fbStatus.classList.add('ok');
 
@@ -147,7 +158,6 @@
 
       // ===== Navegación correcta (sin dobles "?") =====
       const codeJoinEl = document.getElementById('codeJoin');
-
       function goCamera(mode){
         const code = (codeJoinEl.value||'').toUpperCase().trim();
         if(!code){ alert('Escribe el CÓDIGO del evento'); return; }
@@ -244,7 +254,7 @@
           alert('✅ Todos los eventos han sido eliminados.');
         }catch(e){
           console.error('[RESET EVENTS] error:', e);
-          alert('❌ Error al resetear: ' + (e.message || e));
+          alert('❌ Error al resetear: ' + (e.message || e) + '\n\nSuele ser por permisos de Firestore.');
         }finally{
           btn.disabled = false;
           btn.textContent = originalText;
