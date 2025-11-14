@@ -124,11 +124,10 @@
   </div>
 
   <script type="module">
-    // ===== Uppercase en tiempo real (inputs/textarea) =====
+    // ===== Uppercase en tiempo real =====
     const upperize = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
     upperize(document.getElementById('codeNew'));
     upperize(document.getElementById('codeJoin'));
-    // textarea: mantenemos saltos de línea, pero forzamos mayúsculas
     const partsNew = document.getElementById('partsNew');
     partsNew.addEventListener('input', ()=> partsNew.value = partsNew.value.toUpperCase());
 
@@ -236,12 +235,10 @@
       ov.style.display='none';
       localStorage.setItem('mcw_mode_seen','1');
     };
-    // CRONOLAP → pedir código y abrir lap.html
+    // CRONOLAP → ir a la home específica de CRONOLAP
     document.getElementById('btnLap').onclick = ()=>{
-      const code = (prompt('Código del evento (CRONOLAP):','TEST1')||'').toUpperCase().trim();
-      if(!code) return;
       localStorage.setItem('mcw_mode_seen','1');
-      location.href = `lap.html?code=${encodeURIComponent(code)}`;
+      location.href = 'lap_index.html';
     };
   </script>
 </body>
