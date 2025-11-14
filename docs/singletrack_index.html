@@ -137,17 +137,25 @@
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     const db  = getFirestore(app);
 
-    // ===== Crear / Resetear un evento (este botón solo resetea el evento actual que escribes arriba) =====
+    // ===== GUARDAR / RESET de un evento concreto =====
     document.getElementById('btnSave').onclick = async ()=>{
-      const code = (document.getElementById('codeNew').value||'').toUpperCase().trim();
-      const raw  = (partsNew.value||'').toUpperCase().split('\n').map(s=>s.trim()).filter(Boolean);
-      if(!code){ alert('Escribe un CÓDIGO para el evento'); return; }
-      if(raw.length===0){ alert('Añade al menos 1 PARTICIPANTE (una línea)'); return; }
+      const codeInput  = document.getElementById('codeNew');
+      const partsInput = document.getElementById('partsNew');
+
+      const code = (codeInput?.value || '').toUpperCase().trim();
+      const raw  = (partsInput?.value || '')
+                    .toUpperCase()
+                    .split('\n')
+                    .map(s=>s.trim())
+                    .filter(Boolean);
+
+      if (!code) { alert('Escribe un CÓDIGO para el evento'); codeInput?.focus(); return; }
+      if (raw.length === 0) { alert('Añade al menos 1 PARTICIPANTE (una línea)'); partsInput?.focus(); return; }
 
       try{
-        const evRef = doc(db,'events',code);
+        const evRef = doc(db,'events', code);  // <-- 3 segmentos
 
-        // 1) BORRAR participantes existentes del evento (paginado por seguridad)
+        // 1) Borrar participantes existentes (paginado)
         const partsCol = collection(evRef,'participants');
         while (true) {
           const page = await getDocs(query(partsCol, limit(50)));
@@ -155,10 +163,10 @@
           await Promise.all(page.docs.map(d => deleteDoc(d.ref)));
         }
 
-        // 2) Guardar doc del evento (updatedAt cambia)
+        // 2) Guardar/actualizar evento
         await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
 
-        // 3) Crear nuevos participantes con "order"
+        // 3) Crear nuevos participantes con orden
         let order=1;
         for (const name of raw){
           await addDoc(partsCol, { name, order, startTS:null, stopTS:null });
@@ -167,13 +175,14 @@
 
         alert('Evento guardado / reseteado correctamente.');
         document.getElementById('codeJoin').value = code;
+
       }catch(e){
-        console.error(e);
-        alert('Error guardando el evento: '+(e.message||e));
+        console.error('[GUARDAR EVENTO] error:', e);
+        alert('Error guardando el evento: ' + (e.message || e));
       }
     };
 
-    // ===== Reset TODOS los eventos (con confirmación y borrado paginado) =====
+    // ===== Reset TODOS los eventos (confirmación y paginado) =====
     document.getElementById('btnReset').onclick = async ()=>{
       const btn = document.getElementById('btnReset');
       const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos.\n\n¿Seguro que quieres continuar?');
