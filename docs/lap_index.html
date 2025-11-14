@@ -128,7 +128,7 @@
     import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
     import {
       getFirestore, doc, setDoc, serverTimestamp, collection,
-      getDocs, deleteDoc, addDoc
+      getDocs, deleteDoc, addDoc, query, limit
     } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -152,10 +152,13 @@
       try{
         const evRef = doc(db,'events',code);
 
-        // 1) Borrar participantes existentes (reset completo)
+        // 1) Borrar participantes existentes (paginado)
         const partsCol = collection(evRef,'participants');
-        const snapshot = await getDocs(partsCol);
-        for (const d of snapshot.docs){ await deleteDoc(d.ref); }
+        while (true) {
+          const page = await getDocs(query(partsCol, limit(50)));
+          if (page.empty) break;
+          await Promise.all(page.docs.map(d => deleteDoc(d.ref)));
+        }
 
         // 2) Guardar/actualizar evento
         await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
@@ -175,27 +178,42 @@
       }
     };
 
-    // ===== Reset TODOS los eventos (confirmación) =====
+    // ===== Reset TODOS los eventos (con confirmación y borrado paginado) =====
     document.getElementById('btnReset').onclick = async ()=>{
+      const btn = document.getElementById('btnReset');
       const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos.\n\n¿Seguro que quieres continuar?');
       if(!ok) return;
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = 'Borrando…';
 
       try{
         const eventsCol = collection(db,'events');
         const allEvents = await getDocs(eventsCol);
+
+        const deleteSubcollection = async (parentRef, subName) => {
+          const subCol = collection(parentRef, subName);
+          while (true) {
+            const page = await getDocs(query(subCol, limit(50)));
+            if (page.empty) break;
+            await Promise.all(page.docs.map(d => deleteDoc(d.ref)));
+          }
+        };
+
         for (const ev of allEvents.docs){
-          const partsCol = collection(ev.ref,'participants');
-          const ps = await getDocs(partsCol);
-          for (const p of ps.docs){ await deleteDoc(p.ref); }
-          const syncCol = collection(ev.ref,'sync');
-          const ss = await getDocs(syncCol);
-          for (const s of ss.docs){ await deleteDoc(s.ref); }
+          await deleteSubcollection(ev.ref, 'participants');
+          await deleteSubcollection(ev.ref, 'sync');
           await deleteDoc(ev.ref);
         }
-        alert('Todos los eventos han sido eliminados.');
+
+        alert('✅ Todos los eventos han sido eliminados.');
       }catch(e){
-        console.error(e);
-        alert('Error al resetear: '+(e.message||e));
+        console.error('[RESET EVENTS] error:', e);
+        alert('❌ Error al resetear: ' + (e.message || e));
+      }finally{
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     };
   </script>
