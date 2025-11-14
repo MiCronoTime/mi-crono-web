@@ -66,7 +66,7 @@
         <textarea id="partsNew" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
 
         <div class="foot">
-          Si el evento ya existe, se <b>RESETA</b> (borra participantes y tiempos) y se crean estos nuevos.
+          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
         </div>
 
         <div class="row" style="margin-top:12px">
@@ -86,7 +86,8 @@
         </div>
 
         <div class="foot">
-          En <b>CRONOLAP</b> la SALIDA y META las marca el <b>mismo dispositivo</b>.
+          En <b>CRONOLAP</b> la SALIDA y la META las marca el <b>mismo dispositivo</b>.<br/>
+          Sale un participante, completa la vuelta, y entonces sale el siguiente.
         </div>
       </section>
     </div>
@@ -100,7 +101,14 @@
   </div>
 
   <script type="module">
-    // ===== Navegación =====
+    // ===== Uppercase en tiempo real =====
+    const upperize = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
+    upperize(document.getElementById('codeNew'));
+    upperize(document.getElementById('codeJoin'));
+    const partsNew = document.getElementById('partsNew');
+    partsNew.addEventListener('input', ()=> partsNew.value = partsNew.value.toUpperCase());
+
+    // ===== Navegación correcta (sin dobles "?") =====
     const codeJoinEl = document.getElementById('codeJoin');
     function openLap(){
       const code = (codeJoinEl.value||'').toUpperCase().trim();
@@ -119,23 +127,12 @@
     document.getElementById('btnOpenLap').onclick = openLap;
     document.getElementById('btnRes').onclick     = goResult;
 
-    // ===== Uppercase en tiempo real =====
-    const upperize = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
-    upperize(document.getElementById('codeNew'));
-    upperize(document.getElementById('codeJoin'));
-    const partsNew = document.getElementById('partsNew');
-    partsNew.addEventListener('input', ()=> partsNew.value = partsNew.value.toUpperCase());
-
-    // === Firebase (CDN) ===
-    const appMod = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-    const fsMod  = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-    const authMod= await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js').catch(()=>null);
-
-    const { initializeApp, getApp, getApps } = appMod;
-    const {
+    // ===== Firebase (CDN) =====
+    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import {
       getFirestore, doc, setDoc, serverTimestamp, collection,
       getDocs, deleteDoc, addDoc, query, limit
-    } = fsMod;
+    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
@@ -146,18 +143,6 @@
       appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
     };
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-
-    // Auth anónima con fallback
-    if (authMod) {
-      try{
-        const { getAuth, signInAnonymously } = authMod;
-        const auth = getAuth(app);
-        await signInAnonymously(auth);
-      }catch(e){
-        console.warn('Auth anónima no disponible:', e?.message||e);
-      }
-    }
-
     const db  = getFirestore(app);
 
     // ===== GUARDAR / RESET de un evento concreto =====
@@ -237,7 +222,7 @@
         alert('✅ Todos los eventos han sido eliminados.');
       }catch(e){
         console.error('[RESET EVENTS] error:', e);
-        alert('❌ Error al resetear: ' + (e.message || e) + '\n\nSuele ser por permisos de Firestore.');
+        alert('❌ Error al resetear: ' + (e.message || e));
       }finally{
         btn.disabled = false;
         btn.textContent = originalText;
