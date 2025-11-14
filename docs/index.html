@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MI CRONO WEB — INICIO</title>
-  <link rel="icon" href="favicon.ico" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MI CRONO WEB — Seleccionar modo</title>
+  <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#10141b; --bg2:#0c1117; --panel:#161c24; --panel2:#1b2330;
+      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
       --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
-      --accent:#6eb0ff; --accent-2:#8ec5ff; --danger:#ff6b82;
+      --accent:#6eb0ff; --accent-2:#8ec5ff; --alt:#ff798a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -19,220 +19,69 @@
                   radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
+      display:flex; align-items:center; justify-content:center;
     }
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .top{display:flex;align-items:center;justify-content:center;gap:12px;margin:6px 0 18px}
-    .clock{font-size:22px;line-height:1;filter:drop-shadow(0 1px 0 rgba(0,0,0,.25))}
-    .title{font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-    .muted{color:var(--muted)}
-    .grid{display:grid;gap:18px}
-    @media(min-width:900px){ .grid{grid-template-columns:1fr 1fr} }
+    .wrap{width:100%; max-width:900px; padding:24px}
+    .box{background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:28px;
+         box-shadow:0 18px 50px rgba(0,0,0,.35)}
+    .title{margin:0 0 6px 0; font-weight:900; text-transform:uppercase; letter-spacing:.06em; text-align:center}
+    .subtitle{margin:0 0 22px 0; text-align:center; color:var(--muted)}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+    @media (max-width:740px){ .grid{grid-template-columns:1fr} }
 
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,.28)}
-    .card h2{margin:0 0 12px 0;text-transform:uppercase;letter-spacing:.05em}
-    .hint{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:12px}
-
-    label{display:block;margin:8px 0 6px 0;font-weight:800;letter-spacing:.02em}
-    input, textarea{
-      width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:var(--bg2);color:var(--text);outline:none;font-size:15px;
+    .card{
+      background:var(--panel2); border:1px solid var(--border); border-radius:16px; padding:22px;
+      display:flex; flex-direction:column; gap:14px; justify-content:space-between
     }
-    .uppercase{ text-transform: uppercase; letter-spacing:.03em; }
-    textarea{min-height:170px;resize:vertical;white-space:pre}
+    .card h2{margin:0; text-transform:uppercase; letter-spacing:.04em}
+    .desc{color:var(--muted); margin:0}
+
     .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:8px;
-      padding:12px 16px;border-radius:12px;border:1px solid var(--border);
-      background:#0f141c;color:var(--text);cursor:pointer;text-decoration:none;
-      text-transform:uppercase;font-weight:900;letter-spacing:.03em;min-height:44px;
-      transition:background .15s,border-color .15s,transform .05s;
+      width:100%; display:inline-flex; align-items:center; justify-content:center; gap:10px;
+      padding:14px 16px; min-height:56px; border-radius:14px; border:1px solid var(--border);
+      background:#0f141c; color:var(--text); text-decoration:none; cursor:pointer;
+      text-transform:uppercase; font-weight:900; letter-spacing:.04em; transition:background .15s,transform .05s
     }
     .btn:hover{background:#141a24}
     .btn:active{transform:translateY(1px)}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
-    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
-    .btn.danger{background:var(--danger);border-color:var(--danger);color:#210a12}
-    .cluster{display:flex;gap:10px;flex-wrap:wrap}
-    .cluster .btn{flex:1 1 120px}
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.alt{ background:var(--alt); border-color:var(--alt); color:#220a12 }
+
+    .foot{margin-top:16px; text-align:center; color:var(--muted); font-size:13px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- CABECERA (con reloj) -->
-    <div class="top">
-      <span class="clock" aria-hidden="true">⏱️</span>
+    <div class="box">
       <h1 class="title">MI CRONO WEB</h1>
-    </div>
+      <p class="subtitle">Elige el modo de funcionamiento</p>
 
-    <div class="grid">
-      <!-- CREAR EVENTO -->
-      <section class="card">
-        <h2>Crear evento</h2>
-        <label for="newCode">Código del evento</label>
-        <input id="newCode" class="uppercase" placeholder="P.EJ. TEST1" />
+      <div class="grid">
+        <!-- SINGLETRACK -->
+        <section class="card">
+          <h2>Singletrack</h2>
+          <p class="desc">
+            Dos dispositivos: uno en <b>SALIDA</b> y otro en <b>META</b>.  
+            Este es tu flujo actual (no se cambia nada).
+          </p>
+          <!-- Apunta a tu app existente de SINGLETRACK (no tocar su contenido) -->
+          <a class="btn primary" href="index.html">Entrar a SINGLETRACK</a>
+        </section>
 
-        <label for="newList">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="newList" class="uppercase" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
-
-        <div class="hint">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y
-          tiempos) y se crean estos nuevos.
-        </div>
-
-        <div style="margin-top:14px">
-          <button id="btnSave" class="btn primary">Guardar evento</button>
-        </div>
-      </section>
-
-      <!-- UNIRSE A UN EVENTO -->
-      <section class="card">
-        <h2>Unirse a un evento</h2>
-        <label for="joinCode">Código</label>
-        <input id="joinCode" class="uppercase" placeholder="TEST1" />
-
-        <div class="cluster" style="margin-top:12px">
-          <a id="goStart"  class="btn" href="#">🏁&nbsp;Salida</a>
-          <a id="goFinish" class="btn" href="#">🚩&nbsp;Meta</a>
-          <a id="goResult" class="btn" href="#">⬜&nbsp;Resultados</a>
-        </div>
-
-        <div class="hint">
-          Abre <b>Salida</b> en la salida y <b>Meta</b> en la llegada. Ambos con el mismo <b>código</b>.
-        </div>
-      </section>
-    </div>
-
-    <!-- HERRAMIENTAS -->
-    <section class="card" style="margin-top:18px">
-      <h2>Herramientas</h2>
-      <div class="hint">
-        <b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.
-        Úsalo solo si quieres limpiar por completo.
+        <!-- CRONOLAP -->
+        <section class="card">
+          <h2>Cronolap</h2>
+          <p class="desc">
+            Un único dispositivo marca <b>Salida</b> y <b>Meta</b> en el mismo punto.  
+            Primero crea evento y participantes y luego inicia la vuelta.
+          </p>
+          <!-- Home específica para Cronolap -->
+          <a class="btn alt" href="lap_index.html">Entrar a CRONOLAP</a>
+        </section>
       </div>
-      <div style="margin-top:10px">
-        <button id="btnNuke" class="btn danger">Reset eventos</button>
-      </div>
-    </section>
 
-    <p class="muted" style="text-align:center;margin-top:14px">—</p>
+      <div class="foot">Consejo: añade esta página como favorita para elegir rápidamente el modo.</div>
+    </div>
   </div>
-
-  <!-- Firebase (CDN, módulos ES) -->
-  <script type="module">
-    // ===== Helpers de UI =====
-    const $  = (id)=>document.getElementById(id);
-    const UP = (s)=> (s||'').trim().toUpperCase();
-
-    // Forzamos mayúsculas "reales" al escribir (no solo visual)
-    function forceUpper(){
-      ['newCode','joinCode'].forEach(id=>{
-        const el=$(id); if(!el) return;
-        el.addEventListener('input', e=>{
-          const pos=e.target.selectionStart;
-          e.target.value=e.target.value.toUpperCase();
-          e.target.setSelectionRange(pos,pos);
-        });
-      });
-      const ta=$('newList');
-      if(ta){
-        ta.addEventListener('input', e=>{
-          const s=e.target.selectionStart, t=e.target.selectionEnd;
-          e.target.value=e.target.value.toUpperCase();
-          e.target.setSelectionRange(s,t);
-        });
-      }
-    }
-
-    // Navegación
-    function wireJoin(){
-      const nav=(mode)=>{
-        const code=UP($('joinCode').value);
-        if(!code){ alert('Escribe un código de evento.'); return; }
-        if(mode==='result') location.href=`result.html?code=${encodeURIComponent(code)}`;
-        else location.href=`camera.html?code=${encodeURIComponent(code)}&mode=${mode}`;
-      };
-      $('goStart').onclick =(e)=>{ e.preventDefault(); nav('start'); };
-      $('goFinish').onclick=(e)=>{ e.preventDefault(); nav('finish'); };
-      $('goResult').onclick=(e)=>{ e.preventDefault(); nav('result'); };
-    }
-
-    // ===== Firebase (CDN) =====
-    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import {
-      getFirestore, doc, setDoc, collection, getDocs, deleteDoc, addDoc,
-      serverTimestamp, writeBatch
-    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
-
-    // ===== Guardar / resetear evento =====
-    $('btnSave').onclick = async ()=>{
-      try{
-        const code = UP($('newCode').value);
-        if(!code){ alert('Escribe un código de evento.'); return; }
-
-        // Crea/actualiza doc del evento
-        const evRef = doc(db,'events',code);
-        await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
-
-        // Elimina participantes existentes (batch; si falla, borra uno a uno)
-        const partsCol = collection(evRef,'participants');
-        const existing = await getDocs(partsCol);
-
-        try{
-          const batch = writeBatch(db);
-          existing.forEach(d=>batch.delete(d.ref));
-          await batch.commit();
-        }catch(errBatch){
-          for(const d of existing.docs){
-            try{ await deleteDoc(d.ref); }catch(e){ console.error('Error borrando', d.id, e); }
-          }
-        }
-
-        // Inserta nuevos participantes (uno por línea)
-        const lines = UP($('newList').value).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-        let order=1;
-        for(const name of lines){
-          await addDoc(partsCol, { name, order, startTS:null, stopTS:null, createdAt: serverTimestamp() });
-          order++;
-        }
-
-        alert('Evento guardado correctamente.');
-        $('joinCode').value = code;
-      }catch(e){
-        alert('Error guardando evento: ' + (e.message||e));
-      }
-    };
-
-    // ===== Reset total (con confirmación) =====
-    $('btnNuke').onclick = async ()=>{
-      const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos. ¿Seguro que quieres continuar?');
-      if(!ok) return;
-
-      try{
-        const evs = await getDocs(collection(db,'events'));
-        for(const ev of evs.docs){
-          const parts = await getDocs(collection(ev.ref,'participants'));
-          for(const p of parts.docs){ try{ await deleteDoc(p.ref); }catch(e){ console.error('Del participant',p.id,e); } }
-          try{ await deleteDoc(ev.ref); }catch(e){ console.error('Del event',ev.id,e); }
-        }
-        alert('Base de datos limpia.');
-      }catch(e){
-        alert('Error al eliminar: ' + (e.message||e));
-      }
-    };
-
-    forceUpper();
-    wireJoin();
-  </script>
 </body>
 </html>
