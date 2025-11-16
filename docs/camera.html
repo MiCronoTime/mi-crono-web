@@ -90,8 +90,8 @@
 
       <div class="sub">
         <label>Sensibilidad detector (franja roja)</label>
-        <input id="sens" type="range" min="1" max="100" value="42"/>
-        <small class="muted">Más a la derecha = más sensible. Si no detecta, súbelo.</small>
+        <input id="sens" type="range" min="1" max="100" value="40"/>
+        <small class="muted">Más a la derecha = más sensible. Si no detecta, súbelo un poco.</small>
       </div>
 
       <div class="sub list">
@@ -211,7 +211,7 @@
         renderList(currentLive);
       });
 
-      // ======= DETECTOR SIMPLE: actividad ROI con EMA + histeresis =======
+      // ======= DETECTOR SIMPLE con hold + histeresis + delay de arming =======
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -222,31 +222,39 @@
           video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
           btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+
+          // 2s de gracia antes de empezar a detectar (evita vibraciones)
+          detectionEnabled = false;
+          armingEndsAt = performance.now() + ARMING_DELAY_MS;
+          $('hudStatus').textContent = 'Calibrando… 2.0s';
           requestAnimationFrame(loop);
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros sencillos (ajustables)
-      const COOLDOWN_START_MS  = 2200;   // tras disparar SALIDA
-      const COOLDOWN_FINISH_MS = 1600;   // tras disparar META
-      const EMA_ALPHA          = 0.35;   // suavizado de actividad (0.2-0.5)
-      const MIN_PIXELS         = 24;     // área mínima absoluta (downscaled)
+      // Parámetros (ajustables)
+      const COOLDOWN_START_MS  = 2400;   // tras disparar SALIDA
+      const COOLDOWN_FINISH_MS = 1800;   // tras disparar META
+      const EMA_ALPHA          = 0.35;   // suavizado de actividad (0.2–0.5)
+      const MIN_PIXELS         = 28;     // área mínima (downscaled)
+      const HOLD_MS            = 140;    // tiempo mínimo por encima del umbral para disparar
+      const ARMING_DELAY_MS    = 2000;   // 2 s tras activar cámara
       let prevFrame=null;
+
       let armed=true, cooldownTimer=null;
+      let detectionEnabled=false, armingEndsAt=0;
 
       // Histeresis: umbral de subida y de bajada
       function thresholdsFromSens(sensVal){
         // sens 1..100 (más alto = más sensible)
         // actividad = % de píxeles diferentes (0..1)
-        // Subida más baja cuando sens es alto
-        const up = 0.10 - (sensVal/100)*0.06;   // 0.10 → 0.04
-        const down = up * 0.6;                  // baja para evitar serrucho
+        const up = 0.095 - (sensVal/100)*0.055;   // 0.095 → 0.04 aprox
+        const down = up * 0.6;                    // baja para evitar serrucho
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
 
       let actEma = 0;           // actividad suavizada (0..1)
       let above  = false;        // estamos “por encima” del umbral up
-      const actWindow = [];      // buffer para persistencia visual si la necesitas
+      let aboveSince = 0;        // instante desde el que estamos por encima
 
       const armAfter = (ms)=>{
         clearTimeout(cooldownTimer);
@@ -254,20 +262,35 @@
       };
 
       const trigger = async ()=>{
-        if(!armed) return;
+        if(!armed || !detectionEnabled) return;
         armed=false;
-        armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
-
+        above=false; // resetea estado
+        aboveSince=0;
         if(mode==='start'){
           const p=await startNext();
           if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+          armAfter(COOLDOWN_START_MS);
         }else{
           const p=await stopEarliest();
           if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+          armAfter(COOLDOWN_FINISH_MS);
         }
       };
 
       function loop(){
+        const nowPerf = performance.now();
+
+        // Gestiona el delay de arming (2 s)
+        if(!detectionEnabled){
+          const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
+          if(nowPerf >= armingEndsAt){
+            detectionEnabled = true;
+            $('hudStatus').textContent = 'Listo';
+          }else{
+            $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`;
+          }
+        }
+
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
         // ROI: ~8% del ancho, centrado
@@ -298,7 +321,6 @@
           tctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
           const frame = tctx.getImageData(0,0,dw,dh);
 
-          let activity = 0;
           if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
             const sensV = Number(sens.value); // 1..100
             const thrPix = 18 + Math.round((100 - sensV) * 0.6); // cuanto menor sens → más estricto
@@ -318,19 +340,27 @@
               diffPix = 0;
             }
 
-            activity = diffPix / Math.max(1,total); // 0..1
-
-            // EMA + histeresis
+            const activity = diffPix / Math.max(1,total); // 0..1
             actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
 
             const { up, down } = thresholdsFromSens(sensV);
 
-            if(!above && actEma >= up){
-              above = true;
-              // sólo dispara si estamos armados (cooldown terminado)
-              trigger();
-            }else if(above && actEma <= down){
-              above = false;
+            // Histeresis + HOLD
+            if(!above){
+              if(actEma >= up){
+                above = true;
+                aboveSince = nowPerf;
+              }
+            }else{
+              if(actEma <= down){
+                above = false;
+                aboveSince = 0;
+              }else{
+                // Estamos por encima: si llevamos >= HOLD_MS, disparamos
+                if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){
+                  trigger();
+                }
+              }
             }
           }
 
