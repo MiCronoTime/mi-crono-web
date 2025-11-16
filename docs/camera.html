@@ -9,7 +9,6 @@
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
-      --danger:#ff758d; --ok:#7cffb6; --ok2:#2bd97f;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -39,13 +38,11 @@
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
-    .btn.ghost{ background:#0f1217; border-color:var(--border) }
 
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    /* IMPORTANTE: ahora el overlay capta toques para selección */
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto;cursor:pointer}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
     /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
@@ -56,18 +53,11 @@
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
     .list{margin-top:12px}
-    .runner{
-      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;
-      cursor:pointer; transition: border-color .15s, box-shadow .15s;
-    }
-    .runner:hover{ box-shadow:0 0 0 2px rgba(94,161,255,.12) inset; }
-    .runner.selected{ border-color: var(--ok2); box-shadow: 0 0 0 2px rgba(43,217,127,.25) inset; }
+    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
-    .muted{color:var(--muted)} .ok{color:var(--ok);font-weight:700} .err{color:var(--danger);font-weight:700}
-    .mini{font-size:12px;color:var(--muted)}
+    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
   </style>
 </head>
 <body class="wrap">
@@ -110,10 +100,6 @@
       <div class="sub list">
         <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
         <div id="runningList">—</div>
-        <div class="mini">En modo META, toca un crono (lista o sobre el vídeo) para <b>preseleccionar</b> quién llegará (se marcará en <span style="color:var(--ok2);font-weight:800">verde</span>).</div>
-        <div id="undoWrap" style="margin-top:8px;display:none">
-          <button id="btnUndo" class="btn ghost" style="width:100%">DESHACER ÚLTIMA LLEGADA</button>
-        </div>
       </div>
     </section>
 
@@ -150,13 +136,13 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Mapeo slider UI → % efectivo (5..60) con centro=20 (no lo mostramos al usuario)
+    // Mapeo: slider UI (0..100) -> sensibilidad efectiva en %
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
-      if(v<=50) return 5 + (v/50)*(20-5);
-      return 20 + ((v-50)/50)*(60-20);
+      if(v<=50) return 5 + (v/50)*(20-5);        // 0..50 ⇒ 5%..20%
+      return 20 + ((v-50)/50)*(60-20);           // 50..100 ⇒ 20%..60%
     };
-    const updateSensLabel = ()=>{ $('sensValTxt').textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
+    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel();
     sens.oninput = updateSensLabel;
 
@@ -201,13 +187,10 @@
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
       }catch(_){ serverOffsetMS=0; }
 
-      // -------- Estado participantes + preselección ----------
+      // Estado participantes
       let participants=[];
-      let selectedFinisherId = null; // preseleccionado en META
-      async function reload(){
-        const snap=await getDocs(query(partsCol, orderBy('order','asc')));
-        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-      }
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
       const nextToStart = ()=> participants.find(p=>!p.startTS);
       const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
@@ -215,53 +198,33 @@
       // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-
-      let lastFinish = null; // {id, ref}
-      async function stopById(id){
-        const p = participants.find(x=>x.id===id);
-        if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() });
-        lastFinish = { id:p.id, ref:p.ref };
-        return p;
-      }
       async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); lastFinish={id:p.id,ref:p.ref}; return p; }
-      async function stopUndo(){
-        if(!lastFinish) return false;
-        await updateDoc(lastFinish.ref,{ stopTS:null });
-        lastFinish=null;
-        return true;
-      }
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
       // Suscripción -> cronos en vivo (ambas pantallas)
-      let currentLive=[];        // [{id, order, name, startMS}]
-      let overlayHitboxes=[];    // [{id, x, y, w, h}] para taps
+      let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
         const run = runningSorted().map(p=>({
-          id:p.id, order: p.order||0,
+          order: p.order||0,
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
         currentLive = run;
 
         const nxt = nextToStart();
-        $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
+        // Estado textual
         const hasStart = participants.some(p=>p.startTS);
         const hasStop  = participants.some(p=>p.stopTS);
         tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
-        // Si el seleccionado ya no está en curso, limpiar
-        if(selectedFinisherId && !currentLive.some(p=>p.id===selectedFinisherId)){
-          selectedFinisherId = null;
-        }
-
+        // Panel inferior informativo
         renderList(currentLive);
-        $('undoWrap').style.display = (mode==='finish' && lastFinish)? '' : 'none';
       });
 
-      // ======= DETECTOR (misma lógica que antes, NO TOCAR) =======
+      // ======= DETECTOR con hold + histeresis + delay 2s =======
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -281,6 +244,7 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
+      // Parámetros
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
@@ -293,8 +257,8 @@
       let detectionEnabled=false, armingEndsAt=0;
 
       function thresholdsFromSens(effPercent){
-        const frac = effPercent/100;
-        const up = 0.095 - frac*0.055;
+        const frac = effPercent/100; // 0.05..0.60 aprox
+        const up = 0.095 - frac*0.055;   // más sensibilidad => umbral menor
         const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
@@ -312,52 +276,14 @@
         if(!armed || !detectionEnabled) return;
         armed=false;
         above=false; aboveSince=0;
-
         if(mode==='start'){
           const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
           armAfter(COOLDOWN_START_MS);
-          return;
-        }
-
-        // META: usar preselección si existe; si no, el más antiguo
-        await reload();
-        const running = runningSorted();
-        if(!running.length){ armAfter(800); return; }
-
-        let chosen = null;
-        if(selectedFinisherId){
-          chosen = running.find(p=>p.id===selectedFinisherId) || null;
-        }
-        if(!chosen){
-          chosen = running[0] || null; // fallback
-        }
-
-        if(chosen){
-          await updateDoc(chosen.ref,{ stopTS:serverTimestamp() });
-          lastFinish = { id:chosen.id, ref:chosen.ref };
-          lastAction.textContent = `Fin: ${(chosen.name||chosen.id)}`;
-          // limpiar selección si era este
-          if(selectedFinisherId === chosen.id) selectedFinisherId = null;
-          armAfter(COOLDOWN_FINISH_MS);
         }else{
-          armAfter(800);
+          const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+          armAfter(COOLDOWN_FINISH_MS);
         }
       };
-
-      // --------- Overlay interactivo + bucle detección ----------
-      overlay.addEventListener('click', (ev)=>{
-        if(mode!=='finish') return;
-        // Convertir coordenadas a overlay (ya es el target)
-        const rect = overlay.getBoundingClientRect();
-        const x = (ev.clientX - rect.left);
-        const y = (ev.clientY - rect.top);
-        // Buscar el primer hitbox que contenga el punto
-        const hit = overlayHitboxes.find(b => x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h);
-        if(hit){
-          selectedFinisherId = (selectedFinisherId===hit.id) ? null : hit.id; // toggle
-          renderList(currentLive);
-        }
-      });
 
       function loop(){
         const nowPerf = performance.now();
@@ -380,10 +306,10 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay (con “cajas/botón” seleccionables)
-        drawOverlayTimes(w,h,currentLive, selectedFinisherId);
+        // Cronos overlay
+        drawOverlayTimes(w,h,currentLive);
 
-        // Procesamiento en ROI (igual que antes)
+        // Procesamiento en ROI: actividad %
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -391,6 +317,7 @@
           const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
           const sy=0, sh=vh;
 
+          // downscale para procesar ligero
           const dw = Math.max(50, Math.floor(sw * 0.35));
           const dh = Math.max(50, Math.floor(sh * 0.35));
           const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
@@ -399,8 +326,8 @@
           const frame = tctx.getImageData(0,0,dw,dh);
 
           if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-            const eff = uiToPercent(sens.value);
-            const sensV = eff;
+            const eff = uiToPercent(sens.value);     // 5..60 %
+            const sensV = eff;                       // reusamos como 0..100 escala
             const thrPix = 18 + Math.round((100 - sensV) * 0.6);
 
             let diffPix = 0, total=0;
@@ -414,11 +341,12 @@
 
             if(diffPix < MIN_PIXELS){ diffPix = 0; }
 
-            const activity = diffPix / Math.max(1,total);
+            const activity = diffPix / Math.max(1,total); // 0..1
             actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
 
             const { up, down } = thresholdsFromSens(eff);
 
+            // Histeresis + HOLD
             if(!above){
               if(actEma >= up){ above = true; aboveSince = nowPerf; }
             }else{
@@ -433,40 +361,25 @@
         requestAnimationFrame(loop);
       }
 
-      // Mapea y dibuja cajas + textos; guarda hitboxes para toques
-      function roundRect(ctx, x, y, w, h, r){
-        const rr = Math.min(r, w/2, h/2);
-        ctx.beginPath();
-        ctx.moveTo(x+rr, y);
-        ctx.arcTo(x+w, y, x+w, y+h, rr);
-        ctx.arcTo(x+w, y+h, x, y+h, rr);
-        ctx.arcTo(x, y+h, x, y, rr);
-        ctx.arcTo(x, y, x+w, y, rr);
-        ctx.closePath();
-      }
-
-      function drawOverlayTimes(w,h,rows,selectedId){
-        overlayHitboxes = [];
+      function drawOverlayTimes(w,h,rows){
         if(!rows.length) return;
-
         const nowSync = Date.now() + serverOffsetMS;
+
+        // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        // Tamaños base: mismo cuerpo pero 50% más de separación entre filas
-        const baseSize = Math.max(18, Math.floor(h*0.026));
-        const gap = Math.max(5, Math.floor(h*0.011) * 1.5);   // +50% de espacio
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // compacto para iPhone
+        const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad  = Math.floor(h*0.14);
-        const rowHeight = Math.round(baseSize * 1.25);        // caja con margen vertical
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowHeight+gap)));
+        const topPad = Math.floor(h*0.14); // aire para HUD
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
-        octx.textBaseline = 'middle';
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-
-        // Si no hay selección, pre-resaltar el más antiguo (último en sorted)
-        const fallbackId = sorted[sorted.length-1]?.id || null;
-        const highlightId = selectedId || fallbackId;
+        octx.textBaseline = 'top';
+        octx.fillStyle = '#ffffff';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
@@ -474,47 +387,18 @@
           const elapsed = nowSync - (r.startMS||nowSync);
           const tText = fmt(elapsed);
           const nText = r.name || '—';
-          const isSel = (r.id === highlightId);
 
-          // layout de caja "botón"
-          const padX = Math.floor(w*0.03);
-          const boxX = leftPad - padX;
-          const boxW = w - leftPad - rightPad + 2*padX;
-          const boxY = y - Math.floor(rowHeight/2);
-          const boxH = rowHeight;
-
-          // Fondo/borde de la caja
-          if(isSel){
-            octx.fillStyle = 'rgba(43,217,127,.16)';
-            roundRect(octx, boxX, boxY, boxW, boxH, 12); octx.fill();
-            octx.lineWidth = 2;
-            octx.strokeStyle = 'rgba(43,217,127,.65)';
-            roundRect(octx, boxX, boxY, boxW, boxH, 12); octx.stroke();
-          }else{
-            octx.fillStyle = 'rgba(0,0,0,.22)';
-            roundRect(octx, boxX, boxY, boxW, boxH, 12); octx.fill();
-          }
-
-          // Sombra del texto
-          octx.strokeStyle = 'rgba(0,0,0,.55)';
-          octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
-
-          // Tiempo (izq)
+          // tiempo (izq)
           octx.textAlign='left';
           octx.strokeText(tText, leftPad, y);
-          octx.fillStyle = isSel ? '#2bd97f' : '#ffffff';
           octx.fillText  (tText, leftPad, y);
 
-          // Nombre (der)
+          // nombre (der)
           octx.textAlign='right';
           octx.strokeText(nText, w - rightPad, y);
-          octx.fillStyle = isSel ? '#b3ffd5' : '#ffffff';
           octx.fillText  (nText, w - rightPad, y);
 
-          // Guardar hitbox de selección táctil
-          overlayHitboxes.push({ id:r.id, x: boxX, y: boxY, w: boxW, h: boxH });
-
-          y += rowHeight + gap;
+          y += baseSize + gap;
         }
       }
 
@@ -522,43 +406,10 @@
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
         if(!run.length){ list.innerHTML='—'; return; }
-
-        const rows = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-        // fallback para borde verde cuando no hay selección
-        const fallbackId = rows[rows.length-1]?.id || null;
-
-        list.innerHTML = rows.map(p=>{
-          const live = fmt(nowSync-(p.startMS||nowSync));
-          const selClass =
-            (p.id===selectedFinisherId || (!selectedFinisherId && p.id===fallbackId))
-            ? ' selected' : '';
-          return `<div class="runner${selClass}" data-id="${p.id}">
-                    <div class="badge">#${p.order}</div>
-                    <div class="rname">${p.name}</div>
-                    <div class="rtime">${live}</div>
-                  </div>`;
-        }).join('');
-
-        // Click para preselección (solo META)
-        if(mode==='finish'){
-          [...list.querySelectorAll('.runner')].forEach(el=>{
-            el.onclick = ()=>{
-              const id = el.getAttribute('data-id');
-              selectedFinisherId = (selectedFinisherId===id) ? null : id;
-              renderList(run);
-            };
-          });
-        }
+        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+          .join('');
       }
-
-      // Undo
-      $('btnUndo').onclick = async ()=>{
-        const ok = await stopUndo();
-        if(ok){ lastAction.textContent='Última llegada deshecha'; $('undoWrap').style.display='none'; }
-      };
-
-      // ======= Variables del detector (sin cambios) =======
-      let detectionEnabled=false, armingEndsAt=0;
 
     }catch(e){
       window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
