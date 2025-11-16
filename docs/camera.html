@@ -9,6 +9,8 @@
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
+      --ok:#7cffb6; --okDark:#165a3f; --okRing:rgba(127,255,182,.35);
+      --danger:#ff758d;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -38,11 +40,12 @@
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+    .btn.ghost{ background:#0f1217; border-color:var(--border) }
 
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:none}
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* <-- capturamos clicks */
 
     /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
@@ -53,11 +56,18 @@
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
     .list{margin-top:12px}
-    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
+    .runner{
+      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
+      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;
+      cursor:pointer;
+    }
+    .runner.selected{
+      border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset;
+    }
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
-    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
+    .muted{color:var(--muted)} .ok{color:var(--ok);font-weight:700} .err{color:var(--danger);font-weight:700}
   </style>
 </head>
 <body class="wrap">
@@ -125,7 +135,9 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    $('title').textContent && (document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`);
+
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
@@ -198,30 +210,63 @@
       // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+      async function stopById(pid){ await reload(); const p=participants.find(x=>x.id===pid && x.startTS && !x.stopTS); if(!p) return null;
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
+      // ===== Estado visual / selección del próximo en META =====
+      let currentLive=[];          // [{id,order,name,startMS}]
+      let selectedRunnerId=null;   // quién se parará al detectar (en META)
+      let overlayRowHitboxes=[];   // [{id,x,y,w,h}] para clicks en canvas
+
+      function ensureSelection(){
+        if(mode!=='finish') return;
+        // si el seleccionado no está en curso, seleccionar al más antiguo
+        const ids = new Set(currentLive.map(r=>r.id));
+        if(!selectedRunnerId || !ids.has(selectedRunnerId)){
+          selectedRunnerId = currentLive.length ? currentLive.slice().sort((a,b)=>a.startMS-b.startMS)[0].id : null;
+        }
+      }
+
+      function renderList(){
+        const nowSync = Date.now() + serverOffsetMS;
+        const list = $('runningList');
+        if(!currentLive.length){ list.innerHTML='—'; return; }
+        const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+        list.innerHTML = rows.map(p=>{
+          const sel = (mode==='finish' && p.id===selectedRunnerId) ? ' selected' : '';
+          return `<div class="runner${sel}" data-id="${p.id}">
+            <div class="badge">#${p.order}</div>
+            <div class="rname">${p.name}</div>
+            <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
+          </div>`;
+        }).join('');
+        // clic para seleccionar
+        if(mode==='finish'){
+          [...list.querySelectorAll('.runner')].forEach(el=>{
+            el.onclick=()=>{ selectedRunnerId = el.dataset.id; renderList(); };
+          });
+        }
+      }
+
       // Suscripción -> cronos en vivo (ambas pantallas)
-      let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
-        const run = runningSorted().map(p=>({
-          order: p.order||0,
+        currentLive = runningSorted().map(p=>({
+          id:p.id, order: p.order||0,
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
-        currentLive = run;
 
         const nxt = nextToStart();
-        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+        $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
         // Estado textual
         const hasStart = participants.some(p=>p.startTS);
         const hasStop  = participants.some(p=>p.stopTS);
         tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
-        // Panel inferior informativo
-        renderList(currentLive);
+        ensureSelection();
+        renderList();
       });
 
       // ======= DETECTOR con hold + histeresis + delay 2s =======
@@ -244,7 +289,7 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros
+      // Parámetros detector
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
@@ -272,18 +317,41 @@
         cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
       };
 
+      // Disparo
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
         above=false; aboveSince=0;
+
         if(mode==='start'){
           const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
           armAfter(COOLDOWN_START_MS);
-        }else{
-          const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
-          armAfter(COOLDOWN_FINISH_MS);
+          return;
         }
+
+        // META: parar el seleccionado (o el más antiguo si no hay selección)
+        ensureSelection();
+        const id = selectedRunnerId || (currentLive[0]?.id || null);
+        if(!id){ armAfter(800); return; }
+        const p=await stopById(id);
+        if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+        // tras parar, la selección pasa automáticamente al siguiente en curso
+        setTimeout(()=>{ ensureSelection(); renderList(); }, 50);
+        armAfter(COOLDOWN_FINISH_MS);
       };
+
+      // Captura de toques en el overlay para elegir participante
+      overlay.addEventListener('click', (ev)=>{
+        if(mode!=='finish' || !overlayRowHitboxes.length) return;
+        const rect = overlay.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        const hit = overlayRowHitboxes.find(r=> x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h );
+        if(hit){
+          selectedRunnerId = hit.id;
+          renderList(); // refresca selección en lista
+        }
+      });
 
       function loop(){
         const nowPerf = performance.now();
@@ -306,8 +374,8 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay
-        drawOverlayTimes(w,h,currentLive);
+        // Cronos overlay (con filas +50% y selección en verde)
+        drawOverlayTimes(w,h,currentLive, selectedRunnerId);
 
         // Procesamiento en ROI: actividad %
         const vw=video.videoWidth, vh=video.videoHeight;
@@ -361,24 +429,22 @@
         requestAnimationFrame(loop);
       }
 
-      function drawOverlayTimes(w,h,rows){
+      function drawOverlayTimes(w,h,rows, selectedId){
+        overlayRowHitboxes = [];
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
 
         // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026)); // compacto para iPhone
-        const gap = Math.max(5, Math.floor(h*0.011));
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // tamaño compacto
+        const gap = Math.max(5, Math.floor(h*0.011)) * 1.5;  // +50% separación
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
         const topPad = Math.floor(h*0.14); // aire para HUD
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
-        octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
         octx.textBaseline = 'top';
-        octx.fillStyle = '#ffffff';
-        octx.strokeStyle = 'rgba(0,0,0,.55)';
         octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
         let y = topPad;
@@ -387,6 +453,12 @@
           const elapsed = nowSync - (r.startMS||nowSync);
           const tText = fmt(elapsed);
           const nText = r.name || '—';
+          const isSel = (mode==='finish' && r.id===selectedId);
+
+          // estilos por selección
+          octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+          octx.strokeStyle = isSel ? 'rgba(0,0,0,.65)' : 'rgba(0,0,0,.55)';
+          octx.fillStyle   = isSel ? '#7cffb6' : '#ffffff';
 
           // tiempo (izq)
           octx.textAlign='left';
@@ -398,17 +470,27 @@
           octx.strokeText(nText, w - rightPad, y);
           octx.fillText  (nText, w - rightPad, y);
 
+          // guardar área "clicable" de la fila (entre extremos de textos aprox.)
+          const rowHeight = baseSize + 6;
+          overlayRowHitboxes.push({
+            id:r.id, x: leftPad-10, y, w: w - (leftPad+rightPad) + 20, h: rowHeight
+          });
+
           y += baseSize + gap;
         }
-      }
 
-      function renderList(run){
-        const nowSync = Date.now() + serverOffsetMS;
-        const list = $('runningList');
-        if(!run.length){ list.innerHTML='—'; return; }
-        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
-          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
-          .join('');
+        // Si hay seleccionado, dibuja una “banda” suave indicativa detrás
+        if(mode==='finish' && selectedId){
+          for(const hb of overlayRowHitboxes){
+            if(hb.id===selectedId){
+              octx.save();
+              octx.fillStyle='rgba(127,255,182,.12)';
+              octx.fillRect(hb.x, hb.y-4, hb.w, hb.h+8);
+              octx.restore();
+              break;
+            }
+          }
+        }
       }
 
     }catch(e){
