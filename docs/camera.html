@@ -122,6 +122,8 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
+    $('title').textContent = `Mi Crono — CÁMARA`;
+    $('title');
     document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
@@ -142,7 +144,7 @@
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-        serverTimestamp, collection, query, orderBy, getDocs, addDoc, where
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -197,7 +199,7 @@
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
-        currentLive = run; // para overlay y lista
+        currentLive = run;
 
         const nxt = nextToStart();
         document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
@@ -207,11 +209,38 @@
         const hasStop  = participants.some(p=>p.stopTS);
         tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
-        // Panel inferior informativo (render inicial)
-        renderList(run);
+        // Panel inferior informativo
+        renderList(currentLive);
       });
 
-      // ===== Cámara + detección =====
+      // ======== CÁMARA + DETECCIÓN MEJORADA (CAPAS 1 y 2) ========
+
+      // ---- AJUSTABLES (sin tocar UI) ----
+      const ROI_WIDTH_PCT    = 0.06;   // 6% del ancho (franja estrecha)
+      const MIN_AREA_PCT     = 0.012;  // área mínima activa vs ROI (1.2% aprox)
+      const PERSIST_MS       = 140;    // actividad continua mínima (ms)
+      const CROSS_WINDOW_MS  = 400;    // ventana A→B para cruce válido (ms)
+      const COOLDOWN_START_MS  = 3000; // cooldown tras SALIDA
+      const COOLDOWN_FINISH_MS = 1500; // cooldown tras META
+      const BG_LEARN_RATE    = 0.05;   // 0..1 (EMA) — más alto aprende más rápido el fondo
+
+      // Procesamiento en baja resolución para suavidad
+      const PROC_W = 320; // ancho de trabajo del ROI en píxeles (se reescala el vídeo)
+      let prevTime = 0;
+
+      // Estado del detector
+      let armed = true, cooldownTimer=null;
+      let bgBuf = null;    // fondo EMA en escala de grises
+      let persistStart = 0; // inicio de ventana de persistencia
+      let lastCrossTimeA = 0; // última vez que cruzó A
+      let lastCentroidX = null;
+
+      // Buffers temporales para perf
+      const tmpCanvas = document.createElement('canvas');
+      const tmpCtx = tmpCanvas.getContext('2d', { willReadFrequently:true });
+
+      const armAfter=(ms)=>{ clearTimeout(cooldownTimer); cooldownTimer=setTimeout(()=>armed=true, ms); };
+
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -226,23 +255,10 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // === Detector por diferencia, con "refractario" por modo ===
-      const COOLDOWN_START_MS  = 3000; // 3 s tras marcar SALIDA
-      const COOLDOWN_FINISH_MS = 1500; // 1.5 s tras marcar META
-      let prev=null, armed=true, cooldownTimer=null;
-
-      const armAfter = (ms)=>{
-        clearTimeout(cooldownTimer);
-        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
-      };
-
       const trigger = async ()=>{
         if(!armed) return;
         armed=false;
-
-        // aplica cooldown según modo
         armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
-
         if(mode==='start'){
           const p=await startNext();
           if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
@@ -252,59 +268,18 @@
         }
       };
 
-      // Dibujo principal en overlay
-      function loop(){
-        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
-
-        // Franjas rojas
-        const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
-        octx.clearRect(0,0,w,h);
-        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
-
-        // ⬇ Tiempos superpuestos sobre el vídeo (overlay)
-        drawOverlayTimes(w,h,currentLive);
-
-        // Detector por diferencia
-        const vw=video.videoWidth, vh=video.videoHeight;
-        if(vw && vh){
-          const scaleX = vw / stage.clientWidth;
-          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
-          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
-          const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
-          const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
-          const frame=tctx.getImageData(sx,0,sw,vh);
-
-          if(prev && prev.width===sw && prev.height===vh){
-            const sensV=Number(sens.value);
-            const thr=20+Math.round((100-sensV)*1.2);
-            const pct=0.04+(100-sensV)*0.0006;
-            let diff=0,total=0;
-            for(let i=0;i<frame.data.length;i+=16){
-              const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
-              if(d>thr) diff++; total++;
-            }
-            if((diff/Math.max(1,total))>pct) trigger();
-          }
-          prev=frame;
-        }
-        requestAnimationFrame(loop);
-      }
-
-      // Dibuja nombres/tiempos sobre el overlay (HUD), en vivo
+      // Dibuja tiempos superpuestos (como antes)
       function drawOverlayTimes(w,h,rows){
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
 
-        // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026)); // tamaño pensado para iPhone
+        const baseSize = Math.max(18, Math.floor(h*0.026));
         const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14); // deja aire para HUD
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
+        const topPad = Math.floor(h*0.14);
 
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
         octx.textBaseline = 'top';
@@ -313,18 +288,17 @@
         octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
         let y = topPad;
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
         for(let i=0;i<maxRows;i++){
           const r = sorted[i];
-          const elapsed = nowSync - (r.startMS||nowSync);   // empieza en 0 al marcar salida
+          const elapsed = nowSync - (r.startMS||nowSync);
           const tText = fmt(elapsed);
           const nText = r.name || '—';
 
-          // tiempo (izq)
           octx.textAlign='left';
           octx.strokeText(tText, leftPad, y);
           octx.fillText  (tText, leftPad, y);
 
-          // nombre (der)
           octx.textAlign='right';
           octx.strokeText(nText, w - rightPad, y);
           octx.fillText  (nText, w - rightPad, y);
@@ -333,34 +307,138 @@
         }
       }
 
-      // Render de la lista lateral “En curso”
       function renderList(run){
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
         if(!run.length){ list.innerHTML='—'; return; }
         list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
-          .map(p=>`
-            <div class="runner" data-start="${p.startMS || nowSync}">
-              <div class="badge">#${p.order}</div>
-              <div class="rname">${p.name}</div>
-              <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
-            </div>
-          `).join('');
+          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+          .join('');
       }
 
-      // ====== Ticker de la lista “En curso” (LIVE) ======
-      (function liveListTicker(){
-        function tick(){
-          const nowSync = Date.now() + serverOffsetMS;
-          document.querySelectorAll('#runningList .runner').forEach(el=>{
-            const start = Number(el.dataset.start || 0);
-            const tEl = el.querySelector('.rtime');
-            if (start && tEl) tEl.textContent = fmt(nowSync - start);
-          });
-          requestAnimationFrame(tick);
+      // --------- Bucle principal ----------
+      function loop(ts){
+        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
+        octx.clearRect(0,0,w,h);
+
+        // ROI y líneas (dibujo UI igual)
+        const roiWidth=Math.round(w*ROI_WIDTH_PCT);
+        const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+        // Líneas A / B (bordes de la franja)
+        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+
+        // Tiempos superpuestos (como antes)
+        drawOverlayTimes(w,h,currentLive);
+
+        // Procesamiento si el vídeo está listo
+        const vw=video.videoWidth, vh=video.videoHeight;
+        if(vw && vh){
+          // Prepara canvas temporal del tamaño del vídeo para muestrear sólo el ROI
+          const scaleX = vw / stage.clientWidth;
+          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+          const sh=vh;
+
+          // Redimensionamos a PROC_W manteniendo aspecto en X (ROI)
+          const procW = PROC_W;
+          const procH = Math.max(60, Math.round(sh * (procW/sw)));
+
+          tmpCanvas.width = procW;
+          tmpCanvas.height= procH;
+          tmpCtx.drawImage(video, sx, 0, sw, sh, 0, 0, procW, procH);
+
+          // Extrae frame gris
+          const frame = tmpCtx.getImageData(0,0,procW,procH);
+          const gray = new Uint8ClampedArray(procW*procH);
+
+          for(let i=0, j=0; i<frame.data.length; i+=4, j++){
+            const r=frame.data[i], g=frame.data[i+1], b=frame.data[i+2];
+            // luminancia simple
+            gray[j] = (r*0.2126 + g*0.7152 + b*0.0722) | 0;
+          }
+
+          // Inicializa fondo si no hay
+          if(!bgBuf || bgBuf.length!==gray.length){
+            bgBuf = new Float32Array(gray.length);
+            for(let k=0;k<gray.length;k++) bgBuf[k]=gray[k];
+          }
+
+          // Sensibilidad del slider → umbral y requisitos
+          const sensV=Number(sens.value); // 1..100
+          const THRESH = 10 + Math.round((100-sensV)*0.9);           // umbral de diferencia
+          const MIN_AREA = Math.max(12, Math.floor(gray.length*MIN_AREA_PCT)); // área mínima activa
+          const PERSIST_REQUIRED = PERSIST_MS;                        // ms de persistencia
+
+          // Sustracción de fondo + máscara binaria
+          let activeCount=0; // área activa
+          let sumX=0, sumY=0; // centroide
+          const mask = new Uint8Array(gray.length);
+
+          for(let k=0;k<gray.length;k++){
+            const g = gray[k];
+            const bg = bgBuf[k];
+            const d = Math.abs(g - bg);
+            // actualiza fondo (EMA)
+            bgBuf[k] = bg + BG_LEARN_RATE * (g - bg);
+
+            if(d > THRESH){
+              mask[k]=1;
+              activeCount++;
+              // calcula centroide (coordenadas en espacio procesado)
+              const y = Math.floor(k / procW);
+              const x = k - y*procW;
+              sumX += x;
+              sumY += y;
+            }
+          }
+
+          const now = performance.now();
+          const hasActivity = activeCount >= MIN_AREA;
+
+          // Persistencia: exige actividad continua N ms
+          if(hasActivity){
+            if(persistStart===0) persistStart=now;
+          }else{
+            persistStart=0;
+            lastCentroidX=null; // sin actividad, resetea tracking sencillo
+          }
+
+          const persisted = persistStart && (now - persistStart >= PERSIST_REQUIRED);
+
+          // Si hay blob estable, calcula centroide y chequea cruce A→B
+          if(persisted){
+            const cxPix = sumX/activeCount; // 0..procW
+            const centroidX = cxPix;
+
+            // Posiciones equivalentes de líneas A/B en espacio procesado
+            const A = 2;                 // ~borde izq (2 px)
+            const B = procW - 2;         // ~borde der
+
+            // Ventana de cruce: si tocó A recientemente y ahora superó B => cruce válido.
+            // Si no ha tocado A aún, detecta “entrada” por el lado A (centroide < 10%).
+            const nearA = centroidX < procW*0.10;
+            const nearB = centroidX > procW*0.90;
+
+            if(nearA) lastCrossTimeA = now;
+
+            // Velocidad aproximada: requiere avance hacia derecha (centroide aumenta)
+            let movingRight = true;
+            if(lastCentroidX!=null) movingRight = centroidX > lastCentroidX + 0.5; // >0.5 px
+            lastCentroidX = centroidX;
+
+            if(movingRight && lastCrossTimeA && (now - lastCrossTimeA) <= CROSS_WINDOW_MS && nearB){
+              // doble cruce A→B dentro de ventana → posible trigger
+              if(armed){ trigger(); }
+              // evita repetición inmediata
+              lastCrossTimeA = 0;
+              persistStart = 0;
+            }
+          }
         }
-        requestAnimationFrame(tick);
-      })();
+
+        requestAnimationFrame(loop);
+      }
 
     }catch(e){
       window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
