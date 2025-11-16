@@ -89,9 +89,13 @@
       </div>
 
       <div class="sub">
-        <label>Sensibilidad detector (franja roja)</label>
-        <input id="sens" type="range" min="1" max="100" value="40"/>
-        <small class="muted">Más a la derecha = más sensible. Si no detecta, súbelo un poco.</small>
+        <label>
+          Sensibilidad detector (franja roja)
+          <span id="sensValTxt" class="muted">(20%)</span>
+        </label>
+        <!-- UI: 0..100, centro=50 → 20% efectivo -->
+        <input id="sens" type="range" min="0" max="100" value="50"/>
+        <small class="muted">Centro = 20 %. Mueve a la derecha para más sensibilidad.</small>
       </div>
 
       <div class="sub list">
@@ -125,13 +129,23 @@
     document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
-    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
     tag.textContent=`Evento ${code||'—'}`;
     if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
+
+    // Mapeo: slider UI (0..100) -> sensibilidad efectiva en %
+    const uiToPercent = (ui)=>{
+      const v = Math.max(0, Math.min(100, Number(ui)||50));
+      if(v<=50) return 5 + (v/50)*(20-5);        // 0..50 ⇒ 5%..20%
+      return 20 + ((v-50)/50)*(60-20);           // 50..100 ⇒ 20%..60%
+    };
+    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
+    updateSensLabel();
+    sens.oninput = updateSensLabel;
 
     // ---------- Reloj sincronizado con servidor ----------
     let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
@@ -223,7 +237,7 @@
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
           btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
 
-          // 2s de gracia antes de empezar a detectar (evita vibraciones)
+          // 2s de gracia antes de detectar
           detectionEnabled = false;
           armingEndsAt = performance.now() + ARMING_DELAY_MS;
           $('hudStatus').textContent = 'Calibrando… 2.0s';
@@ -231,30 +245,28 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros (ajustables)
-      const COOLDOWN_START_MS  = 2400;   // tras disparar SALIDA
-      const COOLDOWN_FINISH_MS = 1800;   // tras disparar META
-      const EMA_ALPHA          = 0.35;   // suavizado de actividad (0.2–0.5)
-      const MIN_PIXELS         = 28;     // área mínima (downscaled)
-      const HOLD_MS            = 140;    // tiempo mínimo por encima del umbral para disparar
-      const ARMING_DELAY_MS    = 2000;   // 2 s tras activar cámara
+      // Parámetros
+      const COOLDOWN_START_MS  = 2400;
+      const COOLDOWN_FINISH_MS = 1800;
+      const EMA_ALPHA          = 0.35;
+      const MIN_PIXELS         = 28;
+      const HOLD_MS            = 140;
+      const ARMING_DELAY_MS    = 2000;
       let prevFrame=null;
 
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
 
-      // Histeresis: umbral de subida y de bajada
-      function thresholdsFromSens(sensVal){
-        // sens 1..100 (más alto = más sensible)
-        // actividad = % de píxeles diferentes (0..1)
-        const up = 0.095 - (sensVal/100)*0.055;   // 0.095 → 0.04 aprox
-        const down = up * 0.6;                    // baja para evitar serrucho
+      function thresholdsFromSens(effPercent){
+        const frac = effPercent/100; // 0.05..0.60 aprox
+        const up = 0.095 - frac*0.055;   // más sensibilidad => umbral menor
+        const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
 
-      let actEma = 0;           // actividad suavizada (0..1)
-      let above  = false;        // estamos “por encima” del umbral up
-      let aboveSince = 0;        // instante desde el que estamos por encima
+      let actEma = 0;
+      let above  = false;
+      let aboveSince = 0;
 
       const armAfter = (ms)=>{
         clearTimeout(cooldownTimer);
@@ -264,15 +276,12 @@
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
-        above=false; // resetea estado
-        aboveSince=0;
+        above=false; aboveSince=0;
         if(mode==='start'){
-          const p=await startNext();
-          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+          const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
           armAfter(COOLDOWN_START_MS);
         }else{
-          const p=await stopEarliest();
-          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+          const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
           armAfter(COOLDOWN_FINISH_MS);
         }
       };
@@ -280,15 +289,11 @@
       function loop(){
         const nowPerf = performance.now();
 
-        // Gestiona el delay de arming (2 s)
+        // Delay de arming
         if(!detectionEnabled){
           const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
-          if(nowPerf >= armingEndsAt){
-            detectionEnabled = true;
-            $('hudStatus').textContent = 'Listo';
-          }else{
-            $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`;
-          }
+          if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
+          else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
         }
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
@@ -322,11 +327,11 @@
           const frame = tctx.getImageData(0,0,dw,dh);
 
           if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-            const sensV = Number(sens.value); // 1..100
-            const thrPix = 18 + Math.round((100 - sensV) * 0.6); // cuanto menor sens → más estricto
-            let diffPix = 0, total=0;
+            const eff = uiToPercent(sens.value);     // 5..60 %
+            const sensV = eff;                       // reusamos como 0..100 escala
+            const thrPix = 18 + Math.round((100 - sensV) * 0.6);
 
-            // calcula píxeles "distintos"
+            let diffPix = 0, total=0;
             for(let i=0;i<frame.data.length;i+=4){
               const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
                         Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
@@ -335,32 +340,19 @@
               total++;
             }
 
-            // filtra ruido muy pequeño
-            if(diffPix < MIN_PIXELS){
-              diffPix = 0;
-            }
+            if(diffPix < MIN_PIXELS){ diffPix = 0; }
 
             const activity = diffPix / Math.max(1,total); // 0..1
             actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
 
-            const { up, down } = thresholdsFromSens(sensV);
+            const { up, down } = thresholdsFromSens(eff);
 
             // Histeresis + HOLD
             if(!above){
-              if(actEma >= up){
-                above = true;
-                aboveSince = nowPerf;
-              }
+              if(actEma >= up){ above = true; aboveSince = nowPerf; }
             }else{
-              if(actEma <= down){
-                above = false;
-                aboveSince = 0;
-              }else{
-                // Estamos por encima: si llevamos >= HOLD_MS, disparamos
-                if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){
-                  trigger();
-                }
-              }
+              if(actEma <= down){ above = false; aboveSince = 0; }
+              else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
             }
           }
 
