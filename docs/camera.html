@@ -44,7 +44,7 @@
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* <- capta clicks en overlay */
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* overlay clicable */
 
     /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
@@ -109,7 +109,7 @@
       <div class="sub list">
         <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
         <div id="runningList">—</div>
-        <div class="mini">En META, toca un crono (lista o sobre el vídeo) para <b>preseleccionar</b> quién llegará (verde).</div>
+        <div class="mini">En META, toca un crono (lista o sobre el vídeo) para <b>preseleccionar</b> quién llegará (verás un recuadro verde).</div>
         <div id="undoWrap" style="margin-top:8px;display:none">
           <button id="btnUndo" class="btn ghost" style="width:100%">DESHACER ÚLTIMA LLEGADA</button>
         </div>
@@ -149,7 +149,7 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Slider → % efectivo (5..60), centro 20 (no mostrado)
+    // Slider → % efectivo (5..60), centro=20
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
       if(v<=50) return 5 + (v/50)*(20-5);
@@ -202,14 +202,16 @@
 
       // -------- Estado participantes + preselección ----------
       let participants=[];
-      let selectedFinisherId = null; // preselección manual (META)
+      let selectedFinisherId = null; // selección manual (META)
+
       async function reload(){
         const snap=await getDocs(query(partsCol, orderBy('order','asc')));
         participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
       }
       const nextToStart = ()=> participants.find(p=>!p.startTS);
-      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
-        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+      const runningSortedAsc = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) ); // asc: más antiguo primero
+      const runningSortedDesc = ()=> runningSortedAsc().slice().reverse(); // más reciente primero
 
       // Acciones
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
@@ -223,8 +225,6 @@
         lastFinish = { id:p.id, ref:p.ref };
         return p;
       }
-      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); lastFinish={id:p.id,ref:p.ref}; return p; }
       async function stopUndo(){
         if(!lastFinish) return false;
         await updateDoc(lastFinish.ref,{ stopTS:null });
@@ -233,15 +233,14 @@
       }
 
       // Suscripción -> cronos en vivo
-      let currentLive=[];
+      let currentLive=[]; // [{id,order,name,startMS}]
       onSnapshot(partsCol, async ()=>{
         await reload();
-        const run = runningSorted().map(p=>({
-          id:p.id, order: p.order||0,
+        currentLive = runningSortedAsc().map(p=>({
+          id:p.id, order:p.order||0,
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
-        currentLive = run;
 
         const nxt = nextToStart();
         $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
@@ -255,21 +254,37 @@
           selectedFinisherId = null;
         }
 
-        renderList(currentLive);
+        renderList();
         $('undoWrap').style.display = (mode==='finish' && lastFinish)? '' : 'none';
       });
 
-      // ======= Detector (SIN CAMBIOS respecto a la versión anterior) =======
+      // ======= Detección (mismos parámetros que “ok” previo) =======
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
       const MIN_PIXELS         = 28;
       const HOLD_MS            = 140;
       const ARMING_DELAY_MS    = 2000;
-      let prevFrame=null;
 
+      let prevFrame=null;
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
+
+      function thresholdsFromSens(effPercent){
+        const frac = effPercent/100; // 0.05..0.60
+        const up = 0.095 - frac*0.055;
+        const down = up * 0.6;
+        return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
+      }
+
+      let actEma = 0;
+      let above  = false;
+      let aboveSince = 0;
+
+      const armAfter = (ms)=>{
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
+      };
 
       btnEnable.onclick = async ()=>{
         try{
@@ -289,23 +304,20 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      function thresholdsFromSens(effPercent){
-        const frac = effPercent/100; // 0.05..0.60
-        const up = 0.095 - frac*0.055;
-        const down = up * 0.6;
-        return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
-      }
+      // --------- Overlay clicable ----------
+      let overlayHit = []; // [{id, y1, y2}]
+      overlay.addEventListener('click', (ev)=>{
+        if(mode!=='finish' || !currentLive.length) return;
+        const rect = overlay.getBoundingClientRect();
+        const y = ev.clientY - rect.top;
+        const hit = overlayHit.find(h=> y>=h.y1 && y<=h.y2);
+        if(hit){
+          selectedFinisherId = (selectedFinisherId===hit.id) ? null : hit.id;
+          renderList(); // sincroniza lista
+        }
+      });
 
-      let actEma = 0;
-      let above  = false;
-      let aboveSince = 0;
-
-      const armAfter = (ms)=>{
-        clearTimeout(cooldownTimer);
-        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
-      };
-
-      // Disparo principal (SIN CAMBIOS: solo usa selección/predicción)
+      // Disparo principal
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
@@ -317,17 +329,17 @@
           return;
         }
 
-        // META: usar manual si hay; si no, el más antiguo (predicción)
+        // META: usa selección manual si existe; si no, el más antiguo en curso (predicción)
         await reload();
-        const running = runningSorted();
-        if(!running.length){ armAfter(800); return; }
+        const runningAsc = runningSortedAsc();
+        if(!runningAsc.length){ armAfter(800); return; }
 
         let chosen = null;
         if(selectedFinisherId){
-          chosen = running.find(p=>p.id===selectedFinisherId) || null;
+          chosen = runningAsc.find(p=>p.id===selectedFinisherId) || null;
         }
         if(!chosen){
-          chosen = running[0] || null; // predicción “siguiente en llegar”
+          chosen = runningAsc[0] || null; // más antiguo (orden lógico si no hay adelantamientos)
         }
 
         if(chosen){
@@ -341,30 +353,7 @@
         }
       };
 
-      // --------- Overlay seleccionable + layout con +20% de separación ----------
-      let overlayHit = []; // [{id, y1, y2}] filas dibujadas
-      overlay.addEventListener('click', (ev)=>{
-        if(mode!=='finish' || !currentLive.length) return;
-        const rect = overlay.getBoundingClientRect();
-        const y = ev.clientY - rect.top;
-        const hit = overlayHit.find(h=> y>=h.y1 && y<=h.y2);
-        if(hit){
-          selectedFinisherId = (selectedFinisherId===hit.id) ? null : hit.id;
-          renderList(currentLive); // sincroniza lista
-        }
-      });
-
-      function roundRectPath(ctx, x, y, w, h, r){
-        const rr = Math.min(r, w/2, h/2);
-        ctx.beginPath();
-        ctx.moveTo(x+rr, y);
-        ctx.arcTo(x+w, y, x+w, y+h, rr);
-        ctx.arcTo(x+w, y+h, x, y+h, rr);
-        ctx.arcTo(x, y+h, x, y, rr);
-        ctx.arcTo(x, y, x+w, y, rr);
-        ctx.closePath();
-      }
-
+      // ====== Bucle principal ======
       function loop(){
         const nowPerf = performance.now();
 
@@ -376,7 +365,7 @@
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-        // ROI: ~8% del ancho, centrado
+        // ROI centrada (~8% ancho)
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
@@ -385,10 +374,10 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay
-        drawOverlayTimes(w,h,currentLive, selectedFinisherId);
+        // Cronos overlay (con recuadro verde si seleccionado/predicho)
+        drawOverlayTimes(w,h);
 
-        // Procesamiento en ROI (SIN CAMBIOS)
+        // Procesamiento en ROI (misma lógica/params que versión “ok”)
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -438,100 +427,124 @@
         requestAnimationFrame(loop);
       }
 
-      function drawOverlayTimes(w,h,rows,selectedId){
+      // ---------- Overlay UI ----------
+      let overlayHit=[];
+
+      function roundRect(ctx, x, y, w, h, r){
+        const rr = Math.min(r, h/2, w/2);
+        ctx.beginPath();
+        ctx.moveTo(x+rr, y);
+        ctx.arcTo(x+w, y,   x+w, y+h, rr);
+        ctx.arcTo(x+w, y+h, x,   y+h, rr);
+        ctx.arcTo(x,   y+h, x,   y,   rr);
+        ctx.arcTo(x,   y,   x+w, y,   rr);
+        ctx.closePath();
+      }
+
+      function drawOverlayTimes(w,h){
         overlayHit = [];
-        if(!rows.length) return;
+        const rows = currentLive.slice(); if(!rows.length) return;
+
+        // Orden visual: más reciente ARRIBA (desc), pero predicción usa asc
+        const desc = runningSortedDesc().map(p=>({
+          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
+        }));
+        const asc  = runningSortedAsc().map(p=>({
+          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
+        }));
+
+        // Predicción (si no hay selección manual): más antiguo en curso (asc[0])
+        let predictedId = null;
+        if(mode==='finish' && !selectedFinisherId && asc.length){
+          predictedId = asc[0].id;
+        }
 
         const nowSync = Date.now() + serverOffsetMS;
 
-        // Orden: más reciente ARRIBA
-        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-
-        // Tamaños base
+        // Tamaños base + 20% más de separación
         const baseSize = Math.max(18, Math.floor(h*0.026));
-        let   gap      = Math.max(5, Math.floor(h*0.011));
-        gap = Math.floor(gap * 1.2); // +20% más espacio entre filas
+        const baseGap  = Math.max(5, Math.floor(h*0.011));
+        const gap      = Math.round(baseGap * 1.2);           // +20% espacio
+        const rowPadY  = Math.max(4, Math.floor(baseSize*0.25));
+        const rowPadX  = Math.floor(w*0.03);
 
         const leftPad  = Math.floor(w*0.06);
         const rightPad = Math.floor(w*0.06);
         const topPad   = Math.floor(h*0.14);
-        const boxPadY  = Math.max(4, Math.floor(baseSize*0.20));  // padding vertical de la caja
-        const boxRad   = Math.max(6, Math.floor(baseSize*0.45));  // radios redondeados
-
-        const rowH = baseSize + boxPadY*2; // alto de caja
-        const stride = rowH + gap;
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/stride));
-
-        // Predicción si no hay selección (META)
-        let predictedId = null;
-        if(mode==='finish' && !selectedId && sorted.length){
-          const asc = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0));
-          predictedId = asc[0]?.id || null;
-        }
+        const rowH     = baseSize + gap;                      // altura “visual”
+        const maxRows  = Math.min(desc.length, Math.floor((h-topPad)/rowH));
 
         octx.textBaseline = 'top';
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
-          const r = sorted[i];
+          const r = desc[i];
           const elapsed = nowSync - (r.startMS||nowSync);
           const tText = fmt(elapsed);
           const nText = r.name || '—';
-          const isSel = (r.id === selectedId) || (!selectedId && r.id === predictedId);
 
-          const boxY = y - boxPadY;
-          const boxX = Math.floor(w*0.04);
-          const boxW = Math.floor(w*0.92);
-          const boxH = rowH;
+          const isSel = (r.id === selectedFinisherId) || (!selectedFinisherId && r.id === predictedId);
 
-          // Hitbox
-          overlayHit.push({ id:r.id, y1:boxY, y2:boxY+boxH });
+          // Cálculo de caja para hit y fondo
+          const y1 = y - rowPadY;
+          const y2 = y + baseSize + rowPadY;
+          overlayHit.push({ id:r.id, y1, y2 });
 
-          // Caja translúcida
-          roundRectPath(octx, boxX, boxY, boxW, boxH, boxRad);
-          octx.fillStyle = isSel ? 'rgba(43,217,127,.18)' : 'rgba(255,255,255,.10)';
+          // Fondo sutil para todos (para indicar tocable)
+          const boxX = Math.min(leftPad, rightPad) - rowPadX;
+          const boxW = w - 2*boxX;
+          roundRect(octx, boxX, y1, boxW, (y2-y1), 10);
+          octx.fillStyle = 'rgba(255,255,255,0.08)';
           octx.fill();
-          octx.lineWidth = isSel ? 2 : 1;
-          octx.strokeStyle = isSel ? 'rgba(43,217,127,.7)' : 'rgba(255,255,255,.18)';
-          octx.stroke();
 
-          // Sombra texto
+          // Si seleccionado/predicho → resalto verde (15% opacidad + borde)
+          if(isSel){
+            roundRect(octx, boxX, y1, boxW, (y2-y1), 10);
+            octx.fillStyle = 'rgba(43,217,127,0.15)'; // ~15%
+            octx.fill();
+            octx.lineWidth = 2;
+            octx.strokeStyle = 'rgba(43,217,127,0.6)';
+            octx.stroke();
+          }
+
+          // Sombra del texto
           octx.strokeStyle = 'rgba(0,0,0,.55)';
           octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
+
+          // tiempo (izq)
           octx.textAlign='left';
           octx.strokeText(tText, leftPad, y);
+          octx.fillStyle = '#ffffff';
+          octx.fillText  (tText, leftPad, y);
+
+          // nombre (der)
           octx.textAlign='right';
           octx.strokeText(nText, w - rightPad, y);
-
-          // Texto
-          octx.textAlign='left';
-          octx.fillStyle = isSel ? '#2bd97f' : '#ffffff';
-          octx.fillText  (tText, leftPad, y);
-          octx.textAlign='right';
-          octx.fillStyle = isSel ? '#b3ffd5' : '#ffffff';
+          octx.fillStyle = '#ffffff';
           octx.fillText  (nText, w - rightPad, y);
 
-          y += stride;
+          y += rowH;
         }
       }
 
-      function renderList(run){
+      // --------- Lista “En curso” ----------
+      function renderList(){
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
-        if(!run.length){ list.innerHTML='—'; return; }
+        if(!currentLive.length){ list.innerHTML='—'; return; }
 
-        // Orden overlay: más reciente primero
-        const rows = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+        const rowsDesc = runningSortedDesc().map(p=>({
+          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
+        }));
 
-        // Predicción si no hay selección manual (META)
+        // Predicción si no hay selección (más antiguo en curso)
         let predictedId = null;
-        if(mode==='finish' && !selectedFinisherId && run.length){
-          const asc = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)); // más antiguo = asc[0]
-          predictedId = asc[0]?.id || null;
+        if(mode==='finish' && !selectedFinisherId && currentLive.length){
+          predictedId = runningSortedAsc()[0]?.id || null;
         }
 
-        list.innerHTML = rows.map(p=>{
+        list.innerHTML = rowsDesc.map(p=>{
           const live = fmt(nowSync-(p.startMS||nowSync));
           const isSel = (p.id===selectedFinisherId) || (!selectedFinisherId && p.id===predictedId);
           const selClass = isSel ? ' selected' : '';
@@ -546,8 +559,8 @@
           [...list.querySelectorAll('.runner')].forEach(el=>{
             el.onclick = ()=>{
               const id = el.getAttribute('data-id');
-              selectedFinisherId = (selectedFinisherId===id) ? null : id; // toggle
-              renderList(run); // re-pintar selección
+              selectedFinisherId = (selectedFinisherId===id) ? null : id;
+              renderList();
             };
           });
         }
@@ -559,7 +572,7 @@
         if(ok){ lastAction.textContent='Última llegada deshecha'; $('undoWrap').style.display='none'; }
       };
 
-      // ====== Bucle ======
+      // Inicia el bucle
       requestAnimationFrame(loop);
 
     }catch(e){
