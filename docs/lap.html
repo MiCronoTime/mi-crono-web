@@ -27,7 +27,6 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
-    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -39,16 +38,13 @@
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
-    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
-    /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
 
-    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
@@ -89,9 +85,12 @@
       </div>
 
       <div class="sub">
-        <label>Sensibilidad detector (franja roja)</label>
-        <input id="sens" type="range" min="1" max="100" value="40"/>
-        <small class="muted">Más a la derecha = más sensible. Si no detecta, súbelo un poco.</small>
+        <label>
+          Sensibilidad detector (franja roja)
+          <span id="sensValTxt" class="muted">(20%)</span>
+        </label>
+        <input id="sens" type="range" min="0" max="100" value="50"/>
+        <small class="muted">Centro = 20 %. Mueve a la derecha para más sensibilidad.</small>
       </div>
 
       <div class="sub list">
@@ -123,16 +122,26 @@
 
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
-    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
+
+    // Mapeo slider -> % efectivo
+    const uiToPercent = (ui)=>{
+      const v = Math.max(0, Math.min(100, Number(ui)||50));
+      if(v<=50) return 5 + (v/50)*(20-5);
+      return 20 + ((v-50)/50)*(60-20);
+    };
+    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
+    updateSensLabel();
+    sens.oninput = updateSensLabel;
 
     tag.textContent=`Evento ${code||'—'}`;
     if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // ---------- Reloj sincronizado con servidor ----------
-    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
+    // ---------- Reloj sincronizado ----------
+    let serverOffsetMS = 0;
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
     // ---------- Firebase ----------
@@ -180,7 +189,6 @@
       const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
       async function stopRunning(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
@@ -200,16 +208,14 @@
         const nxt = nextToStart();
         $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
-        // Estado textual
         const hasStart = participants.some(p=>p.startTS);
         const hasStop  = participants.some(p=>p.stopTS);
         tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
-        // Panel inferior informativo
         renderList(currentLive);
       });
 
-      // ======= DETECTOR SIMPLE con hold + histeresis + delay de arming =======
+      // ======= Detector con hold + histeresis + delay 2s =======
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -221,7 +227,6 @@
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
           btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
 
-          // 2s de gracia antes de detectar
           detectionEnabled = false;
           armingEndsAt = performance.now() + ARMING_DELAY_MS;
           $('hudStatus').textContent = 'Calibrando… 2.0s';
@@ -229,7 +234,6 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros (ajustables: iguales que SINGLETRACK)
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
@@ -241,8 +245,9 @@
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
 
-      function thresholdsFromSens(sensVal){
-        const up = 0.095 - (sensVal/100)*0.055;   // 0.095 → 0.04
+      function thresholdsFromSens(effPercent){
+        const frac = effPercent/100;
+        const up = 0.095 - frac*0.055;
         const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
@@ -256,7 +261,6 @@
         cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
       };
 
-      // Lógica CRONOLAP: si hay alguien en curso -> parar; si no hay -> iniciar siguiente
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
@@ -266,12 +270,10 @@
         const anyRunning = participants.some(p=>p.startTS && !p.stopTS);
 
         if(anyRunning){
-          const p=await stopRunning();
-          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+          const p=await stopRunning(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
           armAfter(COOLDOWN_FINISH_MS);
         }else{
-          const p=await startNext();
-          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+          const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
           armAfter(COOLDOWN_START_MS);
         }
       };
@@ -279,32 +281,23 @@
       function loop(){
         const nowPerf = performance.now();
 
-        // Delay de arming
         if(!detectionEnabled){
           const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
-          if(nowPerf >= armingEndsAt){
-            detectionEnabled = true;
-            $('hudStatus').textContent = 'Listo';
-          }else{
-            $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`;
-          }
+          if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
+          else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
         }
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-        // ROI: ~8% del ancho, centrado
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
-        // Dibujo ROI
         octx.clearRect(0,0,w,h);
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay
         drawOverlayTimes(w,h,currentLive);
 
-        // Procesamiento en ROI: actividad %
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -312,7 +305,6 @@
           const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
           const sy=0, sh=vh;
 
-          // downscale para procesar ligero
           const dw = Math.max(50, Math.floor(sw * 0.35));
           const dh = Math.max(50, Math.floor(sh * 0.35));
           const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
@@ -321,10 +313,11 @@
           const frame = tctx.getImageData(0,0,dw,dh);
 
           if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-            const sensV = Number(sens.value); // 1..100
+            const eff = uiToPercent(sens.value);
+            const sensV = eff;
             const thrPix = 18 + Math.round((100 - sensV) * 0.6);
-            let diffPix = 0, total=0;
 
+            let diffPix = 0, total=0;
             for(let i=0;i<frame.data.length;i+=4){
               const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
                         Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
@@ -335,25 +328,16 @@
 
             if(diffPix < MIN_PIXELS){ diffPix = 0; }
 
-            const activity = diffPix / Math.max(1,total); // 0..1
+            const activity = diffPix / Math.max(1,total);
             actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
 
-            const { up, down } = thresholdsFromSens(sensV);
+            const { up, down } = thresholdsFromSens(eff);
 
             if(!above){
-              if(actEma >= up){
-                above = true;
-                aboveSince = nowPerf;
-              }
+              if(actEma >= up){ above = true; aboveSince = nowPerf; }
             }else{
-              if(actEma <= down){
-                above = false;
-                aboveSince = 0;
-              }else{
-                if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){
-                  trigger();
-                }
-              }
+              if(actEma <= down){ above = false; aboveSince = 0; }
+              else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
             }
           }
 
@@ -366,15 +350,13 @@
       function drawOverlayTimes(w,h,rows){
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
-
-        // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026)); // compacto para iPhone
+        const baseSize = Math.max(18, Math.floor(h*0.026));
         const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14); // aire para HUD
+        const topPad = Math.floor(h*0.14);
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
@@ -390,12 +372,10 @@
           const tText = fmt(elapsed);
           const nText = r.name || '—';
 
-          // tiempo (izq)
           octx.textAlign='left';
           octx.strokeText(tText, leftPad, y);
           octx.fillText  (tText, leftPad, y);
 
-          // nombre (der)
           octx.textAlign='right';
           octx.strokeText(nText, w - rightPad, y);
           octx.fillText  (nText, w - rightPad, y);
