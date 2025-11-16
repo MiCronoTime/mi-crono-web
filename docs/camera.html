@@ -9,6 +9,7 @@
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
+      --danger:#ff758d; --ok:#7cffb6;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -38,6 +39,8 @@
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+    .btn.ghost{ background:#0f1217; border-color:var(--border) }
+    .btn.danger{ background:var(--danger); border-color:var(--danger); color:#22060e }
 
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
@@ -57,7 +60,19 @@
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
-    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
+    .muted{color:var(--muted)} .ok{color:var(--ok);font-weight:700} .err{color:var(--danger);font-weight:700}
+
+    /* Modal META */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;max-width:520px;width:92%;padding:14px}
+    .modal h3{margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em}
+    .modal .desc{color:var(--muted);margin-bottom:10px}
+    .pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+    .chip{padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:#0f1217;cursor:pointer;font-weight:800}
+    .chip.active{border-color:var(--accent);background:rgba(94,161,255,.15)}
+    .row{display:flex;gap:8px}
+    .count{margin-left:auto;color:var(--muted);font-weight:800}
+    .mini{font-size:12px;color:var(--muted)}
   </style>
 </head>
 <body class="wrap">
@@ -100,6 +115,10 @@
       <div class="sub list">
         <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
         <div id="runningList">—</div>
+        <div id="undoWrap" style="margin-top:8px;display:none">
+          <button id="btnUndo" class="btn ghost" style="width:100%">DESHACER ÚLTIMA LLEGADA</button>
+          <div class="mini">Si te has equivocado asignando una llegada, puedes revertirla.</div>
+        </div>
       </div>
     </section>
 
@@ -113,6 +132,21 @@
 
   <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
+  <!-- Modal de confirmación META -->
+  <div class="modal-backdrop" id="finishModalBack">
+    <div class="modal">
+      <h3>Confirmar llegada</h3>
+      <div class="desc">Selecciona quién ha cruzado la meta. Si no seleccionas nada, se confirmará automáticamente al preseleccionado.</div>
+      <div class="pills" id="finishPills"></div>
+      <div class="row" style="align-items:center;justify-content:flex-end;gap:10px">
+        <span class="count" id="finishCountdown">Auto en 4s</span>
+        <button class="btn ghost" id="btnCancelFinish">Cancelar</button>
+        <button class="btn primary" id="btnConfirmFinish">Confirmar</button>
+      </div>
+      <div class="mini" style="margin-top:8px">Preseleccionado: <span id="finishPreSel">—</span></div>
+    </div>
+  </div>
+
   <script type="module">
     // ---------- Utils ----------
     const $=(id)=>document.getElementById(id);
@@ -125,7 +159,9 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
+    $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
@@ -198,22 +234,36 @@
       // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
+
+      // NUEVO: parada por confirmación (META)
+      let lastFinish = null; // {id, ref, stopTS}
+      async function confirmStopById(id){
+        const p = participants.find(x=>x.id===id);
+        if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() });
+        lastFinish = { id:p.id, ref:p.ref };
+        return p;
+      }
+      async function stopUndo(){
+        if(!lastFinish) return false;
+        await updateDoc(lastFinish.ref,{ stopTS:null });
+        lastFinish=null;
+        return true;
+      }
 
       // Suscripción -> cronos en vivo (ambas pantallas)
       let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
         const run = runningSorted().map(p=>({
-          order: p.order||0,
+          id:p.id, order: p.order||0,
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
         currentLive = run;
 
         const nxt = nextToStart();
-        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+        $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
         // Estado textual
         const hasStart = participants.some(p=>p.startTS);
@@ -222,6 +272,9 @@
 
         // Panel inferior informativo
         renderList(currentLive);
+
+        // Mostrar/ocultar deshacer
+        $('undoWrap').style.display = (mode==='finish' && lastFinish)? '' : 'none';
       });
 
       // ======= DETECTOR con hold + histeresis + delay 2s =======
@@ -272,17 +325,105 @@
         cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
       };
 
+      // ---------- Modal META ----------
+      const mback = $('finishModalBack');
+      const mpills= $('finishPills');
+      const mcount= $('finishCountdown');
+      const mpre  = $('finishPreSel');
+      const mbtnC = $('btnCancelFinish');
+      const mbtnO = $('btnConfirmFinish');
+
+      let modalTimer = null;
+      let modalLeft  = 4; // s
+      let modalSelId = null;
+      let modalAutoId= null;
+
+      function openFinishModal(running){
+        // running: [{id,order,name,startMS}] (ordenados por startMS asc)
+        mpills.innerHTML='';
+        running.forEach((r,i)=>{
+          const chip = document.createElement('button');
+          chip.className = 'chip' + (i===0?' active':'');
+          chip.textContent = `#${r.order} ${r.name}`;
+          chip.dataset.id = r.id;
+          chip.onclick = ()=>{
+            [...mpills.children].forEach(el=>el.classList.remove('active'));
+            chip.classList.add('active');
+            modalSelId = r.id;
+            mpre.textContent = `#${r.order} ${r.name}`;
+          };
+          mpills.appendChild(chip);
+        });
+
+        modalSelId = running[0]?.id || null;
+        modalAutoId= modalSelId;
+        mpre.textContent = running.length? `#${running[0].order} ${running[0].name}` : '—';
+
+        // cuenta atrás
+        modalLeft = 4;
+        mcount.textContent = `Auto en ${modalLeft}s`;
+        clearInterval(modalTimer);
+        modalTimer = setInterval(()=>{
+          modalLeft--;
+          if(modalLeft<=0){
+            clearInterval(modalTimer);
+            doConfirmFinish(true); // auto
+          }else{
+            mcount.textContent = `Auto en ${modalLeft}s`;
+          }
+        },1000);
+
+        mback.style.display='flex';
+      }
+      function closeFinishModal(){
+        clearInterval(modalTimer);
+        mback.style.display='none';
+      }
+
+      async function doConfirmFinish(isAuto=false){
+        closeFinishModal();
+        const id = (isAuto ? modalAutoId : (modalSelId||modalAutoId));
+        if(!id) return;
+        const p = await confirmStopById(id);
+        if(p){
+          lastAction.textContent = `Fin: ${p.name||p.id}` + (isAuto?' (auto)':'');
+          $('undoWrap').style.display = (mode==='finish')? '' : 'none';
+        }
+        armAfter(COOLDOWN_FINISH_MS);
+      }
+
+      mbtnC.onclick = ()=>{ closeFinishModal(); armAfter(600); }; // pequeño cooldown si cancelas
+      mbtnO.onclick = ()=> doConfirmFinish(false);
+
+      $('btnUndo').onclick = async ()=>{
+        const ok = await stopUndo();
+        if(ok){ lastAction.textContent='Última llegada deshecha'; $('undoWrap').style.display='none'; }
+      };
+
+      // ---------- Disparo ----------
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
         above=false; aboveSince=0;
+
         if(mode==='start'){
           const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
           armAfter(COOLDOWN_START_MS);
-        }else{
-          const p=await stopEarliest(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
-          armAfter(COOLDOWN_FINISH_MS);
+          return;
         }
+
+        // META: abrir modal con “en curso”
+        await reload();
+        const running = runningSorted().map(p=>({
+          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
+        }));
+        if(!running.length){
+          // nadie en curso: ignora y rearma rápido
+          armAfter(800);
+          return;
+        }
+        // preselección = más antiguo en curso (índice 0 por sorted asc)
+        openFinishModal(running);
       };
 
       function loop(){
