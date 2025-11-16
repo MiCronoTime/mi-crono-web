@@ -90,8 +90,8 @@
 
       <div class="sub">
         <label>Sensibilidad detector (franja roja)</label>
-        <input id="sens" type="range" min="1" max="100" value="28"/>
-        <small class="muted">Más a la derecha = más sensible (recomendado: 20–35 en exterior con vegetación).</small>
+        <input id="sens" type="range" min="1" max="100" value="34"/>
+        <small class="muted">Más a la derecha = más sensible. Recom.: 30–45 exterior.</small>
       </div>
 
       <div class="sub list">
@@ -122,8 +122,7 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    $('title').textContent = document.title = `Mi Crono — CÁMARA (${mode==='start'?'SALIDA':'META'})`;
-    $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
@@ -201,7 +200,7 @@
         currentLive = run;
 
         const nxt = nextToStart();
-        $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
         // Estado textual
         const hasStart = participants.some(p=>p.startTS);
@@ -212,7 +211,7 @@
         renderList(currentLive);
       });
 
-      // ======= Capa 1 + 2: Detector robusto en ROI =======
+      // ======= FASE 1: detector sencillo + cruce doble =======
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -227,20 +226,33 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros (capas 1 y 2)
-      const COOLDOWN_START_MS  = 3000;
-      const COOLDOWN_FINISH_MS = 1800;
-      const PERSIST_MS = 140;            // tiempo mínimo de actividad continua
-      const CROSS_WINDOW_MS = 350;       // ventana A→B para cruce válido
-      const MIN_AREA_BASE = 140;         // área mínima base (escalada con ROI)
+      // ===== Parámetros “suaves” (ajustables) =====
+      const COOLDOWN_START_MS  = 2500;   // si quieres más seguridad: 3000
+      const COOLDOWN_FINISH_MS = 1600;   // si dobla en meta, súbelo a 2000–2200
+      const PERSIST_MS         = 110;    // requerir actividad ~0.11s
+      const CROSS_WINDOW_MS    = 420;    // ventana para cruzar A→B
+      const MIN_AREA_RATIO     = 0.003;  // 0.3% del ROI downscaled
       let prevFrame=null;
-      let bgModel=null;                  // fondo EMA en ROI
       let armed=true, cooldownTimer=null;
 
       // Estado de cruce
-      let lastCentroid=null;
-      let crossState=null;               // 'A' -> esperando B dentro de ventana; 'B' -> esperando A (si inviertes)
+      let crossState=null;   // 'A' o 'B'
       let crossStartAt=0;
+
+      const actBuffer=[];    // persistencia
+      function updatePersist(now, active){
+        const WINDOW = 220; // ms de ventana de cálculo
+        const cutoff = now - WINDOW;
+        actBuffer.push({t:now, a:+active});
+        while(actBuffer.length && actBuffer[0].t < cutoff) actBuffer.shift();
+      }
+      function persistOk(now, needMS){
+        if(!actBuffer.length) return false;
+        const cutoff = now - needMS;
+        let sum=0, cnt=0;
+        for(const e of actBuffer){ if(e.t >= cutoff){ sum+=e.a; cnt++; } }
+        return cnt>0 && (sum/cnt) > 0.55; // >55% de frames activos en la ventana
+      }
 
       const armAfter = (ms)=>{
         clearTimeout(cooldownTimer);
@@ -264,8 +276,8 @@
       function loop(){
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-        // ROI: más estrecho (≈6% ancho)
-        const roiWidth=Math.max(8, Math.round(w*0.06));
+        // ROI: ≈7% del ancho, centrado
+        const roiWidth=Math.max(10, Math.round(w*0.07));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
         // Dibujo ROI
@@ -273,127 +285,80 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay (siguen visibles)
+        // Cronos overlay
         drawOverlayTimes(w,h,currentLive);
 
-        // Procesamiento en ROI
+        // Procesamiento en ROI con diferencia de frames
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
-          // Mapa ROI a frame de vídeo
           const scaleX = vw / stage.clientWidth;
           const scaleY = vh / stage.clientHeight;
           const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
           const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
           const sy=0, sh=vh;
 
-          // Captura y downscale interno para procesar ligero
-          const dw = Math.max(40, Math.floor(sw * 0.3));     // ≈ 30% del ROI
-          const dh = Math.max(40, Math.floor(sh * 0.3));
+          // downscale para procesar más ligero
+          const dw = Math.max(50, Math.floor(sw * 0.35));
+          const dh = Math.max(50, Math.floor(sh * 0.35));
           const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
           const tctx = temp.getContext('2d', { willReadFrequently:true });
           tctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
           const frame = tctx.getImageData(0,0,dw,dh);
 
-          // Sustracción de fondo adaptativa (EMA)
-          if(!bgModel || bgModel.width!==dw || bgModel.height!==dh){
-            bgModel = tctx.getImageData(0,0,dw,dh); // inicializa con el primer frame
-          }else{
-            const alpha = 0.12; // adaptación lenta (absorbe “viento”)
-            for(let i=0;i<frame.data.length;i+=4){
-              bgModel.data[i]   = bgModel.data[i]   + alpha*(frame.data[i]   - bgModel.data[i]);
-              bgModel.data[i+1] = bgModel.data[i+1] + alpha*(frame.data[i+1] - bgModel.data[i+1]);
-              bgModel.data[i+2] = bgModel.data[i+2] + alpha*(frame.data[i+2] - bgModel.data[i+2]);
-            }
-          }
-
-          // Diferencia absoluta con el fondo
-          const diff = new Uint8ClampedArray(dw*dh);
-          let area=0, sumX=0, sumY=0;
-          // Umbral base en función del slider
-          const sensV=Number(sens.value);          // 1..100 (más alto = más sensible)
-          const thr = 26 + Math.round((100-sensV)*1.1);   // cuanto menor sensV -> mayor thr
-          for(let y=0, idx=0, p=0; y<dh; y++){
-            for(let x=0; x<dw; x++, idx++, p+=4){
-              const d = Math.abs(frame.data[p]-bgModel.data[p]) +
-                        Math.abs(frame.data[p+1]-bgModel.data[p+1]) +
-                        Math.abs(frame.data[p+2]-bgModel.data[p+2]);
-              const on = d > thr ? 1 : 0;
-              diff[idx]=on;
-              if(on){ area++; sumX+=x; sumY+=y; }
-            }
-          }
-
-          // Área mínima escalada al tamaño del ROI
-          const minArea = Math.max(MIN_AREA_BASE, Math.floor((dw*dh)*0.006)); // ~0.6%
-          const now = performance.now();
-
-          // Persistencia temporal (“actividad continua”)
-          // Guardamos un pequeño buffer temporal de actividad
-          updatePersist(now, area>minArea);
-
-          // Centroide del blob
           let centroid = null;
-          if(area>minArea){
-            centroid = { x: sumX/area, y: sumY/area, t: now };
-          }
+          if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
+            // Umbral en función de la sensibilidad
+            const sensV = Number(sens.value); // 1..100 (más alto = más sensible)
+            const thr = 22 + Math.round((100-sensV)*0.9);   // menor sensV => más estricto
+            const minArea = Math.max(20, Math.floor(dw*dh*MIN_AREA_RATIO));
 
-          // Máquina de estados A→B con ventana temporal
-          // A = lado izquierdo del ROI, B = lado derecho
-          const leftX  = Math.floor(dw*0.33);
-          const rightX = Math.floor(dw*0.66);
-
-          if(centroid){
-            if(!lastCentroid) lastCentroid = centroid;
-
-            // Si tenemos persistencia suficiente y el centroid cruza
-            if (persistOk(now, PERSIST_MS)) {
-              // Estado de cruce
-              if(!crossState){
-                // “Armar” en el primer contacto claro (está en un lado)
-                if(centroid.x <= leftX){ crossState='A'; crossStartAt=now; }
-                else if(centroid.x >= rightX){ crossState='B'; crossStartAt=now; }
-              }else{
-                // Espera el lado opuesto dentro de CROSS_WINDOW_MS
-                if(crossState==='A' && centroid.x >= rightX && (now - crossStartAt) <= CROSS_WINDOW_MS){
-                  // Cruce A→B válido
-                  trigger();
-                  crossState=null;
-                }else if(crossState==='B' && centroid.x <= leftX && (now - crossStartAt) <= CROSS_WINDOW_MS){
-                  // Cruce B→A válido (aceptamos ambos sentidos)
-                  trigger();
-                  crossState=null;
-                }else if((now - crossStartAt) > CROSS_WINDOW_MS){
-                  // Expirado, reinicia
-                  crossState=null;
-                }
+            let area=0, sumX=0, sumY=0;
+            for(let y=0, idx=0, p=0; y<dh; y++){
+              for(let x=0; x<dw; x++, idx++, p+=4){
+                const d = Math.abs(frame.data[p]-prevFrame.data[p]) +
+                          Math.abs(frame.data[p+1]-prevFrame.data[p+1]) +
+                          Math.abs(frame.data[p+2]-prevFrame.data[p+2]);
+                if(d>thr){ area++; sumX+=x; sumY+=y; }
               }
             }
-            lastCentroid = centroid;
-          }else{
-            // Sin blob suficiente: con el tiempo, desarma cruce
-            if(crossState && (now - crossStartAt) > CROSS_WINDOW_MS){
-              crossState = null;
+
+            const now = performance.now();
+            updatePersist(now, area>=minArea);
+
+            if(area>=minArea){
+              centroid = { x: sumX/area, y: sumY/area, t: now };
+            }
+
+            // Cruce A→B (o B→A) con persistencia y ventana temporal
+            const leftX  = Math.floor(dw*0.33);
+            const rightX = Math.floor(dw*0.66);
+
+            if(centroid){
+              if(persistOk(now, PERSIST_MS)){
+                if(!crossState){
+                  if(centroid.x <= leftX){ crossState='A'; crossStartAt=now; }
+                  else if(centroid.x >= rightX){ crossState='B'; crossStartAt=now; }
+                }else{
+                  if(crossState==='A' && centroid.x >= rightX && (now-crossStartAt)<=CROSS_WINDOW_MS){
+                    trigger(); crossState=null;
+                  }else if(crossState==='B' && centroid.x <= leftX && (now-crossStartAt)<=CROSS_WINDOW_MS){
+                    trigger(); crossState=null;
+                  }else if((now-crossStartAt)>CROSS_WINDOW_MS){
+                    crossState=null;
+                  }
+                }
+              }
+            }else{
+              if(crossState && (performance.now()-crossStartAt)>CROSS_WINDOW_MS){
+                crossState=null;
+              }
             }
           }
+
+          prevFrame = frame; // actualizar referencia
         }
 
         requestAnimationFrame(loop);
-      }
-
-      // Persistencia (actividad mantenida)
-      const actBuffer = [];
-      function updatePersist(now, active){
-        const WINDOW = 240; // ms
-        const cutoff = now - WINDOW;
-        actBuffer.push({t:now, a:+active});
-        while(actBuffer.length && actBuffer[0].t < cutoff) actBuffer.shift();
-      }
-      function persistOk(now, needMS){
-        if(!actBuffer.length) return false;
-        const cutoff = now - needMS;
-        let sum=0, cnt=0;
-        for(const e of actBuffer){ if(e.t >= cutoff){ sum+=e.a; cnt++; } }
-        return cnt>0 && (sum/cnt) > 0.66; // >66% de frames activos dentro de la ventana
       }
 
       function drawOverlayTimes(w,h,rows){
@@ -403,7 +368,7 @@
         // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026)); // pequeño para iPhone
+        const baseSize = Math.max(18, Math.floor(h*0.026)); // tamaño compacto para iPhone
         const gap = Math.max(5, Math.floor(h*0.011));
         const leftPad = Math.floor(w*0.06);
         const rightPad= Math.floor(w*0.06);
