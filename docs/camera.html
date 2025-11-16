@@ -44,7 +44,8 @@
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* overlay clicable */
+    /* IMPORTANTE: ahora el overlay capta toques para selección */
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto;cursor:pointer}
 
     /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
@@ -109,7 +110,7 @@
       <div class="sub list">
         <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
         <div id="runningList">—</div>
-        <div class="mini">En META, toca un crono (lista o sobre el vídeo) para <b>preseleccionar</b> quién llegará (verás un recuadro verde).</div>
+        <div class="mini">En modo META, toca un crono (lista o sobre el vídeo) para <b>preseleccionar</b> quién llegará (se marcará en <span style="color:var(--ok2);font-weight:800">verde</span>).</div>
         <div id="undoWrap" style="margin-top:8px;display:none">
           <button id="btnUndo" class="btn ghost" style="width:100%">DESHACER ÚLTIMA LLEGADA</button>
         </div>
@@ -149,7 +150,7 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Slider → % efectivo (5..60), centro=20
+    // Mapeo slider UI → % efectivo (5..60) con centro=20 (no lo mostramos al usuario)
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
       if(v<=50) return 5 + (v/50)*(20-5);
@@ -159,8 +160,8 @@
     updateSensLabel();
     sens.oninput = updateSensLabel;
 
-    // ---------- Reloj sincronizado ----------
-    let serverOffsetMS = 0;
+    // ---------- Reloj sincronizado con servidor ----------
+    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
     // ---------- Firebase ----------
@@ -202,18 +203,16 @@
 
       // -------- Estado participantes + preselección ----------
       let participants=[];
-      let selectedFinisherId = null; // selección manual (META)
-
+      let selectedFinisherId = null; // preseleccionado en META
       async function reload(){
         const snap=await getDocs(query(partsCol, orderBy('order','asc')));
         participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
       }
       const nextToStart = ()=> participants.find(p=>!p.startTS);
-      const runningSortedAsc = ()=> participants.filter(p=>p.startTS && !p.stopTS)
-        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) ); // asc: más antiguo primero
-      const runningSortedDesc = ()=> runningSortedAsc().slice().reverse(); // más reciente primero
+      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      // Acciones
+      // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
@@ -225,6 +224,8 @@
         lastFinish = { id:p.id, ref:p.ref };
         return p;
       }
+      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); lastFinish={id:p.id,ref:p.ref}; return p; }
       async function stopUndo(){
         if(!lastFinish) return false;
         await updateDoc(lastFinish.ref,{ stopTS:null });
@@ -232,15 +233,17 @@
         return true;
       }
 
-      // Suscripción -> cronos en vivo
-      let currentLive=[]; // [{id,order,name,startMS}]
+      // Suscripción -> cronos en vivo (ambas pantallas)
+      let currentLive=[];        // [{id, order, name, startMS}]
+      let overlayHitboxes=[];    // [{id, x, y, w, h}] para taps
       onSnapshot(partsCol, async ()=>{
         await reload();
-        currentLive = runningSortedAsc().map(p=>({
-          id:p.id, order:p.order||0,
+        const run = runningSorted().map(p=>({
+          id:p.id, order: p.order||0,
           name: (p.name||'').toUpperCase(),
           startMS: tsToMillis(p.startTS)
         }));
+        currentLive = run;
 
         const nxt = nextToStart();
         $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
@@ -254,24 +257,43 @@
           selectedFinisherId = null;
         }
 
-        renderList();
+        renderList(currentLive);
         $('undoWrap').style.display = (mode==='finish' && lastFinish)? '' : 'none';
       });
 
-      // ======= Detección (mismos parámetros que “ok” previo) =======
+      // ======= DETECTOR (misma lógica que antes, NO TOCAR) =======
+      btnEnable.onclick = async ()=>{
+        try{
+          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
+          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+          let stream=null,lastErr=null;
+          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+
+          // 2s de gracia antes de detectar
+          detectionEnabled = false;
+          armingEndsAt = performance.now() + ARMING_DELAY_MS;
+          $('hudStatus').textContent = 'Calibrando… 2.0s';
+          requestAnimationFrame(loop);
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
+      };
+
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
       const MIN_PIXELS         = 28;
       const HOLD_MS            = 140;
       const ARMING_DELAY_MS    = 2000;
-
       let prevFrame=null;
+
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
 
       function thresholdsFromSens(effPercent){
-        const frac = effPercent/100; // 0.05..0.60
+        const frac = effPercent/100;
         const up = 0.095 - frac*0.055;
         const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
@@ -286,38 +308,6 @@
         cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
       };
 
-      btnEnable.onclick = async ()=>{
-        try{
-          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
-          let stream=null,lastErr=null;
-          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
-          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
-          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
-          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
-          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
-
-          detectionEnabled = false;
-          armingEndsAt = performance.now() + ARMING_DELAY_MS;
-          $('hudStatus').textContent = 'Calibrando… 2.0s';
-          requestAnimationFrame(loop);
-        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
-      };
-
-      // --------- Overlay clicable ----------
-      let overlayHit = []; // [{id, y1, y2}]
-      overlay.addEventListener('click', (ev)=>{
-        if(mode!=='finish' || !currentLive.length) return;
-        const rect = overlay.getBoundingClientRect();
-        const y = ev.clientY - rect.top;
-        const hit = overlayHit.find(h=> y>=h.y1 && y<=h.y2);
-        if(hit){
-          selectedFinisherId = (selectedFinisherId===hit.id) ? null : hit.id;
-          renderList(); // sincroniza lista
-        }
-      });
-
-      // Disparo principal
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
@@ -329,23 +319,24 @@
           return;
         }
 
-        // META: usa selección manual si existe; si no, el más antiguo en curso (predicción)
+        // META: usar preselección si existe; si no, el más antiguo
         await reload();
-        const runningAsc = runningSortedAsc();
-        if(!runningAsc.length){ armAfter(800); return; }
+        const running = runningSorted();
+        if(!running.length){ armAfter(800); return; }
 
         let chosen = null;
         if(selectedFinisherId){
-          chosen = runningAsc.find(p=>p.id===selectedFinisherId) || null;
+          chosen = running.find(p=>p.id===selectedFinisherId) || null;
         }
         if(!chosen){
-          chosen = runningAsc[0] || null; // más antiguo (orden lógico si no hay adelantamientos)
+          chosen = running[0] || null; // fallback
         }
 
         if(chosen){
           await updateDoc(chosen.ref,{ stopTS:serverTimestamp() });
           lastFinish = { id:chosen.id, ref:chosen.ref };
           lastAction.textContent = `Fin: ${(chosen.name||chosen.id)}`;
+          // limpiar selección si era este
           if(selectedFinisherId === chosen.id) selectedFinisherId = null;
           armAfter(COOLDOWN_FINISH_MS);
         }else{
@@ -353,10 +344,25 @@
         }
       };
 
-      // ====== Bucle principal ======
+      // --------- Overlay interactivo + bucle detección ----------
+      overlay.addEventListener('click', (ev)=>{
+        if(mode!=='finish') return;
+        // Convertir coordenadas a overlay (ya es el target)
+        const rect = overlay.getBoundingClientRect();
+        const x = (ev.clientX - rect.left);
+        const y = (ev.clientY - rect.top);
+        // Buscar el primer hitbox que contenga el punto
+        const hit = overlayHitboxes.find(b => x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h);
+        if(hit){
+          selectedFinisherId = (selectedFinisherId===hit.id) ? null : hit.id; // toggle
+          renderList(currentLive);
+        }
+      });
+
       function loop(){
         const nowPerf = performance.now();
 
+        // Delay de arming
         if(!detectionEnabled){
           const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
           if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
@@ -365,7 +371,7 @@
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-        // ROI centrada (~8% ancho)
+        // ROI: ~8% del ancho, centrado
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
@@ -374,10 +380,10 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay (con recuadro verde si seleccionado/predicho)
-        drawOverlayTimes(w,h);
+        // Cronos overlay (con “cajas/botón” seleccionables)
+        drawOverlayTimes(w,h,currentLive, selectedFinisherId);
 
-        // Procesamiento en ROI (misma lógica/params que versión “ok”)
+        // Procesamiento en ROI (igual que antes)
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -427,127 +433,105 @@
         requestAnimationFrame(loop);
       }
 
-      // ---------- Overlay UI ----------
-      let overlayHit=[];
-
+      // Mapea y dibuja cajas + textos; guarda hitboxes para toques
       function roundRect(ctx, x, y, w, h, r){
-        const rr = Math.min(r, h/2, w/2);
+        const rr = Math.min(r, w/2, h/2);
         ctx.beginPath();
         ctx.moveTo(x+rr, y);
-        ctx.arcTo(x+w, y,   x+w, y+h, rr);
-        ctx.arcTo(x+w, y+h, x,   y+h, rr);
-        ctx.arcTo(x,   y+h, x,   y,   rr);
-        ctx.arcTo(x,   y,   x+w, y,   rr);
+        ctx.arcTo(x+w, y, x+w, y+h, rr);
+        ctx.arcTo(x+w, y+h, x, y+h, rr);
+        ctx.arcTo(x, y+h, x, y, rr);
+        ctx.arcTo(x, y, x+w, y, rr);
         ctx.closePath();
       }
 
-      function drawOverlayTimes(w,h){
-        overlayHit = [];
-        const rows = currentLive.slice(); if(!rows.length) return;
-
-        // Orden visual: más reciente ARRIBA (desc), pero predicción usa asc
-        const desc = runningSortedDesc().map(p=>({
-          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-        }));
-        const asc  = runningSortedAsc().map(p=>({
-          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-        }));
-
-        // Predicción (si no hay selección manual): más antiguo en curso (asc[0])
-        let predictedId = null;
-        if(mode==='finish' && !selectedFinisherId && asc.length){
-          predictedId = asc[0].id;
-        }
+      function drawOverlayTimes(w,h,rows,selectedId){
+        overlayHitboxes = [];
+        if(!rows.length) return;
 
         const nowSync = Date.now() + serverOffsetMS;
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        // Tamaños base + 20% más de separación
+        // Tamaños base: mismo cuerpo pero 50% más de separación entre filas
         const baseSize = Math.max(18, Math.floor(h*0.026));
-        const baseGap  = Math.max(5, Math.floor(h*0.011));
-        const gap      = Math.round(baseGap * 1.2);           // +20% espacio
-        const rowPadY  = Math.max(4, Math.floor(baseSize*0.25));
-        const rowPadX  = Math.floor(w*0.03);
+        const gap = Math.max(5, Math.floor(h*0.011) * 1.5);   // +50% de espacio
+        const leftPad = Math.floor(w*0.06);
+        const rightPad= Math.floor(w*0.06);
+        const topPad  = Math.floor(h*0.14);
+        const rowHeight = Math.round(baseSize * 1.25);        // caja con margen vertical
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowHeight+gap)));
 
-        const leftPad  = Math.floor(w*0.06);
-        const rightPad = Math.floor(w*0.06);
-        const topPad   = Math.floor(h*0.14);
-        const rowH     = baseSize + gap;                      // altura “visual”
-        const maxRows  = Math.min(desc.length, Math.floor((h-topPad)/rowH));
-
-        octx.textBaseline = 'top';
+        octx.textBaseline = 'middle';
         octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+
+        // Si no hay selección, pre-resaltar el más antiguo (último en sorted)
+        const fallbackId = sorted[sorted.length-1]?.id || null;
+        const highlightId = selectedId || fallbackId;
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
-          const r = desc[i];
+          const r = sorted[i];
           const elapsed = nowSync - (r.startMS||nowSync);
           const tText = fmt(elapsed);
           const nText = r.name || '—';
+          const isSel = (r.id === highlightId);
 
-          const isSel = (r.id === selectedFinisherId) || (!selectedFinisherId && r.id === predictedId);
+          // layout de caja "botón"
+          const padX = Math.floor(w*0.03);
+          const boxX = leftPad - padX;
+          const boxW = w - leftPad - rightPad + 2*padX;
+          const boxY = y - Math.floor(rowHeight/2);
+          const boxH = rowHeight;
 
-          // Cálculo de caja para hit y fondo
-          const y1 = y - rowPadY;
-          const y2 = y + baseSize + rowPadY;
-          overlayHit.push({ id:r.id, y1, y2 });
-
-          // Fondo sutil para todos (para indicar tocable)
-          const boxX = Math.min(leftPad, rightPad) - rowPadX;
-          const boxW = w - 2*boxX;
-          roundRect(octx, boxX, y1, boxW, (y2-y1), 10);
-          octx.fillStyle = 'rgba(255,255,255,0.08)';
-          octx.fill();
-
-          // Si seleccionado/predicho → resalto verde (15% opacidad + borde)
+          // Fondo/borde de la caja
           if(isSel){
-            roundRect(octx, boxX, y1, boxW, (y2-y1), 10);
-            octx.fillStyle = 'rgba(43,217,127,0.15)'; // ~15%
-            octx.fill();
+            octx.fillStyle = 'rgba(43,217,127,.16)';
+            roundRect(octx, boxX, boxY, boxW, boxH, 12); octx.fill();
             octx.lineWidth = 2;
-            octx.strokeStyle = 'rgba(43,217,127,0.6)';
-            octx.stroke();
+            octx.strokeStyle = 'rgba(43,217,127,.65)';
+            roundRect(octx, boxX, boxY, boxW, boxH, 12); octx.stroke();
+          }else{
+            octx.fillStyle = 'rgba(0,0,0,.22)';
+            roundRect(octx, boxX, boxY, boxW, boxH, 12); octx.fill();
           }
 
           // Sombra del texto
           octx.strokeStyle = 'rgba(0,0,0,.55)';
           octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
 
-          // tiempo (izq)
+          // Tiempo (izq)
           octx.textAlign='left';
           octx.strokeText(tText, leftPad, y);
-          octx.fillStyle = '#ffffff';
+          octx.fillStyle = isSel ? '#2bd97f' : '#ffffff';
           octx.fillText  (tText, leftPad, y);
 
-          // nombre (der)
+          // Nombre (der)
           octx.textAlign='right';
           octx.strokeText(nText, w - rightPad, y);
-          octx.fillStyle = '#ffffff';
+          octx.fillStyle = isSel ? '#b3ffd5' : '#ffffff';
           octx.fillText  (nText, w - rightPad, y);
 
-          y += rowH;
+          // Guardar hitbox de selección táctil
+          overlayHitboxes.push({ id:r.id, x: boxX, y: boxY, w: boxW, h: boxH });
+
+          y += rowHeight + gap;
         }
       }
 
-      // --------- Lista “En curso” ----------
-      function renderList(){
+      function renderList(run){
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
-        if(!currentLive.length){ list.innerHTML='—'; return; }
+        if(!run.length){ list.innerHTML='—'; return; }
 
-        const rowsDesc = runningSortedDesc().map(p=>({
-          id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-        }));
+        const rows = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+        // fallback para borde verde cuando no hay selección
+        const fallbackId = rows[rows.length-1]?.id || null;
 
-        // Predicción si no hay selección (más antiguo en curso)
-        let predictedId = null;
-        if(mode==='finish' && !selectedFinisherId && currentLive.length){
-          predictedId = runningSortedAsc()[0]?.id || null;
-        }
-
-        list.innerHTML = rowsDesc.map(p=>{
+        list.innerHTML = rows.map(p=>{
           const live = fmt(nowSync-(p.startMS||nowSync));
-          const isSel = (p.id===selectedFinisherId) || (!selectedFinisherId && p.id===predictedId);
-          const selClass = isSel ? ' selected' : '';
+          const selClass =
+            (p.id===selectedFinisherId || (!selectedFinisherId && p.id===fallbackId))
+            ? ' selected' : '';
           return `<div class="runner${selClass}" data-id="${p.id}">
                     <div class="badge">#${p.order}</div>
                     <div class="rname">${p.name}</div>
@@ -555,12 +539,13 @@
                   </div>`;
         }).join('');
 
+        // Click para preselección (solo META)
         if(mode==='finish'){
           [...list.querySelectorAll('.runner')].forEach(el=>{
             el.onclick = ()=>{
               const id = el.getAttribute('data-id');
               selectedFinisherId = (selectedFinisherId===id) ? null : id;
-              renderList();
+              renderList(run);
             };
           });
         }
@@ -572,8 +557,8 @@
         if(ok){ lastAction.textContent='Última llegada deshecha'; $('undoWrap').style.display='none'; }
       };
 
-      // Inicia el bucle
-      requestAnimationFrame(loop);
+      // ======= Variables del detector (sin cambios) =======
+      let detectionEnabled=false, armingEndsAt=0;
 
     }catch(e){
       window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
