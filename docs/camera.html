@@ -44,7 +44,7 @@
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* <- ahora capta clicks */
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* <- capta clicks en overlay */
 
     /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
@@ -149,7 +149,7 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Slider → % efectivo (5..60), centro 20 (no se muestra)
+    // Slider → % efectivo (5..60), centro 20 (no mostrado)
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
       if(v<=50) return 5 + (v/50)*(20-5);
@@ -259,7 +259,18 @@
         $('undoWrap').style.display = (mode==='finish' && lastFinish)? '' : 'none';
       });
 
-      // ======= Detección con hold + histeresis + delay 2s =======
+      // ======= Detector (SIN CAMBIOS respecto a la versión anterior) =======
+      const COOLDOWN_START_MS  = 2400;
+      const COOLDOWN_FINISH_MS = 1800;
+      const EMA_ALPHA          = 0.35;
+      const MIN_PIXELS         = 28;
+      const HOLD_MS            = 140;
+      const ARMING_DELAY_MS    = 2000;
+      let prevFrame=null;
+
+      let armed=true, cooldownTimer=null;
+      let detectionEnabled=false, armingEndsAt=0;
+
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -278,18 +289,6 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros detector
-      const COOLDOWN_START_MS  = 2400;
-      const COOLDOWN_FINISH_MS = 1800;
-      const EMA_ALPHA          = 0.35;
-      const MIN_PIXELS         = 28;
-      const HOLD_MS            = 140;
-      const ARMING_DELAY_MS    = 2000;
-      let prevFrame=null;
-
-      let armed=true, cooldownTimer=null;
-      let detectionEnabled=false, armingEndsAt=0;
-
       function thresholdsFromSens(effPercent){
         const frac = effPercent/100; // 0.05..0.60
         const up = 0.095 - frac*0.055;
@@ -306,7 +305,7 @@
         cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
       };
 
-      // Disparo principal
+      // Disparo principal (SIN CAMBIOS: solo usa selección/predicción)
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
         armed=false;
@@ -342,7 +341,7 @@
         }
       };
 
-      // --------- Overlay seleccionable ----------
+      // --------- Overlay seleccionable + layout con +20% de separación ----------
       let overlayHit = []; // [{id, y1, y2}] filas dibujadas
       overlay.addEventListener('click', (ev)=>{
         if(mode!=='finish' || !currentLive.length) return;
@@ -355,7 +354,17 @@
         }
       });
 
-      // --------- Bucle principal ----------
+      function roundRectPath(ctx, x, y, w, h, r){
+        const rr = Math.min(r, w/2, h/2);
+        ctx.beginPath();
+        ctx.moveTo(x+rr, y);
+        ctx.arcTo(x+w, y, x+w, y+h, rr);
+        ctx.arcTo(x+w, y+h, x, y+h, rr);
+        ctx.arcTo(x, y+h, x, y, rr);
+        ctx.arcTo(x, y, x+w, y, rr);
+        ctx.closePath();
+      }
+
       function loop(){
         const nowPerf = performance.now();
 
@@ -376,10 +385,10 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay (con seleccionado o predicción verde)
+        // Cronos overlay
         drawOverlayTimes(w,h,currentLive, selectedFinisherId);
 
-        // Procesamiento en ROI
+        // Procesamiento en ROI (SIN CAMBIOS)
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -435,28 +444,33 @@
 
         const nowSync = Date.now() + serverOffsetMS;
 
-        // Orden: más reciente ARRIBA (mismo que lista)
+        // Orden: más reciente ARRIBA
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026)); // compacto iPhone
-        const gap = Math.max(5, Math.floor(h*0.011));
-        const leftPad = Math.floor(w*0.06);
-        const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14);
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
+        // Tamaños base
+        const baseSize = Math.max(18, Math.floor(h*0.026));
+        let   gap      = Math.max(5, Math.floor(h*0.011));
+        gap = Math.floor(gap * 1.2); // +20% más espacio entre filas
 
-        // Si no hay selección manual y estamos en META, predecimos “siguiente en llegar” = más antiguo en curso
+        const leftPad  = Math.floor(w*0.06);
+        const rightPad = Math.floor(w*0.06);
+        const topPad   = Math.floor(h*0.14);
+        const boxPadY  = Math.max(4, Math.floor(baseSize*0.20));  // padding vertical de la caja
+        const boxRad   = Math.max(6, Math.floor(baseSize*0.45));  // radios redondeados
+
+        const rowH = baseSize + boxPadY*2; // alto de caja
+        const stride = rowH + gap;
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/stride));
+
+        // Predicción si no hay selección (META)
         let predictedId = null;
         if(mode==='finish' && !selectedId && sorted.length){
-          // “más antiguo” = con menor startMS → es el ÚLTIMO del array original (asc),
-          // pero como aquí usamos reverse(), el más antiguo está al FINAL de reverse? No:
-          // sorted es reverse(asc) ⇒ índice más alto = más antiguo. Para simplificar,
-          // mejor calcular sobre el “runningSorted asc” real:
-          const asc = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)); // asc
+          const asc = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0));
           predictedId = asc[0]?.id || null;
         }
 
         octx.textBaseline = 'top';
+        octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
@@ -464,16 +478,25 @@
           const elapsed = nowSync - (r.startMS||nowSync);
           const tText = fmt(elapsed);
           const nText = r.name || '—';
-
           const isSel = (r.id === selectedId) || (!selectedId && r.id === predictedId);
 
-          // Hitbox (para click-to-select)
-          const y1 = y - Math.floor(baseSize*0.15);
-          const y2 = y + baseSize + Math.floor(gap*0.5);
-          overlayHit.push({ id:r.id, y1, y2 });
+          const boxY = y - boxPadY;
+          const boxX = Math.floor(w*0.04);
+          const boxW = Math.floor(w*0.92);
+          const boxH = rowH;
 
-          // Sombra
-          octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+          // Hitbox
+          overlayHit.push({ id:r.id, y1:boxY, y2:boxY+boxH });
+
+          // Caja translúcida
+          roundRectPath(octx, boxX, boxY, boxW, boxH, boxRad);
+          octx.fillStyle = isSel ? 'rgba(43,217,127,.18)' : 'rgba(255,255,255,.10)';
+          octx.fill();
+          octx.lineWidth = isSel ? 2 : 1;
+          octx.strokeStyle = isSel ? 'rgba(43,217,127,.7)' : 'rgba(255,255,255,.18)';
+          octx.stroke();
+
+          // Sombra texto
           octx.strokeStyle = 'rgba(0,0,0,.55)';
           octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
           octx.textAlign='left';
@@ -489,7 +512,7 @@
           octx.fillStyle = isSel ? '#b3ffd5' : '#ffffff';
           octx.fillText  (nText, w - rightPad, y);
 
-          y += baseSize + gap;
+          y += stride;
         }
       }
 
