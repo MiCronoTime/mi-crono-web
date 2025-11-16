@@ -90,7 +90,7 @@
           <span id="sensValTxt" class="muted">(20%)</span>
         </label>
         <input id="sens" type="range" min="0" max="100" value="50"/>
-        <small class="muted">Centro = 20 %. Mueve a la derecha para más sensibilidad.</small>
+        <small class="muted">Mueve el control hacia la derecha para aumentar la sensibilidad.</small>
       </div>
 
       <div class="sub list">
@@ -125,7 +125,7 @@
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    // Mapeo slider -> % efectivo
+    // Mapeo slider -> % efectivo (con centro = 20% pero sin mencionarlo en el texto)
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
       if(v<=50) return 5 + (v/50)*(20-5);
