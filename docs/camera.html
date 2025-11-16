@@ -93,9 +93,8 @@
           Sensibilidad detector (franja roja)
           <span id="sensValTxt" class="muted">(20%)</span>
         </label>
-        <!-- UI: 0..100, centro=50 → 20% efectivo -->
         <input id="sens" type="range" min="0" max="100" value="50"/>
-        <small class="muted">Centro = 20 %. Mueve a la derecha para más sensibilidad.</small>
+        <small class="muted">Mueve el control hacia la derecha para aumentar la sensibilidad.</small>
       </div>
 
       <div class="sub list">
@@ -225,7 +224,7 @@
         renderList(currentLive);
       });
 
-      // ======= DETECTOR SIMPLE con hold + histeresis + delay de arming =======
+      // ======= DETECTOR con hold + histeresis + delay 2s =======
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
