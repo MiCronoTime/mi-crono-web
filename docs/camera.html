@@ -241,6 +241,7 @@
         renderList();
       });
 
+      // === Cámara + detector ===
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -367,6 +368,7 @@
         requestAnimationFrame(loop);
       }
 
+      // filas sobreimpresas tipo “pastilla”
       function drawOverlayRows(w,h,rows, selectedId){
         overlayRowHitboxes = [];
         if(!rows.length) return;
@@ -376,9 +378,9 @@
 
         const base = Math.max(18, Math.floor(h*0.026));
         const gapBase  = Math.max(5, Math.floor(h*0.011));
-        const gap  = gapBase * 2;            /* ← 100% más separación */
+        const gap  = gapBase * 2.2;            /* +120% separación */
         const padX = Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14);
+        const topPad = Math.floor(h*0.18);     /* más margen para no chocar con “Siguiente” */
         const rowH = base*1.4;
         const radius = rowH/2.2;
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
