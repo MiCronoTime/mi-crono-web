@@ -9,8 +9,7 @@
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
-      --ok:#7cffb6; --okDark:#165a3f; --okRing:rgba(127,255,182,.35);
-      --danger:#ff758d;
+      --ok:#7cffb6; --okRing:rgba(127,255,182,.35); --danger:#ff758d;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -45,7 +44,7 @@
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* <-- capturamos clicks */
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* capturamos clicks */
 
     /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
@@ -58,12 +57,9 @@
     .list{margin-top:12px}
     .runner{
       display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;
-      cursor:pointer;
+      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
     }
-    .runner.selected{
-      border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset;
-    }
+    .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
@@ -135,9 +131,7 @@
     const code=(getParam('code')||'').toUpperCase();
     const mode=(getParam('mode')||'start'); // start|finish
 
-    $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
-    $('title').textContent && (document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`);
-
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
     const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
@@ -148,18 +142,16 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Mapeo: slider UI (0..100) -> sensibilidad efectiva en %
+    // Slider → % efectivo
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
-      if(v<=50) return 5 + (v/50)*(20-5);        // 0..50 ⇒ 5%..20%
-      return 20 + ((v-50)/50)*(60-20);           // 50..100 ⇒ 20%..60%
+      if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
     };
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
-    updateSensLabel();
-    sens.oninput = updateSensLabel;
+    updateSensLabel(); sens.oninput = updateSensLabel;
 
-    // ---------- Reloj sincronizado con servidor ----------
-    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
+    // ---------- Reloj sincronizado ----------
+    let serverOffsetMS = 0;
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
     // ---------- Firebase ----------
@@ -182,16 +174,14 @@
       const db  = getFirestore(app);
       window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
 
-      // refs
       const eventRef = doc(db,'events',code);
       const partsCol = collection(eventRef,'participants');
       const syncCol  = collection(eventRef,'sync');
 
-      // Crea evento si no existe
       const s=await getDoc(eventRef);
       if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // Offset con servidor (1 ping)
+      // Offset con servidor
       try{
         const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
         const pingSnap = await getDoc(pingRef);
@@ -199,7 +189,7 @@
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
       }catch(_){ serverOffsetMS=0; }
 
-      // Estado participantes
+      // Participants
       let participants=[];
       async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
         participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
@@ -207,20 +197,18 @@
       const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      // Acciones (serverTimestamp)
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
       async function stopById(pid){ await reload(); const p=participants.find(x=>x.id===pid && x.startTS && !x.stopTS); if(!p) return null;
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-      // ===== Estado visual / selección del próximo en META =====
+      // Selección META
       let currentLive=[];          // [{id,order,name,startMS}]
-      let selectedRunnerId=null;   // quién se parará al detectar (en META)
-      let overlayRowHitboxes=[];   // [{id,x,y,w,h}] para clicks en canvas
+      let selectedRunnerId=null;   // a quién parar
+      let overlayRowHitboxes=[];   // para clicks
 
       function ensureSelection(){
         if(mode!=='finish') return;
-        // si el seleccionado no está en curso, seleccionar al más antiguo
         const ids = new Set(currentLive.map(r=>r.id));
         if(!selectedRunnerId || !ids.has(selectedRunnerId)){
           selectedRunnerId = currentLive.length ? currentLive.slice().sort((a,b)=>a.startMS-b.startMS)[0].id : null;
@@ -240,7 +228,6 @@
             <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
           </div>`;
         }).join('');
-        // clic para seleccionar
         if(mode==='finish'){
           [...list.querySelectorAll('.runner')].forEach(el=>{
             el.onclick=()=>{ selectedRunnerId = el.dataset.id; renderList(); };
@@ -248,7 +235,6 @@
         }
       }
 
-      // Suscripción -> cronos en vivo (ambas pantallas)
       onSnapshot(partsCol, async ()=>{
         await reload();
         currentLive = runningSorted().map(p=>({
@@ -260,7 +246,6 @@
         const nxt = nextToStart();
         $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
 
-        // Estado textual
         const hasStart = participants.some(p=>p.startTS);
         const hasStop  = participants.some(p=>p.stopTS);
         tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
@@ -269,7 +254,7 @@
         renderList();
       });
 
-      // ======= DETECTOR con hold + histeresis + delay 2s =======
+      // ===== Detector con hold + histeresis + delay 2s =====
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -281,7 +266,6 @@
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
           btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
 
-          // 2s de gracia antes de detectar
           detectionEnabled = false;
           armingEndsAt = performance.now() + ARMING_DELAY_MS;
           $('hudStatus').textContent = 'Calibrando… 2.0s';
@@ -289,7 +273,6 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Parámetros detector
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
@@ -302,61 +285,46 @@
       let detectionEnabled=false, armingEndsAt=0;
 
       function thresholdsFromSens(effPercent){
-        const frac = effPercent/100; // 0.05..0.60 aprox
-        const up = 0.095 - frac*0.055;   // más sensibilidad => umbral menor
+        const frac = effPercent/100;
+        const up = 0.095 - frac*0.055;
         const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
 
-      let actEma = 0;
-      let above  = false;
-      let aboveSince = 0;
+      let actEma = 0, above=false, aboveSince = 0;
 
-      const armAfter = (ms)=>{
-        clearTimeout(cooldownTimer);
-        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
-      };
+      const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
 
-      // Disparo
       const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
-        armed=false;
-        above=false; aboveSince=0;
+        armed=false; above=false; aboveSince=0;
 
         if(mode==='start'){
           const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
-          armAfter(COOLDOWN_START_MS);
-          return;
+          armAfter(COOLDOWN_START_MS); return;
         }
 
-        // META: parar el seleccionado (o el más antiguo si no hay selección)
         ensureSelection();
         const id = selectedRunnerId || (currentLive[0]?.id || null);
         if(!id){ armAfter(800); return; }
         const p=await stopById(id);
         if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
-        // tras parar, la selección pasa automáticamente al siguiente en curso
         setTimeout(()=>{ ensureSelection(); renderList(); }, 50);
         armAfter(COOLDOWN_FINISH_MS);
       };
 
-      // Captura de toques en el overlay para elegir participante
+      // Click en overlay para seleccionar fila
       overlay.addEventListener('click', (ev)=>{
         if(mode!=='finish' || !overlayRowHitboxes.length) return;
         const rect = overlay.getBoundingClientRect();
         const x = ev.clientX - rect.left;
         const y = ev.clientY - rect.top;
         const hit = overlayRowHitboxes.find(r=> x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h );
-        if(hit){
-          selectedRunnerId = hit.id;
-          renderList(); // refresca selección en lista
-        }
+        if(hit){ selectedRunnerId = hit.id; renderList(); }
       });
 
       function loop(){
         const nowPerf = performance.now();
-
-        // Delay de arming
         if(!detectionEnabled){
           const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
           if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
@@ -365,7 +333,7 @@
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-        // ROI: ~8% del ancho, centrado
+        // ROI
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
@@ -374,18 +342,16 @@
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay (con filas +50% y selección en verde)
-        drawOverlayTimes(w,h,currentLive, selectedRunnerId);
+        // Cronos overlay “pastilla”
+        drawOverlayRows(w,h,currentLive, selectedRunnerId);
 
-        // Procesamiento en ROI: actividad %
+        // Detector en ROI
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
           const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
           const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
           const sy=0, sh=vh;
-
-          // downscale para procesar ligero
           const dw = Math.max(50, Math.floor(sw * 0.35));
           const dh = Math.max(50, Math.floor(sh * 0.35));
           const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
@@ -394,103 +360,107 @@
           const frame = tctx.getImageData(0,0,dw,dh);
 
           if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-            const eff = uiToPercent(sens.value);     // 5..60 %
-            const sensV = eff;                       // reusamos como 0..100 escala
-            const thrPix = 18 + Math.round((100 - sensV) * 0.6);
-
+            const eff = uiToPercent(sens.value);
+            const thrPix = 18 + Math.round((100 - eff) * 0.6);
             let diffPix = 0, total=0;
             for(let i=0;i<frame.data.length;i+=4){
               const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
                         Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
                         Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
-              if(d > thrPix) diffPix++;
-              total++;
+              if(d > thrPix) diffPix++; total++;
             }
-
             if(diffPix < MIN_PIXELS){ diffPix = 0; }
-
-            const activity = diffPix / Math.max(1,total); // 0..1
+            const activity = diffPix / Math.max(1,total);
             actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
-
             const { up, down } = thresholdsFromSens(eff);
 
-            // Histeresis + HOLD
-            if(!above){
-              if(actEma >= up){ above = true; aboveSince = nowPerf; }
-            }else{
+            if(!above){ if(actEma >= up){ above = true; aboveSince = nowPerf; } }
+            else{
               if(actEma <= down){ above = false; aboveSince = 0; }
               else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
             }
           }
-
           prevFrame = frame;
         }
 
         requestAnimationFrame(loop);
       }
 
-      function drawOverlayTimes(w,h,rows, selectedId){
+      // ======= Dibujo de filas estilo “pastilla” =======
+      function drawOverlayRows(w,h,rows, selectedId){
         overlayRowHitboxes = [];
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
 
-        // Orden: más reciente ARRIBA
+        // más reciente arriba
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-        const baseSize = Math.max(18, Math.floor(h*0.026)); // tamaño compacto
-        const gap = Math.max(5, Math.floor(h*0.011)) * 1.5;  // +50% separación
-        const leftPad = Math.floor(w*0.06);
-        const rightPad= Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14); // aire para HUD
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
+        const base = Math.max(18, Math.floor(h*0.026));
+        const gap  = Math.max(5, Math.floor(h*0.011)) * 1.5;  // +50%
+        const padX = Math.floor(w*0.06);
+        const topPad = Math.floor(h*0.14);
+        const rowH = base*1.4;                 // alto de pastilla
+        const radius = rowH/2.2;
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
 
-        octx.textBaseline = 'top';
-        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
+        const left = padX, right = w - padX;
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
           const r = sorted[i];
           const elapsed = nowSync - (r.startMS||nowSync);
-          const tText = fmt(elapsed);
-          const nText = r.name || '—';
+          const timeText = fmt(elapsed);
+          const nameText = r.name || '—';
           const isSel = (mode==='finish' && r.id===selectedId);
 
-          // estilos por selección
-          octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-          octx.strokeStyle = isSel ? 'rgba(0,0,0,.65)' : 'rgba(0,0,0,.55)';
-          octx.fillStyle   = isSel ? '#7cffb6' : '#ffffff';
+          // Pastilla fondo
+          const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
+          roundRect(octx, pillX, pillY, pillW, pillH, radius);
+          octx.fillStyle = 'rgba(0,0,0,.35)'; octx.fill();
 
-          // tiempo (izq)
+          // Borde si seleccionado
+          if(isSel){ octx.lineWidth=3; octx.strokeStyle='rgba(127,255,182,.85)'; octx.stroke(); }
+
+          // Contenido
+          octx.textBaseline='middle';
+          octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+          octx.fillStyle = isSel ? '#7cffb6' : '#ffffff';
+          octx.strokeStyle = 'rgba(0,0,0,.65)'; octx.lineWidth = Math.max(2, Math.floor(base*0.13));
+
+          // Badge #n
+          const badge = `#${r.order}`;
           octx.textAlign='left';
-          octx.strokeText(tText, leftPad, y);
-          octx.fillText  (tText, leftPad, y);
+          const badgeX = left + 10;
+          textStrokeFill(octx, badge, badgeX, y + rowH/2);
 
-          // nombre (der)
+          // Nombre (izq)
+          const nameX = badgeX + octx.measureText(badge).width + 14;
+          textStrokeFill(octx, nameText, nameX, y + rowH/2);
+
+          // Tiempo (der)
           octx.textAlign='right';
-          octx.strokeText(nText, w - rightPad, y);
-          octx.fillText  (nText, w - rightPad, y);
+          textStrokeFill(octx, timeText, right - 14, y + rowH/2);
 
-          // guardar área "clicable" de la fila (entre extremos de textos aprox.)
-          const rowHeight = baseSize + 6;
-          overlayRowHitboxes.push({
-            id:r.id, x: leftPad-10, y, w: w - (leftPad+rightPad) + 20, h: rowHeight
-          });
+          // Área clicable
+          overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
-          y += baseSize + gap;
+          y += rowH + gap;
         }
+      }
 
-        // Si hay seleccionado, dibuja una “banda” suave indicativa detrás
-        if(mode==='finish' && selectedId){
-          for(const hb of overlayRowHitboxes){
-            if(hb.id===selectedId){
-              octx.save();
-              octx.fillStyle='rgba(127,255,182,.12)';
-              octx.fillRect(hb.x, hb.y-4, hb.w, hb.h+8);
-              octx.restore();
-              break;
-            }
-          }
-        }
+      function textStrokeFill(ctx, text, x, y){
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+      }
+      function roundRect(ctx,x,y,w,h,r){
+        const rr = Math.min(r, h/2, w/2);
+        ctx.beginPath();
+        ctx.moveTo(x+rr, y);
+        ctx.arcTo(x+w, y,   x+w, y+h, rr);
+        ctx.arcTo(x+w, y+h, x,   y+h, rr);
+        ctx.arcTo(x,   y+h, x,   y,   rr);
+        ctx.arcTo(x,   y,   x+w, y,   rr);
+        ctx.closePath();
       }
 
     }catch(e){
