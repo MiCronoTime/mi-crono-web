@@ -28,7 +28,6 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
-    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -41,16 +40,13 @@
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
     .btn.ghost{ background:#0f1217; border-color:var(--border) }
 
-    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* capturamos clicks */
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
-    /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
 
-    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
@@ -120,7 +116,6 @@
   <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    // ---------- Utils ----------
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -129,7 +124,7 @@
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
     const getParam=(k)=> new URL(location.href).searchParams.get(k);
     const code=(getParam('code')||'').toUpperCase();
-    const mode=(getParam('mode')||'start'); // start|finish
+    const mode=(getParam('mode')||'start');
 
     document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
@@ -142,7 +137,6 @@
     else { evState.textContent=code; evState.className='ok'; }
     btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    // Slider → % efectivo
     const uiToPercent = (ui)=>{
       const v = Math.max(0, Math.min(100, Number(ui)||50));
       if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
@@ -150,11 +144,9 @@
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel(); sens.oninput = updateSensLabel;
 
-    // ---------- Reloj sincronizado ----------
     let serverOffsetMS = 0;
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    // ---------- Firebase ----------
     try{
       const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
@@ -181,7 +173,6 @@
       const s=await getDoc(eventRef);
       if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // Offset con servidor
       try{
         const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
         const pingSnap = await getDoc(pingRef);
@@ -189,7 +180,6 @@
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
       }catch(_){ serverOffsetMS=0; }
 
-      // Participants
       let participants=[];
       async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
         participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
@@ -202,10 +192,7 @@
       async function stopById(pid){ await reload(); const p=participants.find(x=>x.id===pid && x.startTS && !x.stopTS); if(!p) return null;
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-      // Selección META
-      let currentLive=[];          // [{id,order,name,startMS}]
-      let selectedRunnerId=null;   // a quién parar
-      let overlayRowHitboxes=[];   // para clicks
+      let currentLive=[]; let selectedRunnerId=null; let overlayRowHitboxes=[];
 
       function ensureSelection(){
         if(mode!=='finish') return;
@@ -254,7 +241,6 @@
         renderList();
       });
 
-      // ===== Detector con hold + histeresis + delay 2s =====
       btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -313,7 +299,6 @@
         armAfter(COOLDOWN_FINISH_MS);
       };
 
-      // Click en overlay para seleccionar fila
       overlay.addEventListener('click', (ev)=>{
         if(mode!=='finish' || !overlayRowHitboxes.length) return;
         const rect = overlay.getBoundingClientRect();
@@ -333,19 +318,15 @@
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
 
-        // ROI
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
-        // Dibujo ROI
         octx.clearRect(0,0,w,h);
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay “pastilla”
         drawOverlayRows(w,h,currentLive, selectedRunnerId);
 
-        // Detector en ROI
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -386,20 +367,19 @@
         requestAnimationFrame(loop);
       }
 
-      // ======= Dibujo de filas estilo “pastilla” =======
       function drawOverlayRows(w,h,rows, selectedId){
         overlayRowHitboxes = [];
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
 
-        // más reciente arriba
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
         const base = Math.max(18, Math.floor(h*0.026));
-        const gap  = Math.max(5, Math.floor(h*0.011)) * 1.5;  // +50%
+        const gapBase  = Math.max(5, Math.floor(h*0.011));
+        const gap  = gapBase * 2;            /* ← 100% más separación */
         const padX = Math.floor(w*0.06);
         const topPad = Math.floor(h*0.14);
-        const rowH = base*1.4;                 // alto de pastilla
+        const rowH = base*1.4;
         const radius = rowH/2.2;
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
 
@@ -413,45 +393,34 @@
           const nameText = r.name || '—';
           const isSel = (mode==='finish' && r.id===selectedId);
 
-          // Pastilla fondo
           const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
           roundRect(octx, pillX, pillY, pillW, pillH, radius);
           octx.fillStyle = 'rgba(0,0,0,.35)'; octx.fill();
-
-          // Borde si seleccionado
           if(isSel){ octx.lineWidth=3; octx.strokeStyle='rgba(127,255,182,.85)'; octx.stroke(); }
 
-          // Contenido
           octx.textBaseline='middle';
           octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
           octx.fillStyle = isSel ? '#7cffb6' : '#ffffff';
           octx.strokeStyle = 'rgba(0,0,0,.65)'; octx.lineWidth = Math.max(2, Math.floor(base*0.13));
 
-          // Badge #n
-          const badge = `#${r.order}`;
           octx.textAlign='left';
+          const badge = `#${r.order}`;
           const badgeX = left + 10;
           textStrokeFill(octx, badge, badgeX, y + rowH/2);
 
-          // Nombre (izq)
           const nameX = badgeX + octx.measureText(badge).width + 14;
           textStrokeFill(octx, nameText, nameX, y + rowH/2);
 
-          // Tiempo (der)
           octx.textAlign='right';
           textStrokeFill(octx, timeText, right - 14, y + rowH/2);
 
-          // Área clicable
           overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
           y += rowH + gap;
         }
       }
 
-      function textStrokeFill(ctx, text, x, y){
-        ctx.strokeText(text, x, y);
-        ctx.fillText(text, x, y);
-      }
+      function textStrokeFill(ctx, text, x, y){ ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
       function roundRect(ctx,x,y,w,h,r){
         const rr = Math.min(r, h/2, w/2);
         ctx.beginPath();
