@@ -3,170 +3,84 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — modos</title>
+  <title>MI CRONO WEB — Seleccionar modo</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
-      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff;
+      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
+      --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
+      --accent:#6eb0ff; --accent-2:#8ec5ff; --alt:#ff798a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+      background: radial-gradient(1300px 800px at 20% -10%, #131a27 0%, transparent 60%),
+                  radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
+      display:flex; align-items:center; justify-content:center;
     }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{color:var(--accent-2)}
-    .wrap{max-width:900px;margin:0 auto;padding:16px}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    h1{margin:14px 0 6px 0; font-size:22px; letter-spacing:.05em; text-transform:uppercase}
-    p.muted{color:var(--muted);margin:0 0 12px 0}
+    .wrap{width:100%; max-width:900px; padding:24px}
+    .box{background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:28px;
+         box-shadow:0 18px 50px rgba(0,0,0,.35)}
+    .title{margin:0 0 6px 0; font-weight:900; text-transform:uppercase; letter-spacing:.06em; text-align:center}
+    .subtitle{margin:0 0 22px 0; text-align:center; color:var(--muted)}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+    @media (max-width:740px){ .grid{grid-template-columns:1fr} }
 
-    .modes{display:grid;grid-template-columns:1fr;gap:14px;margin-top:16px}
-    @media (min-width:700px){ .modes{grid-template-columns:1fr 1fr} }
+    .card{
+      background:var(--panel2); border:1px solid var(--border); border-radius:16px; padding:22px;
+      display:flex; flex-direction:column; gap:14px; justify-content:space-between
+    }
+    .card h2{margin:0; text-transform:uppercase; letter-spacing:.04em}
+    .desc{color:var(--muted); margin:0}
 
     .btn{
-      display:flex;align-items:center;gap:10px;justify-content:center;
-      padding:16px;border-radius:14px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);text-decoration:none;font-weight:900;letter-spacing:.04em;
-      text-transform:uppercase; min-height:64px; transition:transform .05s, background .15s, border-color .15s;
+      width:100%; display:inline-flex; align-items:center; justify-content:center; gap:10px;
+      padding:14px 16px; min-height:56px; border-radius:14px; border:1px solid var(--border);
+      background:#0f141c; color:var(--text); text-decoration:none; cursor:pointer;
+      text-transform:uppercase; font-weight:900; letter-spacing:.04em; transition:background .15s,transform .05s
     }
-    .btn:hover{background:#12161d}
-    .btn.primary{background:var(--accent);color:#0b1220;border-color:var(--accent)}
-    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
-    .emoji{font-size:20px}
-    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    input[type=text], input[type=email], input[type=password]{
-      padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:#1b1f27;color:#e8ecf1;
-    }
+    .btn:hover{background:#141a24}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.alt{ background:var(--alt); border-color:var(--alt); color:#220a12 }
+
+    .foot{margin-top:16px; text-align:center; color:var(--muted); font-size:13px}
   </style>
 </head>
 <body>
+  <div class="wrap">
+    <div class="box">
+      <h1 class="title">MI CRONO WEB</h1>
+      <p class="subtitle">Elige el modo de funcionamiento</p>
 
-  <!-- ========= FRANJA LOGIN / REGISTRO (añadido) ========= -->
-  <div id="authBar" style="background:#0f1217;border-bottom:1px solid #2b3240;color:#e8ecf1;font:600 14px/1.1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; padding:10px 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-    <span style="font-weight:800;letter-spacing:.03em;">CUENTA</span>
+      <div class="grid">
+        <!-- SINGLETRACK -->
+        <section class="card">
+          <h2>Singletrack</h2>
+          <p class="desc">
+            Dos dispositivos: uno en <b>SALIDA</b> y otro en <b>META</b>.  
+            Es tu flujo actual (no se toca).
+          </p>
+          <!-- AHORA apunta a tu nueva ruta -->
+          <a class="btn primary" href="singletrack_index.html">Entrar a SINGLETRACK</a>
+        </section>
 
-    <!-- Conectado -->
-    <div id="authSigned" style="display:none; align-items:center; gap:10px;">
-      <span>Conectado: <b id="authUserLabel">—</b></span>
-      <button id="btnLogout" style="padding:8px 12px;border-radius:10px;border:1px solid #2b3240;background:#1b1f27;color:#e8ecf1;cursor:pointer;">Salir</button>
-    </div>
-
-    <!-- Form login/registro -->
-    <form id="authForm" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0;">
-      <input id="authEmail" type="email" placeholder="Email" required style="min-width:220px;">
-      <input id="authPass" type="password" placeholder="Contraseña" required style="min-width:160px;">
-      <button id="btnLogin"  type="submit" class="btn" style="padding:8px 12px; min-height:auto;">Entrar</button>
-      <button id="btnSignup" type="button" class="btn" style="padding:8px 12px; min-height:auto;">Crear cuenta</button>
-    </form>
-
-    <span id="authMsg" style="color:#b5bdc9;"></span>
-  </div>
-  <!-- ====================================================== -->
-
-  <div class="wrap" style="margin-top:14px">
-    <div class="card">
-      <h1>Selecciona modo</h1>
-      <p class="muted">Elige cómo quieres cronometrar:</p>
-
-      <div class="modes">
-        <a class="btn primary" href="singletrack_index.html">
-          <span class="emoji">🏁</span> SINGLETRACK
-        </a>
-        <a class="btn" href="cronolap_index.html">
-          <span class="emoji">⏱️</span> CRONOLAP
-        </a>
+        <!-- CRONOLAP -->
+        <section class="card">
+          <h2>Cronolap</h2>
+          <p class="desc">
+            Un único dispositivo marca <b>Salida</b> y <b>Meta</b> en el mismo punto.  
+            Primero crea evento y participantes y luego inicia la vuelta.
+          </p>
+          <a class="btn alt" href="lap_index.html">Entrar a CRONOLAP</a>
+        </section>
       </div>
+
+      <div class="foot">Consejo: marca esta página como favorita para elegir rápidamente el modo.</div>
     </div>
   </div>
-
-  <!-- ============== Firebase + Auth (módulos CDN) ============== -->
-  <script type="module">
-    import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
-    import {
-      getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-      createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence
-    } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js';
-
-    // (Si aquí necesitas usar Firestore, puedes importarlo también.)
-    // import { getFirestore } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-
-    const app  = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const auth = getAuth();
-    await setPersistence(auth, browserLocalPersistence);
-
-    const $ = (id)=>document.getElementById(id);
-    const authForm   = $('authForm');
-    const authSigned = $('authSigned');
-    const authMsg    = $('authMsg');
-    const authEmail  = $('authEmail');
-    const authPass   = $('authPass');
-    const authUserLabel = $('authUserLabel');
-    const btnLogin   = $('btnLogin');
-    const btnSignup  = $('btnSignup');
-    const btnLogout  = $('btnLogout');
-
-    // Estado global para que otras páginas puedan leer si hace falta
-    window.currentUserUid  = null;
-    window.currentUserName = null;
-
-    onAuthStateChanged(auth, (user)=>{
-      if(user){
-        window.currentUserUid  = user.uid;
-        window.currentUserName = user.email || 'usuario';
-        authUserLabel.textContent = (window.currentUserName||'').toUpperCase();
-        authForm.style.display   = 'none';
-        authSigned.style.display = 'flex';
-        authMsg.textContent = '';
-      }else{
-        window.currentUserUid  = null;
-        window.currentUserName = null;
-        authForm.style.display   = 'flex';
-        authSigned.style.display = 'none';
-      }
-    });
-
-    // Entrar
-    authForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      authMsg.textContent = 'Entrando…';
-      try{
-        await signInWithEmailAndPassword(auth, authEmail.value.trim(), authPass.value);
-        authMsg.textContent = '';
-      }catch(err){
-        authMsg.textContent = 'Error al entrar: ' + (err?.message||err);
-      }
-    });
-
-    // Crear cuenta
-    btnSignup.addEventListener('click', async ()=>{
-      authMsg.textContent = 'Creando cuenta…';
-      try{
-        await createUserWithEmailAndPassword(auth, authEmail.value.trim(), authPass.value);
-        authMsg.textContent = '';
-      }catch(err){
-        authMsg.textContent = 'Error al registrar: ' + (err?.message||err);
-      }
-    });
-
-    // Salir
-    btnLogout.addEventListener('click', async ()=>{
-      try{ await signOut(auth); }catch(e){}
-    });
-  </script>
 </body>
 </html>
