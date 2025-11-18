@@ -3,230 +3,189 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>CRONOLAP</title>
+  <title>CRONOLAP — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
-      --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
-      --accent:#6eb0ff; --accent-2:#8ec5ff; --danger:#ff6b82;
+      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1300px 800px at 20% -10%, #131a27 0%, transparent 60%),
-                  radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
     }
-    .wrap{max-width:1000px;margin:0 auto;padding:16px}
-    .h1{font-weight:900;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    .card h2{margin:0 0 12px 0;text-transform:uppercase;letter-spacing:.04em}
-    label{display:block;margin:10px 0 6px;font-weight:800}
-    input[type=text], textarea{
-      width:100%; padding:12px 12px; border-radius:12px; border:1px solid var(--border);
-      background:#0f141c; color:var(--text); font-weight:800; letter-spacing:.02em; outline:none;
-      text-transform:uppercase;
+    a{color:var(--accent);text-decoration:none}
+    a:hover{color:var(--accent-2)}
+    .wrap{max-width:900px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .title{display:flex;align-items:center;gap:10px}
+    .title .emoji{font-size:28px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);margin-bottom:12px}
+    .row{display:grid;grid-template-columns:1fr;gap:10px}
+    label{font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+    input, textarea{
+      width:100%;padding:10px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);font-size:16px
     }
-    textarea{min-height:150px; resize:vertical}
-    small.muted{color:var(--muted)}
+    input.upper, textarea.upper{ text-transform:uppercase; }
+    textarea{min-height:120px;resize:vertical}
+    .muted{color:var(--muted)}
     .btn{
       display:inline-flex;align-items:center;justify-content:center;gap:8px;
       padding:12px 16px;border-radius:12px;border:1px solid var(--border);
-      background:#0f141c;color:var(--text);cursor:pointer;text-decoration:none;
-      text-transform:uppercase;font-weight:900;letter-spacing:.03em;min-height:44px;
-      transition:background .15s,border-color .15s,transform .05s;
+      background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;text-transform:uppercase;letter-spacing:.03em
     }
-    .btn:hover{background:#141a24}
-    .btn:active{transform:translateY(1px)}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#091320}
+    .btn:hover{background:#12161d}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
-    .btn.danger{background:var(--danger);border-color:var(--danger);color:#220a12}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .muted{color:var(--muted)}
-    .foot{margin-top:8px;border-top:1px dashed var(--border);padding-top:8px;color:var(--muted);font-size:13px}
+    .gridBtns{display:grid;grid-template-columns:1fr;gap:10px}
+    .hidden{display:none !important}
+    .note{font-size:13px;color:var(--muted)}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1 class="h1">🕑 CRONOLAP</h1>
+    <header class="top">
+      <div class="title">
+        <span class="emoji">⏱️</span>
+        <h1 style="margin:0;text-transform:uppercase;letter-spacing:.04em">CRONOLAP</h1>
+      </div>
+    </header>
 
-    <div class="grid">
-      <!-- CREAR EVENTO -->
-      <section class="card">
-        <h2>CREAR EVENTO</h2>
-        <label for="codeNew">Código del evento</label>
-        <input id="codeNew" type="text" placeholder="P.EJ. TEST1" autocomplete="off"/>
+    <!-- ====== BLOQUE DE LOGIN ====== -->
+    <div id="authBox" class="card">
+      <div><b id="authStatus">No conectado</b></div>
 
-        <label for="partsNew">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="partsNew" placeholder="CORREDOR 1&#10;CORREDOR 2&#10;CORREDOR 3"></textarea>
+      <form class="auth-form" style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;margin-top:8px">
+        <label> Email
+          <input id="email" type="email" placeholder="tu@correo.com"/>
+        </label>
+        <label> Contraseña
+          <input id="pass" type="password" placeholder="••••••••"/>
+        </label>
+        <button id="btnLogin" class="btn">Iniciar sesión</button>
+        <button id="btnRegister" class="btn">Registrarse</button>
+      </form>
 
-        <div class="foot">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
-        </div>
-
-        <div class="row" style="margin-top:12px">
-          <button id="btnSave" class="btn primary">GUARDAR EVENTO</button>
-        </div>
-      </section>
-
-      <!-- UNIRSE (CRONOLAP) -->
-      <section class="card">
-        <h2>UNIRSE A UN EVENTO</h2>
-        <label for="codeJoin">Código</label>
-        <input id="codeJoin" type="text" value="TEST1" autocomplete="off"/>
-
-        <div class="row" style="margin-top:10px">
-          <a id="btnOpenLap" class="btn primary">ABRIR CRONOLAP</a>
-          <a id="btnRes"     class="btn">🧾 RESULTADOS</a>
-        </div>
-
-        <div class="foot">
-          En <b>CRONOLAP</b> la SALIDA y la META las marca el <b>mismo dispositivo</b>.<br/>
-          Sale un participante, completa la vuelta, y entonces sale el siguiente.
-        </div>
-      </section>
+      <div class="auth-logout hidden" style="margin-top:8px;display:flex;gap:8px">
+        <button id="btnLogout" class="btn">Cerrar sesión</button>
+      </div>
     </div>
+    <!-- ====== FIN BLOQUE DE LOGIN ====== -->
 
-    <!-- HERRAMIENTAS -->
-    <section class="card" style="margin-top:18px">
-      <h2>HERRAMIENTAS</h2>
-      <p class="muted"><b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de la base de datos.</p>
-      <button id="btnReset" class="btn danger">RESET EVENTOS</button>
+    <!-- Crear/gestionar evento -->
+    <section class="card">
+      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">Crear evento</h2>
+      <div class="row">
+        <label>Código del evento</label>
+        <input id="eventCode" class="upper" placeholder="p.ej. LAP1" autocomplete="off"/>
+
+        <label>Participantes (uno por línea)</label>
+        <textarea id="participants" class="upper" placeholder="ANA
+PEPE
+LOLA"></textarea>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button id="btnSaveEvent" class="btn primary">Guardar evento</button>
+          <button id="btnResetEvents" class="btn">Reset eventos</button>
+          <span class="note">* Borra <b>tus</b> eventos (propiedad tuya).</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Abrir CRONOLAP / resultados -->
+    <section class="card">
+      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">Abrir</h2>
+      <div class="gridBtns">
+        <!-- Si tu cámara CRONOLAP usa otra página, cambia la ruta aquí -->
+        <a id="goLap" class="btn" href="#">⏱️ Abrir CRONOLAP</a>
+      </div>
+      <div style="margin-top:10px">
+        <a id="goResult" class="btn" href="#">📊 Resultados</a>
+      </div>
+      <p class="muted" style="margin-top:8px">CRONOLAP: misma cámara marca inicio y fin por vuelta.</p>
     </section>
   </div>
 
+  <!-- ====== Lógica de autenticación + Firestore ====== -->
   <script type="module">
-    // ===== Uppercase en tiempo real =====
-    const upperize = (el)=> el && el.addEventListener('input', ()=> el.value = el.value.toUpperCase());
-    upperize(document.getElementById('codeNew'));
-    upperize(document.getElementById('codeJoin'));
-    const partsNew = document.getElementById('partsNew');
-    partsNew.addEventListener('input', ()=> partsNew.value = partsNew.value.toUpperCase());
-
-    // ===== Navegación correcta (sin dobles "?") =====
-    const codeJoinEl = document.getElementById('codeJoin');
-    function openLap(){
-      const code = (codeJoinEl.value||'').toUpperCase().trim();
-      if(!code){ alert('Escribe el CÓDIGO del evento'); return; }
-      const url = new URL('lap.html', location.href);
-      url.searchParams.set('code', code);
-      location.href = url.pathname + url.search;
-    }
-    function goResult(){
-      const code = (codeJoinEl.value||'').toUpperCase().trim();
-      if(!code){ alert('Escribe el CÓDIGO del evento'); return; }
-      const url = new URL('result.html', location.href);
-      url.searchParams.set('code', code);
-      location.href = url.pathname + url.search;
-    }
-    document.getElementById('btnOpenLap').onclick = openLap;
-    document.getElementById('btnRes').onclick     = goResult;
-
-    // ===== Firebase (CDN) =====
-    import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { initAuthUI, auth } from './js/auth.js';
     import {
-      getFirestore, doc, setDoc, serverTimestamp, collection,
-      getDocs, deleteDoc, addDoc, query, limit
+      getFirestore, doc, setDoc, serverTimestamp,
+      collection, getDocs, deleteDoc, query, where
     } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
+    const db = getFirestore();
+    initAuthUI();
 
-    // ===== GUARDAR / RESET de un evento concreto =====
-    document.getElementById('btnSave').onclick = async ()=>{
-      const codeInput  = document.getElementById('codeNew');
-      const partsInput = document.getElementById('partsNew');
+    const codeInput = document.getElementById('eventCode');
+    const participantsInput = document.getElementById('participants');
+    const btnSave = document.getElementById('btnSaveEvent');
+    const btnReset = document.getElementById('btnResetEvents');
 
-      const code = (codeInput?.value || '').toUpperCase().trim();
-      const raw  = (partsInput?.value || '')
-                    .toUpperCase()
-                    .split('\n')
-                    .map(s=>s.trim())
-                    .filter(Boolean);
+    const goLap   = document.getElementById('goLap');
+    const goResult= document.getElementById('goResult');
 
-      if (!code) { alert('Escribe un CÓDIGO para el evento'); codeInput?.focus(); return; }
-      if (raw.length === 0) { alert('Añade al menos 1 PARTICIPANTE (una línea)'); partsInput?.focus(); return; }
+    function codeOrAlert(){
+      const raw = (codeInput?.value || '').trim();
+      if(!raw){ alert('Introduce un código de evento.'); return null; }
+      return raw.toUpperCase();
+    }
 
-      try{
-        const evRef = doc(db,'events', code);
+    // Ajusta la ruta si tu cámara CRONOLAP se llama distinto
+    goLap.onclick = (e)=>{ e.preventDefault(); const c=codeOrAlert(); if(!c) return;
+      location.href = `cronolap_camera.html?code=${encodeURIComponent(c)}`; };
+    goResult.onclick = (e)=>{ e.preventDefault(); const c=codeOrAlert(); if(!c) return;
+      location.href = `result.html?code=${encodeURIComponent(c)}`; };
 
-        // 1) Borrar participantes existentes (paginado)
-        const partsCol = collection(evRef,'participants');
-        while (true) {
-          const page = await getDocs(query(partsCol, limit(50)));
-          if (page.empty) break;
-          await Promise.all(page.docs.map(d => deleteDoc(d.ref)));
+    function requireAuth(){
+      const u = auth.currentUser;
+      if(!u) alert('Inicia sesión para gestionar tus eventos.');
+      return u;
+    }
+
+    // Guardar evento con ownerUid y participantes
+    btnSave.onclick = async (e)=>{
+      e.preventDefault();
+      const u = requireAuth(); if(!u) return;
+      const raw = (codeInput.value||'').trim(); if(!raw) return alert('Introduce un código.');
+      const code = raw.toUpperCase();
+
+      const ref = doc(db,'events',code);
+      await setDoc(ref, {
+        code, ownerUid: u.uid,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp()
+      }, { merge:true });
+
+      if (participantsInput && participantsInput.value.trim()){
+        const names = participantsInput.value.split('\n').map(s=>s.trim()).filter(Boolean);
+        for(let i=0;i<names.length;i++){
+          const name = names[i].toUpperCase();
+          const pRef = doc(collection(ref,'participants'));
+          await setDoc(pRef, { name, order:i+1, startTS:null, stopTS:null });
         }
-
-        // 2) Guardar/actualizar evento
-        await setDoc(evRef, { code, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, { merge:true });
-
-        // 3) Crear nuevos participantes con orden
-        let order=1;
-        for (const name of raw){
-          await addDoc(partsCol, { name, order, startTS:null, stopTS:null });
-          order++;
-        }
-
-        alert('Evento guardado / reseteado correctamente.');
-        document.getElementById('codeJoin').value = code;
-
-      }catch(e){
-        console.error('[GUARDAR EVENTO] error:', e);
-        alert('Error guardando el evento: ' + (e.message || e));
       }
+      alert('Evento guardado.');
     };
 
-    // ===== Reset TODOS los eventos (confirmación y paginado) =====
-    document.getElementById('btnReset').onclick = async ()=>{
-      const btn = document.getElementById('btnReset');
-      const ok = confirm('⚠️ Esto borrará TODOS los eventos y participantes de la base de datos.\n\n¿Seguro que quieres continuar?');
-      if(!ok) return;
+    // Reset (borra solo tus eventos)
+    btnReset.onclick = async (e)=>{
+      e.preventDefault();
+      const u = requireAuth(); if(!u) return;
+      if(!confirm('¿Seguro que quieres borrar TODOS tus eventos?')) return;
 
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = 'Borrando…';
-
-      try{
-        const eventsCol = collection(db,'events');
-        const allEvents = await getDocs(eventsCol);
-
-        const deleteSubcollection = async (parentRef, subName) => {
-          const subCol = collection(parentRef, subName);
-          while (true) {
-            const page = await getDocs(query(subCol, limit(50)));
-            if (page.empty) break;
-            await Promise.all(page.docs.map(d => deleteDoc(d.ref)));
-          }
-        };
-
-        for (const ev of allEvents.docs){
-          await deleteSubcollection(ev.ref, 'participants');
-          await deleteSubcollection(ev.ref, 'sync');
-          await deleteDoc(ev.ref);
-        }
-
-        alert('✅ Todos los eventos han sido eliminados.');
-      }catch(e){
-        console.error('[RESET EVENTS] error:', e);
-        alert('❌ Error al resetear: ' + (e.message || e));
-      }finally{
-        btn.disabled = false;
-        btn.textContent = originalText;
-      }
+      const q = query(collection(db,'events'), where('ownerUid','==',u.uid));
+      const snap = await getDocs(q);
+      const deletions = [];
+      for(const d of snap.docs){ deletions.push(deleteDoc(d.ref)); }
+      await Promise.allSettled(deletions);
+      alert('Eventos borrados.');
     };
   </script>
 </body>
