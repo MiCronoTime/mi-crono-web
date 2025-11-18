@@ -44,7 +44,6 @@
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
     .gridBtns{display:grid;grid-template-columns:1fr;gap:10px}
-    .hidden{display:none !important}
     .note{font-size:13px;color:var(--muted)}
   </style>
 </head>
@@ -55,32 +54,12 @@
         <span class="emoji">⏱️</span>
         <h1 style="margin:0;text-transform:uppercase;letter-spacing:.04em">CRONOLAP</h1>
       </div>
+      <div id="miniStatus" class="muted">No conectado</div>
     </header>
 
-    <!-- ====== BLOQUE DE LOGIN ====== -->
-    <div id="authBox" class="card">
-      <div><b id="authStatus">No conectado</b></div>
-
-      <form class="auth-form" style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;margin-top:8px">
-        <label> Email
-          <input id="email" type="email" placeholder="tu@correo.com"/>
-        </label>
-        <label> Contraseña
-          <input id="pass" type="password" placeholder="••••••••"/>
-        </label>
-        <button id="btnLogin" class="btn">Iniciar sesión</button>
-        <button id="btnRegister" class="btn">Registrarse</button>
-      </form>
-
-      <div class="auth-logout hidden" style="margin-top:8px;display:flex;gap:8px">
-        <button id="btnLogout" class="btn">Cerrar sesión</button>
-      </div>
-    </div>
-    <!-- ====== FIN BLOQUE DE LOGIN ====== -->
-
-    <!-- Crear/gestionar evento -->
+    <!-- Crear/gestionar evento (igual que antes) -->
     <section class="card">
-      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">Crear evento</h2>
+      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.03em">Crear evento</h2>
       <div class="row">
         <label>Código del evento</label>
         <input id="eventCode" class="upper" placeholder="p.ej. LAP1" autocomplete="off"/>
@@ -100,19 +79,20 @@ LOLA"></textarea>
 
     <!-- Abrir CRONOLAP / resultados -->
     <section class="card">
-      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">Abrir</h2>
+      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.03em">Abrir</h2>
       <div class="gridBtns">
-        <!-- Si tu cámara CRONOLAP usa otra página, cambia la ruta aquí -->
         <a id="goLap" class="btn" href="#">⏱️ Abrir CRONOLAP</a>
       </div>
       <div style="margin-top:10px">
         <a id="goResult" class="btn" href="#">📊 Resultados</a>
       </div>
-      <p class="muted" style="margin-top:8px">CRONOLAP: misma cámara marca inicio y fin por vuelta.</p>
+      <p class="muted" style="margin-top:8px">
+        La misma cámara marca salida y llegada por vuelta.
+        <br/><a href="index.html">⇦ Volver a INICIO (login/registro)</a>
+      </p>
     </section>
   </div>
 
-  <!-- ====== Lógica de autenticación + Firestore ====== -->
   <script type="module">
     import { initAuthUI, auth } from './js/auth.js';
     import {
@@ -120,9 +100,12 @@ LOLA"></textarea>
       collection, getDocs, deleteDoc, query, where
     } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-    const db = getFirestore();
-    initAuthUI();
+    initAuthUI({
+      onLogin: (user)=> document.getElementById('miniStatus').textContent = `Conectado: ${user.email || user.uid}`,
+      onLogout: ()=> document.getElementById('miniStatus').textContent = 'No conectado'
+    });
 
+    const db = getFirestore();
     const codeInput = document.getElementById('eventCode');
     const participantsInput = document.getElementById('participants');
     const btnSave = document.getElementById('btnSaveEvent');
@@ -137,19 +120,22 @@ LOLA"></textarea>
       return raw.toUpperCase();
     }
 
-    // Ajusta la ruta si tu cámara CRONOLAP se llama distinto
     goLap.onclick = (e)=>{ e.preventDefault(); const c=codeOrAlert(); if(!c) return;
-      location.href = `cronolap_camera.html?code=${encodeURIComponent(c)}`; };
+      // Cambia la ruta si tu archivo de cámara CRONOLAP tiene otro nombre
+      location.href = `cronolap_camera.html?code=${encodeURIComponent(c)}`;
+    };
     goResult.onclick = (e)=>{ e.preventDefault(); const c=codeOrAlert(); if(!c) return;
       location.href = `result.html?code=${encodeURIComponent(c)}`; };
 
     function requireAuth(){
       const u = auth.currentUser;
-      if(!u) alert('Inicia sesión para gestionar tus eventos.');
+      if(!u){
+        alert('Inicia sesión en el INICIO para gestionar tus eventos.');
+        return null;
+      }
       return u;
     }
 
-    // Guardar evento con ownerUid y participantes
     btnSave.onclick = async (e)=>{
       e.preventDefault();
       const u = requireAuth(); if(!u) return;
@@ -174,7 +160,6 @@ LOLA"></textarea>
       alert('Evento guardado.');
     };
 
-    // Reset (borra solo tus eventos)
     btnReset.onclick = async (e)=>{
       e.preventDefault();
       const u = requireAuth(); if(!u) return;
