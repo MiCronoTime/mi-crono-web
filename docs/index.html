@@ -3,135 +3,84 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono Web — Inicio</title>
+  <title>MI CRONO WEB — Seleccionar modo</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
-      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff;
+      --bg:#10141b; --panel:#161c24; --panel2:#1b2330;
+      --text:#eaf0f8; --muted:#b5c0d1; --border:#2a3342;
+      --accent:#6eb0ff; --accent-2:#8ec5ff; --alt:#ff798a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+      background: radial-gradient(1300px 800px at 20% -10%, #131a27 0%, transparent 60%),
+                  radial-gradient(1200px 900px at 120% 10%, #192134 0%, transparent 55%),
                   var(--bg);
       color:var(--text);
+      display:flex; align-items:center; justify-content:center;
     }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{color:var(--accent-2)}
+    .wrap{width:100%; max-width:900px; padding:24px}
+    .box{background:var(--panel); border:1px solid var(--border); border-radius:18px; padding:28px;
+         box-shadow:0 18px 50px rgba(0,0,0,.35)}
+    .title{margin:0 0 6px 0; font-weight:900; text-transform:uppercase; letter-spacing:.06em; text-align:center}
+    .subtitle{margin:0 0 22px 0; text-align:center; color:var(--muted)}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+    @media (max-width:740px){ .grid{grid-template-columns:1fr} }
 
-    .wrap{max-width:900px;margin:0 auto;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .title{display:flex;align-items:center;gap:10px}
-    .title .emoji{font-size:28px}
-    .muted{color:var(--muted)}
-
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);margin-bottom:12px}
-    .card h2{margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em}
+    .card{
+      background:var(--panel2); border:1px solid var(--border); border-radius:16px; padding:22px;
+      display:flex; flex-direction:column; gap:14px; justify-content:space-between
+    }
+    .card h2{margin:0; text-transform:uppercase; letter-spacing:.04em}
+    .desc{color:var(--muted); margin:0}
 
     .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:10px;
-      padding:14px 18px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);cursor:pointer;font-weight:900;text-transform:uppercase;letter-spacing:.03em;font-size:16px;
-      text-decoration:none;
+      width:100%; display:inline-flex; align-items:center; justify-content:center; gap:10px;
+      padding:14px 16px; min-height:56px; border-radius:14px; border:1px solid var(--border);
+      background:#0f141c; color:var(--text); text-decoration:none; cursor:pointer;
+      text-transform:uppercase; font-weight:900; letter-spacing:.04em; transition:background .15s,transform .05s
     }
-    .btn:hover{background:#12161d}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
-    .btn.primary:hover{background:var(--accent-2)}
+    .btn:hover{background:#141a24}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.alt{ background:var(--alt); border-color:var(--alt); color:#220a12 }
 
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    input{
-      width:100%;padding:10px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);font-size:16px
-    }
-    label{font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-    .hidden{display:none !important}
+    .foot{margin-top:16px; text-align:center; color:var(--muted); font-size:13px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- Encabezado -->
-    <header class="top">
-      <div class="title">
-        <span class="emoji">⏱️</span>
-        <h1 style="margin:0;text-transform:uppercase;letter-spacing:.04em">Mi Crono Web</h1>
+    <div class="box">
+      <h1 class="title">MI CRONO WEB</h1>
+      <p class="subtitle">Elige el modo de funcionamiento</p>
+
+      <div class="grid">
+        <!-- SINGLETRACK -->
+        <section class="card">
+          <h2>Singletrack</h2>
+          <p class="desc">
+            Dos dispositivos: uno en <b>SALIDA</b> y otro en <b>META</b>.  
+            Es tu flujo actual (no se toca).
+          </p>
+          <!-- AHORA apunta a tu nueva ruta -->
+          <a class="btn primary" href="singletrack_index.html">Entrar a SINGLETRACK</a>
+        </section>
+
+        <!-- CRONOLAP -->
+        <section class="card">
+          <h2>Cronolap</h2>
+          <p class="desc">
+            Un único dispositivo marca <b>Salida</b> y <b>Meta</b> en el mismo punto.  
+            Primero crea evento y participantes y luego inicia la vuelta.
+          </p>
+          <a class="btn alt" href="lap_index.html">Entrar a CRONOLAP</a>
+        </section>
       </div>
-      <div id="miniStatus" class="muted">No conectado</div>
-    </header>
 
-    <!-- ✨ NUEVO: Acceso (login/registro) -->
-    <section id="authBox" class="card" style="margin-top:4px">
-      <h2>Acceso</h2>
-      <div><b id="authStatus">No conectado</b></div>
-
-      <form class="auth-form" style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;margin-top:8px">
-        <label>Email
-          <input id="email" type="email" placeholder="tu@correo.com"/>
-        </label>
-        <label>Contraseña
-          <input id="pass" type="password" placeholder="••••••••"/>
-        </label>
-        <button id="btnLogin" class="btn">Iniciar sesión</button>
-        <button id="btnRegister" class="btn">Registrarse</button>
-      </form>
-
-      <div class="auth-logout hidden" style="margin-top:8px;display:flex;gap:8px">
-        <button id="btnLogout" class="btn">Cerrar sesión</button>
-      </div>
-      <p class="muted" style="margin-top:6px">Inicia sesión o regístrate para gestionar <b>tus</b> eventos y participantes.</p>
-    </section>
-
-    <!-- Introducción / explicación (deja tu texto como lo tenías) -->
-    <section class="card">
-      <h2>Descripción general</h2>
-      <p>Mi Crono Web es una aplicación web gratuita para cronometraje de eventos. Funciona desde el navegador y permite usar dos móviles: uno en <b>SALIDA</b> y otro en <b>META</b>, o usar el modo <b>CRONOLAP</b> donde la misma cámara marca salida y llegada por vuelta.</p>
-      <ul>
-        <li>Sin instalaciones (funciona en Chrome/Safari/Edge).</li>
-        <li>Detección mediante cámara del móvil.</li>
-        <li>Sincronización en tiempo real con Firestore.</li>
-        <li>Resultados listos para exportar.</li>
-      </ul>
-      <p class="muted">Consejo: en iPhone usa <b>Safari</b> y permite la <b>Cámara</b>.</p>
-    </section>
-
-    <!-- Elegir modo -->
-    <section class="card">
-      <h2>Elegir modo</h2>
-      <div class="grid2">
-        <a class="btn primary" href="singletrack_index.html">SINGLETRACK</a>
-        <a class="btn" href="cronolap_index.html">CRONOLAP</a>
-      </div>
-      <p class="muted" style="margin-top:8px">
-        SINGLETRACK: salida y meta en móviles distintos.<br/>
-        CRONOLAP: misma cámara marca inicio y fin de cada vuelta (sale el siguiente cuando termina el anterior).
-      </p>
-    </section>
-
-    <!-- Requisitos -->
-    <section class="card">
-      <h2>Requisitos</h2>
-      <ul>
-        <li>Navegador actualizado (Safari/Chrome).</li>
-        <li>Conexión a Internet para sincronizar.</li>
-        <li>Permisos de cámara habilitados.</li>
-      </ul>
-    </section>
+      <div class="foot">Consejo: marca esta página como favorita para elegir rápidamente el modo.</div>
+    </div>
   </div>
-
-  <!-- Script de acceso: NO toca nada más de la página -->
-  <script type="module">
-    import { initAuthUI } from './js/auth.js';
-
-    initAuthUI({
-      onLogin: (user)=>{
-        document.getElementById('miniStatus').textContent = `Conectado: ${user.email || user.uid}`;
-      },
-      onLogout: ()=>{
-        document.getElementById('miniStatus').textContent = 'No conectado';
-      }
-    });
-  </script>
 </body>
 </html>
