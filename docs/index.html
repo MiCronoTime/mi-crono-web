@@ -21,31 +21,38 @@
     }
     a{color:var(--accent);text-decoration:none}
     a:hover{color:var(--accent-2)}
+
     .wrap{max-width:900px;margin:0 auto;padding:16px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
     .title{display:flex;align-items:center;gap:10px}
     .title .emoji{font-size:28px}
+    .muted{color:var(--muted)}
+
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25);margin-bottom:12px}
+    .card h2{margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em}
+
     .btn{
       display:inline-flex;align-items:center;justify-content:center;gap:10px;
       padding:14px 18px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);cursor:pointer;font-weight:900;text-transform:uppercase;letter-spacing:.03em;font-size:16px
+      background:#0f1217;color:var(--text);cursor:pointer;font-weight:900;text-transform:uppercase;letter-spacing:.03em;font-size:16px;
+      text-decoration:none;
     }
     .btn:hover{background:#12161d}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent-2)}
+
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .hidden{display:none !important}
     input{
       width:100%;padding:10px;border-radius:12px;border:1px solid var(--border);
       background:#0f1217;color:var(--text);font-size:16px
     }
     label{font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-    .muted{color:var(--muted)}
+    .hidden{display:none !important}
   </style>
 </head>
 <body>
   <div class="wrap">
+    <!-- Encabezado -->
     <header class="top">
       <div class="title">
         <span class="emoji">⏱️</span>
@@ -54,9 +61,9 @@
       <div id="miniStatus" class="muted">No conectado</div>
     </header>
 
-    <!-- Login / Registro -->
-    <section id="authBox" class="card">
-      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">Acceso</h2>
+    <!-- ✨ NUEVO: Acceso (login/registro) -->
+    <section id="authBox" class="card" style="margin-top:4px">
+      <h2>Acceso</h2>
       <div><b id="authStatus">No conectado</b></div>
 
       <form class="auth-form" style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:end;margin-top:8px">
@@ -73,24 +80,50 @@
       <div class="auth-logout hidden" style="margin-top:8px;display:flex;gap:8px">
         <button id="btnLogout" class="btn">Cerrar sesión</button>
       </div>
-      <p class="muted" style="margin-top:6px">Inicia sesión o regístrate para gestionar tus eventos.</p>
+      <p class="muted" style="margin-top:6px">Inicia sesión o regístrate para gestionar <b>tus</b> eventos y participantes.</p>
     </section>
 
-    <!-- Entrar en modos -->
+    <!-- Introducción / explicación (deja tu texto como lo tenías) -->
     <section class="card">
-      <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">Elegir modo</h2>
+      <h2>Descripción general</h2>
+      <p>Mi Crono Web es una aplicación web gratuita para cronometraje de eventos. Funciona desde el navegador y permite usar dos móviles: uno en <b>SALIDA</b> y otro en <b>META</b>, o usar el modo <b>CRONOLAP</b> donde la misma cámara marca salida y llegada por vuelta.</p>
+      <ul>
+        <li>Sin instalaciones (funciona en Chrome/Safari/Edge).</li>
+        <li>Detección mediante cámara del móvil.</li>
+        <li>Sincronización en tiempo real con Firestore.</li>
+        <li>Resultados listos para exportar.</li>
+      </ul>
+      <p class="muted">Consejo: en iPhone usa <b>Safari</b> y permite la <b>Cámara</b>.</p>
+    </section>
+
+    <!-- Elegir modo -->
+    <section class="card">
+      <h2>Elegir modo</h2>
       <div class="grid2">
-        <a id="goSingle" class="btn primary" href="singletrack_index.html">SINGLETRACK</a>
-        <a id="goLap" class="btn" href="cronolap_index.html">CRONOLAP</a>
+        <a class="btn primary" href="singletrack_index.html">SINGLETRACK</a>
+        <a class="btn" href="cronolap_index.html">CRONOLAP</a>
       </div>
-      <p class="muted" style="margin-top:8px">SINGLETRACK: salida y meta en móviles distintos. CRONOLAP: misma cámara marca salida y llegada por vuelta.</p>
+      <p class="muted" style="margin-top:8px">
+        SINGLETRACK: salida y meta en móviles distintos.<br/>
+        CRONOLAP: misma cámara marca inicio y fin de cada vuelta (sale el siguiente cuando termina el anterior).
+      </p>
+    </section>
+
+    <!-- Requisitos -->
+    <section class="card">
+      <h2>Requisitos</h2>
+      <ul>
+        <li>Navegador actualizado (Safari/Chrome).</li>
+        <li>Conexión a Internet para sincronizar.</li>
+        <li>Permisos de cámara habilitados.</li>
+      </ul>
     </section>
   </div>
 
+  <!-- Script de acceso: NO toca nada más de la página -->
   <script type="module">
-    import { initAuthUI, auth } from './js/auth.js';
+    import { initAuthUI } from './js/auth.js';
 
-    // Inicia la UI de login del inicio
     initAuthUI({
       onLogin: (user)=>{
         document.getElementById('miniStatus').textContent = `Conectado: ${user.email || user.uid}`;
@@ -99,18 +132,6 @@
         document.getElementById('miniStatus').textContent = 'No conectado';
       }
     });
-
-    // (Opcional) Forzar login antes de entrar en los modos:
-    const protect = (el)=>{
-      el.addEventListener('click', (e)=>{
-        if(!auth.currentUser){
-          e.preventDefault();
-          alert('Primero inicia sesión o regístrate.');
-        }
-      });
-    };
-    protect(document.getElementById('goSingle'));
-    protect(document.getElementById('goLap'));
   </script>
 </body>
 </html>
