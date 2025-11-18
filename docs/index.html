@@ -82,5 +82,106 @@
       <div class="foot">Consejo: marca esta página como favorita para elegir rápidamente el modo.</div>
     </div>
   </div>
+  <script type="module">
+  // --- Firebase (módulos CDN) ---
+  import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
+  import {
+    getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+    createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence
+  } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js';
+  import {
+    getFirestore, doc, setDoc, addDoc, collection, query, where, getDocs, deleteDoc
+  } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+    authDomain: "mi-crono-time-888b7.firebaseapp.com",
+    projectId: "mi-crono-time-888b7",
+    storageBucket: "mi-crono-time-888b7.appspot.com",
+    messagingSenderId: "379025900327",
+    appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+  };
+  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  const auth = getAuth();
+  const db   = getFirestore(app);
+  await setPersistence(auth, browserLocalPersistence);
+
+  // --- UI refs ---
+  const $ = (id)=>document.getElementById(id);
+  const authForm   = $('authForm');
+  const authSigned = $('authSigned');
+  const authMsg    = $('authMsg');
+  const authEmail  = $('authEmail');
+  const authPass   = $('authPass');
+  const authUserLabel = $('authUserLabel');
+  const btnLogin   = $('btnLogin');
+  const btnSignup  = $('btnSignup');
+  const btnLogout  = $('btnLogout');
+
+  // Estado global para otros scripts
+  window.currentUserUid  = null;
+  window.currentUserName = null; // usaremos email como nombre visible
+
+  // Mostrar/Hundir UI según sesión
+  onAuthStateChanged(auth, (user)=>{
+    if(user){
+      window.currentUserUid  = user.uid;
+      window.currentUserName = user.email || 'usuario';
+      authUserLabel.textContent = window.currentUserName.toUpperCase();
+      authForm.style.display   = 'none';
+      authSigned.style.display = 'flex';
+      authMsg.textContent = '';
+    }else{
+      window.currentUserUid  = null;
+      window.currentUserName = null;
+      authForm.style.display   = 'flex';
+      authSigned.style.display = 'none';
+    }
+  });
+
+  // Entrar
+  authForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    authMsg.textContent = 'Entrando…';
+    try{
+      await signInWithEmailAndPassword(auth, authEmail.value.trim(), authPass.value);
+      authMsg.textContent = '';
+    }catch(err){
+      authMsg.textContent = 'Error al entrar: ' + (err?.message||err);
+    }
+  });
+
+  // Crear cuenta
+  btnSignup.addEventListener('click', async ()=>{
+    authMsg.textContent = 'Creando cuenta…';
+    try{
+      await createUserWithEmailAndPassword(auth, authEmail.value.trim(), authPass.value);
+      authMsg.textContent = '';
+    }catch(err){
+      authMsg.textContent = 'Error al registrar: ' + (err?.message||err);
+    }
+  });
+
+  // Salir
+  btnLogout.addEventListener('click', async ()=>{
+    try{ await signOut(auth); }catch(e){}
+  });
+
+  // -------------- ENLACE CON TU LÓGICA EXISTENTE -----------------
+  // *Cuando crees un evento*, añade ownerUid: window.currentUserUid
+  //   await setDoc(doc(db,'events', CODE), { ownerUid: window.currentUserUid, ...otrosCampos }, {merge:true})
+  //
+  // *Para listar MIS eventos*: usa un query filtrado por ownerUid (si tienes listado).
+  //   const q = query(collection(db,'events'), where('ownerUid','==', window.currentUserUid))
+  //   const snap = await getDocs(q)
+  //
+  // *RESET EVENTOS* (solo los del usuario actual):
+  //   const q = query(collection(db,'events'), where('ownerUid','==', window.currentUserUid))
+  //   const snap = await getDocs(q)
+  //   for (const d of snap.docs) await deleteDoc(d.ref)
+  //
+  // Nota: si tu código actual crea eventos ANTES de login, fuerza a que el botón
+  // "GUARDAR EVENTO" compruebe que hay usuario: if(!window.currentUserUid){ alert('Debes iniciar sesión'); return; }
+</script>
 </body>
 </html>
