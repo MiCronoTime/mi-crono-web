@@ -6,11 +6,11 @@
   <title>Mi Crono Web — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    :root{ --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c; --ok:#7cffb6;}
-    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%), var(--bg); color:var(--text)}
+    :root{ --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c; }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);color:var(--text)}
     .wrap{max-width:1000px;margin:0 auto;padding:18px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    .title{font-size:28px;font-weight:900;letter-spacing:.02em;text-align:center;margin:6px 0 18px 0}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .title{font-size:32px;font-weight:900;letter-spacing:.02em;text-align:center;margin:6px 0 18px 0}
     label{display:block;margin:10px 0 6px 0;font-weight:700}
     input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -22,7 +22,6 @@
     .card{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:18px}
     .card h3{margin:0 0 8px 0;font-size:24px;text-transform:uppercase}
     .cta{margin-top:14px}
-    .notice{margin-top:10px;font-size:13px;color:var(--muted)}
     .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .link{color:var(--accent);text-decoration:none} .link:hover{color:var(--accent2)}
     .err{color:var(--danger);font-weight:700}
@@ -31,37 +30,39 @@
 </head>
 <body>
   <div class="wrap">
+
     <!-- Login / Register -->
     <div class="panel">
-      <div class="topbar">
-        <div class="title">Log in</div>
-        <div id="userInfo" class="muted"></div>
-      </div>
-      <div id="authBoxes" class="row">
-        <div>
+      <div class="title" id="formTitle">Log in</div>
+      <div class="row">
+        <!-- LOGIN -->
+        <div id="loginBox">
           <label>Email</label>
-          <input id="loginEmail" type="email" placeholder="tú@correo.com" autocomplete="email"/>
+          <input id="loginEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
           <label>Password</label>
           <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
           <div class="cta"><button id="btnLogin" class="btn primary" style="width:100%">Log in</button></div>
-          <div class="notice">Don't have an account? <a href="#" id="toRegister" class="link">Register</a></div>
+          <div class="muted" style="margin-top:8px">Don't have an account? <a href="#" id="toRegister" class="link">Register</a></div>
           <div id="loginErr" class="err"></div>
         </div>
 
+        <!-- REGISTER -->
         <div id="registerBox" style="display:none">
           <label>Email</label>
-          <input id="regEmail" type="email" placeholder="tú@correo.com" autocomplete="email"/>
+          <input id="regEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
           <label>Password</label>
           <input id="regPass" type="password" placeholder="mín. 6 caracteres" autocomplete="new-password"/>
           <label>Confirm Password</label>
           <input id="regPass2" type="password" placeholder="repite la contraseña" autocomplete="new-password"/>
           <div class="cta"><button id="btnRegister" class="btn primary" style="width:100%">Register</button></div>
-          <div class="notice">Already have an account? <a href="#" id="toLogin" class="link">Log in</a></div>
+          <div class="muted" style="margin-top:8px">Already have an account? <a href="#" id="toLogin" class="link">Log in</a></div>
           <div id="regErr" class="err"></div>
         </div>
       </div>
+
       <div class="cta" style="margin-top:10px; display:flex; gap:8px;">
-        <button id="btnLogout" class="btn" style="display:none">Cerrar sesión</button>
+        <span id="userInfo" class="muted"></span>
+        <button id="btnLogout" class="btn" style="display:none;margin-left:auto">Cerrar sesión</button>
       </div>
     </div>
 
@@ -80,14 +81,20 @@
           <div class="cta"><a id="goCrono" class="btn" style="background:#ff7b8c;border-color:#ff7b8c;color:#111">Entrar a Cronolap</a></div>
         </div>
       </div>
-      <div class="notice">Debes iniciar sesión para acceder.</div>
+      <div class="muted" style="margin-top:6px">Debes iniciar sesión para acceder.</div>
     </div>
   </div>
 
-  <!-- Firebase Auth helper -->
+  <!-- Scripts -->
   <script type="module" src="js/auth.js"></script>
   <script type="module">
     import { loginEmail, registerEmail, logout, onUser, currentCtx } from './js/auth.js';
+
+    const formTitle   = document.getElementById('formTitle');
+    const loginBox    = document.getElementById('loginBox');
+    const registerBox = document.getElementById('registerBox');
+    const toRegister  = document.getElementById('toRegister');
+    const toLogin     = document.getElementById('toLogin');
 
     const loginEmailEl = document.getElementById('loginEmail');
     const loginPassEl  = document.getElementById('loginPass');
@@ -95,61 +102,59 @@
     const regPassEl    = document.getElementById('regPass');
     const regPass2El   = document.getElementById('regPass2');
 
-    const loginErr = document.getElementById('loginErr');
-    const regErr   = document.getElementById('regErr');
-    const userInfo = document.getElementById('userInfo');
-
-    const toRegister = document.getElementById('toRegister');
-    const toLogin    = document.getElementById('toLogin');
-    const registerBox= document.getElementById('registerBox');
-
     const btnLogin   = document.getElementById('btnLogin');
     const btnRegister= document.getElementById('btnRegister');
     const btnLogout  = document.getElementById('btnLogout');
 
-    const goSingle   = document.getElementById('goSingle');
-    const goCrono    = document.getElementById('goCrono');
+    const loginErr = document.getElementById('loginErr');
+    const regErr   = document.getElementById('regErr');
+    const userInfo = document.getElementById('userInfo');
 
-    function setMode(reg){
-      registerBox.style.display = reg ? '' : 'none';
-      document.querySelector('#authBoxes > div:first-child').style.display = reg ? 'none' : '';
+    function show(mode){ // 'login' | 'register'
+      if(mode==='register'){
+        formTitle.textContent = 'Register';
+        loginBox.style.display = 'none';
+        registerBox.style.display = '';
+      }else{
+        formTitle.textContent = 'Log in';
+        loginBox.style.display = '';
+        registerBox.style.display = 'none';
+      }
     }
-    toRegister.onclick = (e)=>{ e.preventDefault(); setMode(true); };
-    toLogin.onclick    = (e)=>{ e.preventDefault(); setMode(false); };
+    toRegister?.addEventListener('click', e=>{ e.preventDefault(); show('register'); });
+    toLogin?.addEventListener('click', e=>{ e.preventDefault(); show('login'); });
 
     btnLogin.onclick = async ()=>{
       loginErr.textContent='';
       try{
         await loginEmail(loginEmailEl.value.trim(), loginPassEl.value);
-      }catch(e){ loginErr.textContent = e.message||String(e); }
+      }catch(e){ loginErr.textContent = e.message || String(e); }
     };
+
     btnRegister.onclick = async ()=>{
       regErr.textContent='';
       try{
         if(regPassEl.value !== regPass2El.value) throw new Error('Las contraseñas no coinciden');
         await registerEmail(regEmailEl.value.trim(), regPassEl.value);
-        setMode(false);
-      }catch(e){ regErr.textContent = e.message||String(e); }
+        show('login'); // vuelve al login tras crear cuenta
+      }catch(e){ regErr.textContent = e.message || String(e); }
     };
+
     btnLogout.onclick = async ()=>{ await logout(); };
 
+    // Estado de sesión: habilita/inhabilita entradas
     onUser(user=>{
-      const ctx = currentCtx();
       if(user){
+        const ctx = currentCtx();
         userInfo.textContent = `Conectado: ${ctx.email}`;
         btnLogout.style.display='';
-        goSingle.classList.remove('disabled');
-        goCrono.classList.remove('disabled');
-        goSingle.style.pointerEvents='auto';
-        goCrono.style.pointerEvents='auto';
-        goSingle.onclick = ()=> location.href = 'singletrack_index.html';
-        goCrono.onclick = ()=> location.href = 'cronolap_index.html';
+        document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
+        document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
       }else{
         userInfo.textContent = '';
         btnLogout.style.display='none';
-        goSingle.onclick = goCrono.onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-        goSingle.style.pointerEvents='none';
-        goCrono.style.pointerEvents='none';
+        document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
+        document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
       }
     });
   </script>
