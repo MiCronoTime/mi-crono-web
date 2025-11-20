@@ -1,162 +1,93 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono Web — Inicio</title>
-  <link rel="stylesheet" href="styles.css"/>
-  <style>
-    :root{ --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c; }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);color:var(--text)}
-    .wrap{max-width:1000px;margin:0 auto;padding:18px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    .title{font-size:32px;font-weight:900;letter-spacing:.02em;text-align:center;margin:6px 0 18px 0}
-    label{display:block;margin:10px 0 6px 0;font-weight:700}
-    input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
-    .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
-    .muted{color:var(--muted)}
-    .cards{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-    .card{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:18px}
-    .card h3{margin:0 0 8px 0;font-size:24px;text-transform:uppercase}
-    .cta{margin-top:14px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-    .link{color:var(--accent);text-decoration:none} .link:hover{color:var(--accent2)}
-    .err{color:var(--danger);font-weight:700}
-    @media (max-width:760px){ .row,.cards{grid-template-columns:1fr} }
-  </style>
-</head>
-<body>
-  <div class="wrap">
+// docs/js/auth.js  —  ES module sin top-level await
+import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
+import {
+  getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile
+} from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 
-    <!-- Login / Register -->
-    <div class="panel">
-      <div class="title" id="formTitle">Log in</div>
-      <div class="row">
-        <!-- LOGIN -->
-        <div id="loginBox">
-          <label>Email</label>
-          <input id="loginEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
-          <label>Password</label>
-          <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
-          <div class="cta"><button id="btnLogin" class="btn primary" style="width:100%">Log in</button></div>
-          <div class="muted" style="margin-top:8px">Don't have an account? <a href="#" id="toRegister" class="link">Register</a></div>
-          <div id="loginErr" class="err"></div>
-        </div>
+const firebaseConfig = {
+  apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+  authDomain: "mi-crono-time-888b7.firebaseapp.com",
+  projectId: "mi-crono-time-888b7",
+  storageBucket: "mi-crono-time-888b7.appspot.com",
+  messagingSenderId: "379025900327",
+  appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+};
 
-        <!-- REGISTER -->
-        <div id="registerBox" style="display:none">
-          <label>Email</label>
-          <input id="regEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
-          <label>Password</label>
-          <input id="regPass" type="password" placeholder="mín. 6 caracteres" autocomplete="new-password"/>
-          <label>Confirm Password</label>
-          <input id="regPass2" type="password" placeholder="repite la contraseña" autocomplete="new-password"/>
-          <div class="cta"><button id="btnRegister" class="btn primary" style="width:100%">Register</button></div>
-          <div class="muted" style="margin-top:8px">Already have an account? <a href="#" id="toLogin" class="link">Log in</a></div>
-          <div id="regErr" class="err"></div>
-        </div>
-      </div>
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
 
-      <div class="cta" style="margin-top:10px; display:flex; gap:8px;">
-        <span id="userInfo" class="muted"></span>
-        <button id="btnLogout" class="btn" style="display:none;margin-left:auto">Cerrar sesión</button>
-      </div>
-    </div>
+// Evita top-level await: inicializamos una sola vez
+let _initPromise = null;
+function saveCtx(user){
+  if(!user){
+    localStorage.removeItem('mcw_uid');
+    localStorage.removeItem('mcw_email');
+    localStorage.removeItem('mcw_name');
+  }else{
+    localStorage.setItem('mcw_uid', user.uid);
+    localStorage.setItem('mcw_email', user.email || '');
+    localStorage.setItem('mcw_name', user.displayName || (user.email ? user.email.split('@')[0].toUpperCase() : 'USUARIO'));
+  }
+}
+export function ensureAuthInit(){
+  if(_initPromise) return _initPromise;
+  _initPromise = (async ()=>{
+    await setPersistence(auth, browserLocalPersistence);
+    onAuthStateChanged(auth, saveCtx);
+  })();
+  return _initPromise;
+}
 
-    <!-- Selección de apps -->
-    <div class="panel">
-      <div class="title">MI CRONO WEB</div>
-      <div class="cards">
-        <div class="card">
-          <h3>Singletrack</h3>
-          <p>Dos dispositivos, uno en <b>SALIDA</b> y otro en <b>META</b>.</p>
-          <div class="cta"><a id="goSingle" class="btn primary">Entrar a Singletrack</a></div>
-        </div>
-        <div class="card">
-          <h3>Cronolap</h3>
-          <p>Un único dispositivo marca <b>SALIDA</b> y <b>META</b> en el mismo punto.</p>
-          <div class="cta"><a id="goCrono" class="btn" style="background:#ff7b8c;border-color:#ff7b8c;color:#111">Entrar a Cronolap</a></div>
-        </div>
-      </div>
-      <div class="muted" style="margin-top:6px">Debes iniciar sesión para acceder.</div>
-    </div>
-  </div>
+// API
+export const getDb = ()=>db;
+export const getAuthInstance = ()=>auth;
+export const onUser = (cb)=> onAuthStateChanged(auth, cb);
+export function currentCtx(){
+  return {
+    uid:   localStorage.getItem('mcw_uid'),
+    email: localStorage.getItem('mcw_email'),
+    name:  localStorage.getItem('mcw_name')
+  };
+}
 
-  <!-- Scripts -->
-  <script type="module" src="js/auth.js"></script>
-  <script type="module">
-    import { loginEmail, registerEmail, logout, onUser, currentCtx } from './js/auth.js';
-
-    const formTitle   = document.getElementById('formTitle');
-    const loginBox    = document.getElementById('loginBox');
-    const registerBox = document.getElementById('registerBox');
-    const toRegister  = document.getElementById('toRegister');
-    const toLogin     = document.getElementById('toLogin');
-
-    const loginEmailEl = document.getElementById('loginEmail');
-    const loginPassEl  = document.getElementById('loginPass');
-    const regEmailEl   = document.getElementById('regEmail');
-    const regPassEl    = document.getElementById('regPass');
-    const regPass2El   = document.getElementById('regPass2');
-
-    const btnLogin   = document.getElementById('btnLogin');
-    const btnRegister= document.getElementById('btnRegister');
-    const btnLogout  = document.getElementById('btnLogout');
-
-    const loginErr = document.getElementById('loginErr');
-    const regErr   = document.getElementById('regErr');
-    const userInfo = document.getElementById('userInfo');
-
-    function show(mode){ // 'login' | 'register'
-      if(mode==='register'){
-        formTitle.textContent = 'Register';
-        loginBox.style.display = 'none';
-        registerBox.style.display = '';
-      }else{
-        formTitle.textContent = 'Log in';
-        loginBox.style.display = '';
-        registerBox.style.display = 'none';
-      }
-    }
-    toRegister?.addEventListener('click', e=>{ e.preventDefault(); show('register'); });
-    toLogin?.addEventListener('click', e=>{ e.preventDefault(); show('login'); });
-
-    btnLogin.onclick = async ()=>{
-      loginErr.textContent='';
-      try{
-        await loginEmail(loginEmailEl.value.trim(), loginPassEl.value);
-      }catch(e){ loginErr.textContent = e.message || String(e); }
-    };
-
-    btnRegister.onclick = async ()=>{
-      regErr.textContent='';
-      try{
-        if(regPassEl.value !== regPass2El.value) throw new Error('Las contraseñas no coinciden');
-        await registerEmail(regEmailEl.value.trim(), regPassEl.value);
-        show('login'); // vuelve al login tras crear cuenta
-      }catch(e){ regErr.textContent = e.message || String(e); }
-    };
-
-    btnLogout.onclick = async ()=>{ await logout(); };
-
-    // Estado de sesión: habilita/inhabilita entradas
-    onUser(user=>{
-      if(user){
-        const ctx = currentCtx();
-        userInfo.textContent = `Conectado: ${ctx.email}`;
-        btnLogout.style.display='';
-        document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
-        document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
-      }else{
-        userInfo.textContent = '';
-        btnLogout.style.display='none';
-        document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-        document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-      }
+export async function registerEmail(email, pass){
+  await ensureAuthInit();
+  const { user } = await createUserWithEmailAndPassword(auth, email, pass);
+  const nick = (email||'').split('@')[0].toUpperCase();
+  try{ await updateProfile(user, { displayName: nick }); }catch(_){}
+  await setDoc(doc(db, 'users', user.uid), {
+    uid: user.uid, email: user.email || '', displayName: user.displayName || nick, createdAt: serverTimestamp()
+  }, { merge: true });
+  return user;
+}
+export async function loginEmail(email, pass){
+  await ensureAuthInit();
+  const { user } = await signInWithEmailAndPassword(auth, email, pass);
+  return user;
+}
+export async function logout(){
+  await ensureAuthInit();
+  await signOut(auth);
+}
+export async function requireAuth(redirectIfMissing='index.html'){
+  await ensureAuthInit();
+  return new Promise(resolve=>{
+    const unsub = onAuthStateChanged(auth, user=>{
+      unsub();
+      if(!user){ if(redirectIfMissing) location.href = redirectIfMissing; else resolve(null); }
+      else resolve(user);
     });
-  </script>
-</body>
-</html>
+  });
+}
+export function mountUserBar(targetId='userBar'){
+  const el = document.getElementById(targetId);
+  if(!el) return;
+  Object.assign(el.style,{display:'none',padding:'6px 10px',fontSize:'12px',background:'rgba(0,0,0,.35)',border:'1px solid #2b3240',borderRadius:'8px',margin:'6px 0'});
+  onAuthStateChanged(auth, user=>{
+    if(user){ el.textContent = `Conectado: ${user.email||user.uid}`; el.style.display='block'; }
+    else { el.textContent=''; el.style.display='none'; }
+  });
+}
