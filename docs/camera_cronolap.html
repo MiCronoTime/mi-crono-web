@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — CRONOLAP</title>
+  <title>CRONOLAP — CÁMARA</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
-      --ok:#7cffb6; --okRing:rgba(127,255,182,.35); --danger:#ff758d;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -28,7 +27,6 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
-    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -39,12 +37,10 @@
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
-    .btn.ghost{ background:#0f1217; border-color:var(--border) }
 
-    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
@@ -66,12 +62,9 @@
     <p class="tag" id="tag">Conectando…</p>
   </header>
 
-  <!-- barra opcional: “Conectado: …” -->
-  <div id="userBar" style="display:none"></div>
-
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
-      <b>Falta el código de evento.</b> Vuelve a <a href="cronolap_index.html">Inicio</a> y crea/únete a un evento.
+      <b>Falta el código de evento.</b> Vuelve a <a href="lap_index.html">Inicio</a> y crea/únete a un evento.
     </section>
 
     <section class="card">
@@ -101,7 +94,7 @@
       </div>
 
       <div class="sub list">
-        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso / Próximos</h2>
+        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso</h2>
         <div id="runningList">—</div>
       </div>
     </section>
@@ -114,46 +107,49 @@
     </section>
   </main>
 
-  <footer style="margin-top:10px"><a class="muted" href="cronolap_index.html">⇦ Volver a Inicio</a></footer>
+  <footer style="margin-top:10px"><a class="muted" href="lap_index.html">⇦ Volver a Inicio</a></footer>
 
-  <!-- AUTH y APP -->
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
+    // ---------- Utils ----------
+    const $=(id)=>document.getElementById(id);
+    const two=(n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
+    const code=(getParam('code')||'').toUpperCase();
 
-    (async function init(){
-      // Auth obligatorio
-      await ensureAuthInit();
-      await requireAuth('index.html');
-      mountUserBar('userBar');
+    const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
+    const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
+    const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-      // Parámetros
-      const params = new URL(location.href).searchParams;
-      const code = (params.get('code')||'').toUpperCase();
+    // Mapeo slider -> % efectivo (con centro = 20% pero sin mencionarlo en el texto)
+    const uiToPercent = (ui)=>{
+      const v = Math.max(0, Math.min(100, Number(ui)||50));
+      if(v<=50) return 5 + (v/50)*(20-5);
+      return 20 + ((v-50)/50)*(60-20);
+    };
+    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
+    updateSensLabel();
+    sens.oninput = updateSensLabel;
 
-      const $=(id)=>document.getElementById(id);
-      const two=(n)=>String(n).padStart(2,'0');
-      const three=(n)=>String(n).padStart(3,'0');
-      const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
-        const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-        return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    tag.textContent=`Evento ${code||'—'}`;
+    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
+    else { evState.textContent=code; evState.className='ok'; }
+    btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-      // UI básica
-      $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
-      $('evState').textContent = code || '—';
-      $('evState').className   = code ? 'ok' : 'err';
-      $('btnResult').onclick=(e)=>{ e.preventDefault(); if(code) location.href=`result.html?code=${encodeURIComponent(code)}`; };
+    // ---------- Reloj sincronizado ----------
+    let serverOffsetMS = 0;
+    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-      if(!code){
-        $('noCodeBox').style.display='';
-        return;
-      }
-
-      // Firebase (ESM)
-      const { initializeApp, getApps, getApp } =
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    // ---------- Firebase ----------
+    try{
+      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-        serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc
       } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
       const firebaseConfig = {
@@ -166,13 +162,10 @@
       };
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
-      $('fbState').textContent='OK'; $('fbState').className='ok';
+      window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
 
-      // Contexto usuario → ruta /users/{uid}/events/{code}
-      const { uid } = currentCtx();
-      if(!uid){ alert('Sesión perdida. Vuelve a iniciar sesión.'); location.href='index.html'; return; }
-
-      const eventRef = doc(db,'users',uid,'events',code);
+      // refs
+      const eventRef = doc(db,'events',code);
       const partsCol = collection(eventRef,'participants');
       const syncCol  = collection(eventRef,'sync');
 
@@ -180,111 +173,77 @@
       const s=await getDoc(eventRef);
       if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // Reloj sincronizado (offset con serverTimestamp)
-      const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
-      let serverOffsetMS = 0;
+      // Offset con servidor (1 ping)
       try{
         const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
         const pingSnap = await getDoc(pingRef);
         const serverNowMs = tsToMillis(pingSnap.data().serverNow);
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
-        await deleteDoc(pingRef);
       }catch(_){ serverOffsetMS=0; }
 
-      // === Estado participantes y punteros de flujo ===
-      let participants=[];               // array con todos (orden asc)
-      let current = null;                // participante en curso (doc completo) o null
-      let nextPtr = null;                // siguiente sin startTS
+      // Estado participantes
+      let participants=[];
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
+      const nextToStart = ()=> participants.find(p=>!p.startTS);
+      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      async function reload(){
-        const snap=await getDocs(query(partsCol, orderBy('order','asc')));
-        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-        current = participants.find(p=>p.startTS && !p.stopTS) || null;
-        nextPtr = participants.find(p=>!p.startTS) || null;
-      }
-      const renderHeader = ()=>{
-        $('hudNext').textContent = 'Siguiente: ' + (nextPtr ? (nextPtr.name||'—').toUpperCase() : '—');
-        $('tag').textContent = `Evento ${code} • ${ current ? 'Cronometrando' : 'Listo' }`;
-      };
-      const renderList = ()=>{
-        const nowSync = Date.now() + serverOffsetMS;
-        const list = $('runningList');
-        const rows = [];
-        if(current){
-          rows.push({ badge:'#'+(current.order||'?'), name:(current.name||'').toUpperCase(), t:fmt(nowSync - tsToMillis(current.startTS)) });
-        }
-        if(nextPtr){
-          rows.push({ badge:'SIG.', name:(nextPtr.name||'').toUpperCase(), t:'—' });
-        }
-        list.innerHTML = rows.length
-          ? rows.map(r=>`<div class="runner"><div class="badge">${r.badge}</div><div class="rname">${r.name}</div><div class="rtime">${r.t}</div></div>`).join('')
-          : '—';
-      };
+      async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
+        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
+      async function stopRunning(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
+      // Suscripción -> cronos en vivo
+      let currentLive=[];
       onSnapshot(partsCol, async ()=>{
         await reload();
-        renderHeader();
-        renderList();
+        const run = runningSorted().map(p=>({
+          order: p.order||0,
+          name: (p.name||'').toUpperCase(),
+          startMS: tsToMillis(p.startTS)
+        }));
+        currentLive = run;
+
+        const nxt = nextToStart();
+        $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+
+        const hasStart = participants.some(p=>p.startTS);
+        const hasStop  = participants.some(p=>p.stopTS);
+        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+
+        renderList(currentLive);
       });
 
-      // ===== Cámara + Detección =====
-      const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
-      const octx=overlay.getContext('2d',{willReadFrequently:true});
-      const uiToPercent = (ui)=>{
-        const v = Math.max(0, Math.min(100, Number(ui)||50));
-        if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-      };
-      const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
-      updateSensLabel(); sens.oninput = updateSensLabel;
-
-      // *** Botón cámara (función normal + currentTarget) ***
-      const btnEnable = $('btnEnableCam');
-      btnEnable.onclick = async function (e) {
-        const btn = e.currentTarget;
+      // ======= Detector con hold + histeresis + delay 2s =======
+      btnEnable.onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-          const tries=[
-            {video:{facingMode:{ideal:'environment'}},audio:false},
-            {video:{facingMode:'environment'},audio:false},
-            {video:true,audio:false}
-          ];
+          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
           let stream=null,lastErr=null;
-          for(const c of tries){
-            try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }
-            catch(err){ lastErr=err; }
-          }
-          if(!stream){
-            alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
-            return;
-          }
-          video.setAttribute('playsinline','true');
-          video.muted=true;
-          video.srcObject=stream;
-          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
-          await video.play().catch(()=>{});
-          btn.textContent='CÁMARA ACTIVADA';
-          btn.disabled=true;
+          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
 
           detectionEnabled = false;
           armingEndsAt = performance.now() + ARMING_DELAY_MS;
           $('hudStatus').textContent = 'Calibrando… 2.0s';
           requestAnimationFrame(loop);
-        }catch(err){
-          alert('Error cámara: '+(err?.message||err));
-        }
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
-      // Detector (parámetros)
-      const COOLDOWN_START_MS  = 2400;  // tras salida
-      const COOLDOWN_FINISH_MS = 1800;  // tras llegada
+      const COOLDOWN_START_MS  = 2400;
+      const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
       const MIN_PIXELS         = 28;
       const HOLD_MS            = 140;
-      const ARMING_DELAY_MS    = 2000;  // al abrir cámara
+      const ARMING_DELAY_MS    = 2000;
       let prevFrame=null;
+
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
-      let actEma = 0, above=false, aboveSince = 0;
 
       function thresholdsFromSens(effPercent){
         const frac = effPercent/100;
@@ -292,48 +251,36 @@
         const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
-      const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
 
-      async function startNext(){
-        await reload();
-        const p = participants.find(x=>!x.startTS);
-        if(!p) return null;
-        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
-        $('lastAction').textContent='Inicio: '+(p.name||p.id);
-        return p;
-      }
-      async function stopCurrent(){
-        await reload();
-        const p = participants.find(x=>x.startTS && !x.stopTS);
-        if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() });
-        $('lastAction').textContent='Fin: '+(p.name||p.id);
-        return p;
-      }
+      let actEma = 0;
+      let above  = false;
+      let aboveSince = 0;
 
-      // Lógica de alternancia:
-      //  - Si NO hay corredor en curso → trigger = SALIDA del siguiente.
-      //  - Si hay corredor en curso → trigger = META para ese corredor.
-      async function trigger(){
+      const armAfter = (ms)=>{
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
+      };
+
+      const trigger = async ()=>{
         if(!armed || !detectionEnabled) return;
-        armed=false; above=false; aboveSince=0;
+        armed=false;
+        above=false; aboveSince=0;
 
         await reload();
-        if(!current){
-          const p = await startNext();
-          await reload();
-          renderHeader(); renderList();
-          armAfter(COOLDOWN_START_MS);
-        }else{
-          const p = await stopCurrent();
-          await reload();
-          renderHeader(); renderList();
+        const anyRunning = participants.some(p=>p.startTS && !p.stopTS);
+
+        if(anyRunning){
+          const p=await stopRunning(); if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
           armAfter(COOLDOWN_FINISH_MS);
+        }else{
+          const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+          armAfter(COOLDOWN_START_MS);
         }
-      }
+      };
 
       function loop(){
         const nowPerf = performance.now();
+
         if(!detectionEnabled){
           const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
           if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
@@ -341,16 +288,15 @@
         }
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
+
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
-        // Franjas rojas
         octx.clearRect(0,0,w,h);
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Texto grande con el corredor actual
-        drawOverlayCurrent(w,h);
+        drawOverlayTimes(w,h,currentLive);
 
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
@@ -358,6 +304,7 @@
           const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
           const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
           const sy=0, sh=vh;
+
           const dw = Math.max(50, Math.floor(sw * 0.35));
           const dh = Math.max(50, Math.floor(sh * 0.35));
           const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
@@ -367,80 +314,89 @@
 
           if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
             const eff = uiToPercent(sens.value);
-            const thrPix = 18 + Math.round((100 - eff) * 0.6);
+            const sensV = eff;
+            const thrPix = 18 + Math.round((100 - sensV) * 0.6);
+
             let diffPix = 0, total=0;
             for(let i=0;i<frame.data.length;i+=4){
               const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
                         Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
                         Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
-              if(d > thrPix) diffPix++; total++;
+              if(d > thrPix) diffPix++;
+              total++;
             }
+
             if(diffPix < MIN_PIXELS){ diffPix = 0; }
+
             const activity = diffPix / Math.max(1,total);
             actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
+
             const { up, down } = thresholdsFromSens(eff);
 
-            if(!above){ if(actEma >= up){ above = true; aboveSince = nowPerf; } }
-            else{
+            if(!above){
+              if(actEma >= up){ above = true; aboveSince = nowPerf; }
+            }else{
               if(actEma <= down){ above = false; aboveSince = 0; }
               else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
             }
           }
+
           prevFrame = frame;
         }
 
         requestAnimationFrame(loop);
       }
 
-      function drawOverlayCurrent(w,h){
+      function drawOverlayTimes(w,h,rows){
+        if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
-        let name='—', t='—';
-        if(current){
-          name = (current.name||'').toUpperCase();
-          t = fmt(nowSync - tsToMillis(current.startTS));
-        }else if(nextPtr){
-          name = (nextPtr.name||'').toUpperCase();
-          t = 'LISTO';
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+
+        const baseSize = Math.max(18, Math.floor(h*0.026));
+        const gap = Math.max(5, Math.floor(h*0.011));
+        const leftPad = Math.floor(w*0.06);
+        const rightPad= Math.floor(w*0.06);
+        const topPad = Math.floor(h*0.14);
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
+
+        octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        octx.textBaseline = 'top';
+        octx.fillStyle = '#ffffff';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(2, Math.floor(baseSize*0.14));
+
+        let y = topPad;
+        for(let i=0;i<maxRows;i++){
+          const r = sorted[i];
+          const elapsed = nowSync - (r.startMS||nowSync);
+          const tText = fmt(elapsed);
+          const nText = r.name || '—';
+
+          octx.textAlign='left';
+          octx.strokeText(tText, leftPad, y);
+          octx.fillText  (tText, leftPad, y);
+
+          octx.textAlign='right';
+          octx.strokeText(nText, w - rightPad, y);
+          octx.fillText  (nText, w - rightPad, y);
+
+          y += baseSize + gap;
         }
-
-        const base = Math.max(20, Math.floor(h*0.045));
-        const rowH = base*1.6;
-        const radius = rowH/2.4;
-        const left = Math.floor(w*0.06), right = w - left;
-        const y = Math.floor(h*0.18); // algo más bajo para no pisar “Siguiente”
-
-        // pastilla
-        const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
-        roundRect(octx, pillX, pillY, pillW, pillH, radius);
-        octx.fillStyle = 'rgba(0,0,0,.45)'; octx.fill();
-        if(current){ octx.lineWidth=3; octx.strokeStyle='rgba(127,255,182,.85)'; octx.stroke(); }
-
-        octx.textBaseline='middle';
-        octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-        octx.strokeStyle = 'rgba(0,0,0,.65)';
-        octx.lineWidth = Math.max(2, Math.floor(base*0.13));
-        octx.fillStyle = current ? '#7cffb6' : '#ffffff';
-
-        // nombre (izq)
-        octx.textAlign='left';
-        textStrokeFill(octx, name, left + 16, y + rowH/2);
-
-        // tiempo (der)
-        octx.textAlign='right';
-        textStrokeFill(octx, t, right - 16, y + rowH/2);
       }
-      function textStrokeFill(ctx, text, x, y){ ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
-      function roundRect(ctx,x,y,w,h,r){
-        const rr = Math.min(r, h/2, w/2);
-        ctx.beginPath();
-        ctx.moveTo(x+rr, y);
-        ctx.arcTo(x+w, y,   x+w, y+h, rr);
-        ctx.arcTo(x+w, y+h, x,   y+h, rr);
-        ctx.arcTo(x,   y+h, x,   y,   rr);
-        ctx.arcTo(x,   y,   x+w, y,   rr);
-        ctx.closePath();
+
+      function renderList(run){
+        const nowSync = Date.now() + serverOffsetMS;
+        const list = $('runningList');
+        if(!run.length){ list.innerHTML='—'; return; }
+        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+          .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+          .join('');
       }
-    })();
+
+    }catch(e){
+      window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
+      alert('Firebase error: '+(e.message||e));
+    }
   </script>
 </body>
 </html>
