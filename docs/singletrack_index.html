@@ -59,6 +59,13 @@
   </style>
 </head>
 <body>
+  <div id="userBar" style="display:none"></div>
+<script type="module" src="js/auth.js"></script>
+<script type="module">
+  import { requireAuth, mountUserBar } from './js/auth.js';
+  await requireAuth('index.html');  // obliga login
+  mountUserBar('userBar');          // pinta “Conectado: email”
+</script>
   <div class="wrap">
     <h1 class="h1">🕑 SINGLETRACK</h1>
 
