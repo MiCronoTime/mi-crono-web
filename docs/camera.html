@@ -166,8 +166,12 @@
       const db  = getFirestore(app);
       window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
 
-      const eventRef = doc(db,'events',code);
+      import { currentCtx } from './js/auth.js';
+      const { uid } = currentCtx();
+      if(!uid){ location.href='index.html'; throw new Error('No auth'); }
+      const eventRef = doc(db,'users',uid,'events',code);
       const partsCol = collection(eventRef,'participants');
+
       const syncCol  = collection(eventRef,'sync');
 
       const s=await getDoc(eventRef);
