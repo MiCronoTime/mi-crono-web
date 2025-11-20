@@ -3,159 +3,126 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — CRONOLAP</title>
+  <title>CRONOLAP — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
-      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
-      --ok:#7cffb6; --okRing:rgba(127,255,182,.35); --danger:#ff758d;
+      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9;
+      --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                  var(--bg);
-      color:var(--text);
+      margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+                 var(--bg);
+      color:var(--text)
     }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{color:var(--accent-2)}
-    .wrap{max-width:1000px;margin:0 auto;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-    .tag{opacity:.9}
-    .grid.one{display:grid;gap:16px}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    .header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+    .title{font-size:32px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+    .userbar{margin-top:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:inline-block}
 
-    /* Controles */
-    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+    h2{margin:0 0 12px 0;text-transform:uppercase;letter-spacing:.04em;font-size:24px}
+    label{display:block;margin:10px 0 6px 0;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+    input,textarea{
+      width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);font-size:15px
+    }
+    textarea{min-height:140px;resize:vertical}
+    small.muted{color:var(--muted)}
     .btn{
-      display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;transition:transform .05s, background .15s, border-color .15s, color .15s;
-      text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px;line-height:1;text-decoration:none;
+      display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;
+      border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text);
+      font-weight:900;text-transform:uppercase;letter-spacing:.03em;cursor:pointer
     }
-    .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
-    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
-    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
-    .btn.ghost{ background:#0f1217; border-color:var(--border) }
-
-    /* Cámara */
-    .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
-    video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
-
-    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
-
-    .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
-    label{display:block;margin-bottom:6px;font-weight:700}
-    input[type=range]{width:100%}
-    .list{margin-top:12px}
-    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
-    .badge{font-weight:800;color:#cfe1ff;opacity:.9}
-    .rname{font-weight:800;text-transform:uppercase}
-    .rtime{font-weight:900;letter-spacing:.4px}
-    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
+    .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
+    .btn.ghost{background:#0f1217;border-color:var(--border)}
+    .btn.danger{background:#611b26;border-color:#8a2b3a}
+    .rowbtns{display:flex;gap:10px;flex-wrap:wrap}
+    .tools{margin-top:16px}
+    .muted{color:var(--muted)}
+    .ok{color:#7cffb6;font-weight:800}
+    .err{color:#ff7b8c;font-weight:800}
+    @media (max-width:860px){ .grid{grid-template-columns:1fr} }
   </style>
 </head>
-<body class="wrap">
-  <header class="top">
-    <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">CRONOLAP</h1>
-    <p class="tag" id="tag">Conectando…</p>
-  </header>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title">CRONOLAP</div>
+    </div>
+    <div id="userBar" class="userbar" style="display:none">Conectado: —</div>
 
-  <!-- barra opcional: “Conectado: …” -->
-  <div id="userBar" style="display:none"></div>
+    <div class="grid" style="margin-top:12px">
+      <section class="panel">
+        <h2>Crear evento</h2>
 
-  <main class="grid one">
-    <section class="card warn" id="noCodeBox" style="display:none">
-      <b>Falta el código de evento.</b> Vuelve a <a href="cronolap_index.html">Inicio</a> y crea/únete a un evento.
-    </section>
+        <label>Código del evento</label>
+        <input id="eventCode" placeholder="P.EJ. TEST1" oninput="this.value=this.value.toUpperCase()"/>
 
-    <section class="card">
-      <div class="controls">
-        <button id="btnEnableCam" class="btn primary">ACTIVAR CÁMARA</button>
-        <a id="btnResult" class="btn" href="#">VER RESULTADO</a>
-      </div>
-      <small class="muted">iOS: Safari + HTTPS + permitir Cámara.</small>
+        <label style="margin-top:10px">Participantes (uno por línea, en orden de salida)</label>
+        <textarea id="parts" placeholder="CORREDOR 1
+CORREDOR 2
+CORREDOR 3"></textarea>
 
-      <div class="stage" id="stage">
-        <video id="video" playsinline muted></video>
-        <canvas id="overlay" class="overlay"></canvas>
+        <small class="muted" style="display:block;margin-top:10px">
+          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
+        </small>
 
-        <div class="hud" id="hudTop">
-          <span id="hudStatus">Listo</span>
-          • <span id="hudNext" class="pill">Siguiente: —</span>
+        <div class="rowbtns" style="margin-top:14px">
+          <button id="btnSave" class="btn primary">Guardar evento</button>
         </div>
-      </div>
 
-      <div class="sub">
-        <label>
-          Sensibilidad detector (franja roja)
-          <span id="sensValTxt" class="muted">(20%)</span>
-        </label>
-        <input id="sens" type="range" min="0" max="100" value="50"/>
-        <small class="muted">Mueve el control hacia la derecha para aumentar la sensibilidad.</small>
-      </div>
+        <div id="state" class="muted" style="margin-top:10px">—</div>
+      </section>
 
-      <div class="sub list">
-        <h2 style="margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.04em">En curso / Próximos</h2>
-        <div id="runningList">—</div>
+      <section class="panel">
+        <h2>Unirse a un evento</h2>
+
+        <label>Código</label>
+        <input id="joinCode" placeholder="TEST1" oninput="this.value=this.value.toUpperCase()"/>
+
+        <div class="rowbtns" style="margin-top:14px">
+          <a id="goCrono"  class="btn ghost">📷&nbsp;Abrir Cronolap</a>
+          <a id="goResult" class="btn ghost">🗂️&nbsp;Resultados</a>
+        </div>
+
+        <small class="muted" style="display:block;margin-top:12px">
+          En <b>CRONOLAP</b> la <b>SALIDA</b> y la <b>META</b> las marca el <b>mismo dispositivo</b>.
+          Sale un participante, completa la vuelta y entonces sale el siguiente.
+        </small>
+      </section>
+    </div>
+
+    <section class="panel tools">
+      <h2>Herramientas</h2>
+      <p class="muted">
+        <b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de tu base de datos. Úsalo solo si quieres limpiar por completo.
+      </p>
+      <div class="rowbtns">
+        <button id="btnReset" class="btn danger">Reset eventos</button>
       </div>
     </section>
+  </div>
 
-    <section class="card">
-      <h2 style="text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px 0">Estado</h2>
-      <div>Firebase: <span id="fbState">—</span></div>
-      <div>Evento: <span id="evState">—</span></div>
-      <div>Última acción: <span id="lastAction">—</span></div>
-    </section>
-  </main>
-
-  <footer style="margin-top:10px"><a class="muted" href="cronolap_index.html">⇦ Volver a Inicio</a></footer>
-
-  <!-- AUTH y APP -->
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
+    import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
+    import {
+      getFirestore, doc, setDoc, collection, addDoc, getDocs, deleteDoc,
+      serverTimestamp
+    } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
 
     (async function init(){
-      // Auth obligatorio
+      // Auth + barra usuario
       await ensureAuthInit();
       await requireAuth('index.html');
       mountUserBar('userBar');
 
-      // Parámetros
-      const params = new URL(location.href).searchParams;
-      const code = (params.get('code')||'').toUpperCase();
-
-      const $=(id)=>document.getElementById(id);
-      const two=(n)=>String(n).padStart(2,'0');
-      const three=(n)=>String(n).padStart(3,'0');
-      const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
-        const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-        return `${two(m)}:${two(s)}.${three(ms3)}`; };
-
-      // UI básica
-      $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
-      $('evState').textContent = code || '—';
-      $('evState').className   = code ? 'ok' : 'err';
-      $('btnResult').onclick=(e)=>{ e.preventDefault(); if(code) location.href=`result.html?code=${encodeURIComponent(code)}`; };
-
-      if(!code){
-        $('noCodeBox').style.display='';
-        return;
-      }
-
-      // Firebase (ESM)
-      const { initializeApp, getApps, getApp } =
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-      const {
-        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-        serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
-      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-
+      // Firebase
       const firebaseConfig = {
         apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
         authDomain: "mi-crono-time-888b7.firebaseapp.com",
@@ -166,280 +133,79 @@
       };
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
-      $('fbState').textContent='OK'; $('fbState').className='ok';
 
-      // Contexto usuario → ruta /users/{uid}/events/{code}
       const { uid } = currentCtx();
-      if(!uid){ alert('Sesión perdida. Vuelve a iniciar sesión.'); location.href='index.html'; return; }
+      const $=id=>document.getElementById(id);
 
-      const eventRef = doc(db,'users',uid,'events',code);
-      const partsCol = collection(eventRef,'participants');
-      const syncCol  = collection(eventRef,'sync');
+      const codeEl   = $('eventCode');
+      const partsEl  = $('parts');
+      const joinCode = $('joinCode');
+      const stateEl  = $('state');
 
-      // Crea evento si no existe
-      const s=await getDoc(eventRef);
-      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
+      const CODE = () => (codeEl.value||'').trim().toUpperCase();
+      const JCODE= () => (joinCode.value||'').trim().toUpperCase();
+      const PARTS= () => (partsEl.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(s=>s.toUpperCase());
 
-      // Reloj sincronizado (offset con serverTimestamp)
-      const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
-      let serverOffsetMS = 0;
-      try{
-        const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
-        const pingSnap = await getDoc(pingRef);
-        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
-        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
-        await deleteDoc(pingRef);
-      }catch(_){ serverOffsetMS=0; }
-
-      // === Estado participantes y punteros de flujo ===
-      let participants=[];               // array con todos (orden asc)
-      let current = null;                // participante en curso (doc completo) o null
-      let nextPtr = null;                // siguiente sin startTS
-
-      async function reload(){
-        const snap=await getDocs(query(partsCol, orderBy('order','asc')));
-        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-        current = participants.find(p=>p.startTS && !p.stopTS) || null;
-        nextPtr = participants.find(p=>!p.startTS) || null;
-      }
-      const renderHeader = ()=>{
-        $('hudNext').textContent = 'Siguiente: ' + (nextPtr ? (nextPtr.name||'—').toUpperCase() : '—');
-        $('tag').textContent = `Evento ${code} • ${ current ? 'Cronometrando' : 'Listo' }`;
-      };
-      const renderList = ()=>{
-        const nowSync = Date.now() + serverOffsetMS;
-        const list = $('runningList');
-        const rows = [];
-        if(current){
-          rows.push({ badge:'#'+(current.order||'?'), name:(current.name||'').toUpperCase(), t:fmt(nowSync - tsToMillis(current.startTS)) });
-        }
-        if(nextPtr){
-          rows.push({ badge:'SIG.', name:(nextPtr.name||'').toUpperCase(), t:'—' });
-        }
-        list.innerHTML = rows.length
-          ? rows.map(r=>`<div class="runner"><div class="badge">${r.badge}</div><div class="rname">${r.name}</div><div class="rtime">${r.t}</div></div>`).join('')
-          : '—';
-      };
-
-      onSnapshot(partsCol, async ()=>{
-        await reload();
-        renderHeader();
-        renderList();
-      });
-
-      // ===== Cámara + Detección =====
-      const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
-      const octx=overlay.getContext('2d',{willReadFrequently:true});
-      const uiToPercent = (ui)=>{
-        const v = Math.max(0, Math.min(100, Number(ui)||50));
-        if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-      };
-      const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
-      updateSensLabel(); sens.oninput = updateSensLabel;
-
-      // *** Botón cámara (función normal + currentTarget) ***
-      const btnEnable = $('btnEnableCam');
-      btnEnable.onclick = async function (e) {
-        const btn = e.currentTarget;
+      // Guardar evento (resetea el existente y crea participantes)
+      $('btnSave').onclick = async ()=>{
+        stateEl.textContent='Guardando…'; stateEl.className='muted';
         try{
-          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-          const tries=[
-            {video:{facingMode:{ideal:'environment'}},audio:false},
-            {video:{facingMode:'environment'},audio:false},
-            {video:true,audio:false}
-          ];
-          let stream=null,lastErr=null;
-          for(const c of tries){
-            try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }
-            catch(err){ lastErr=err; }
-          }
-          if(!stream){
-            alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
-            return;
-          }
-          video.setAttribute('playsinline','true');
-          video.muted=true;
-          video.srcObject=stream;
-          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
-          await video.play().catch(()=>{});
-          btn.textContent='CÁMARA ACTIVADA';
-          btn.disabled=true;
+          const code = CODE(); if(!code) throw new Error('Escribe un código de evento');
+          const eventRef = doc(db,'users',uid,'events',code);
+          await setDoc(eventRef,{ code, createdAt: serverTimestamp() },{ merge:true });
 
-          detectionEnabled = false;
-          armingEndsAt = performance.now() + ARMING_DELAY_MS;
-          $('hudStatus').textContent = 'Calibrando… 2.0s';
-          requestAnimationFrame(loop);
-        }catch(err){
-          alert('Error cámara: '+(err?.message||err));
+          const list = PARTS();
+          if(list.length){
+            const partsCol = collection(eventRef,'participants');
+            // elimina antiguos
+            const prev = await getDocs(partsCol);
+            for(const d of prev.docs) await deleteDoc(d.ref);
+            // crea nuevos
+            for(let i=0;i<list.length;i++){
+              await addDoc(partsCol,{
+                name:list[i], order:i+1, startTS:null, stopTS:null, createdAt: serverTimestamp()
+              });
+            }
+          }
+          stateEl.textContent='Evento guardado'; stateEl.className='ok';
+        }catch(e){
+          stateEl.textContent='Error: '+(e.message||e); stateEl.className='err';
+          console.error(e);
         }
       };
 
-      // Detector (parámetros)
-      const COOLDOWN_START_MS  = 2400;  // tras salida
-      const COOLDOWN_FINISH_MS = 1800;  // tras llegada
-      const EMA_ALPHA          = 0.35;
-      const MIN_PIXELS         = 28;
-      const HOLD_MS            = 140;
-      const ARMING_DELAY_MS    = 2000;  // al abrir cámara
-      let prevFrame=null;
-      let armed=true, cooldownTimer=null;
-      let detectionEnabled=false, armingEndsAt=0;
-      let actEma = 0, above=false, aboveSince = 0;
+      // Abrir Cronolap (misma cámara, un dispositivo marca salida y meta del mismo corredor)
+      $('goCrono').onclick = (e)=>{ e.preventDefault();
+        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
+        // Usa tu cámara estándar; si tienes una variante para cronolap, cambia a camera_cronolap.html
+        location.href = `camera.html?code=${encodeURIComponent(c)}&mode=start`;
+      };
 
-      function thresholdsFromSens(effPercent){
-        const frac = effPercent/100;
-        const up = 0.095 - frac*0.055;
-        const down = up * 0.6;
-        return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
-      }
-      const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
+      // Resultados
+      $('goResult').onclick = (e)=>{ e.preventDefault();
+        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
+        location.href = `result.html?code=${encodeURIComponent(c)}`;
+      };
 
-      async function startNext(){
-        await reload();
-        const p = participants.find(x=>!x.startTS);
-        if(!p) return null;
-        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
-        $('lastAction').textContent='Inicio: '+(p.name||p.id);
-        return p;
-      }
-      async function stopCurrent(){
-        await reload();
-        const p = participants.find(x=>x.startTS && !x.stopTS);
-        if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() });
-        $('lastAction').textContent='Fin: '+(p.name||p.id);
-        return p;
-      }
-
-      // Lógica de alternancia:
-      //  - Si NO hay corredor en curso → trigger = SALIDA del siguiente.
-      //  - Si hay corredor en curso → trigger = META para ese corredor.
-      async function trigger(){
-        if(!armed || !detectionEnabled) return;
-        armed=false; above=false; aboveSince=0;
-
-        await reload();
-        if(!current){
-          const p = await startNext();
-          await reload();
-          renderHeader(); renderList();
-          armAfter(COOLDOWN_START_MS);
-        }else{
-          const p = await stopCurrent();
-          await reload();
-          renderHeader(); renderList();
-          armAfter(COOLDOWN_FINISH_MS);
-        }
-      }
-
-      function loop(){
-        const nowPerf = performance.now();
-        if(!detectionEnabled){
-          const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
-          if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
-          else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
-        }
-
-        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
-        const roiWidth=Math.max(12, Math.round(w*0.08));
-        const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
-
-        // Franjas rojas
-        octx.clearRect(0,0,w,h);
-        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
-
-        // Texto grande con el corredor actual
-        drawOverlayCurrent(w,h);
-
-        const vw=video.videoWidth, vh=video.videoHeight;
-        if(vw && vh){
-          const scaleX = vw / stage.clientWidth;
-          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
-          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
-          const sy=0, sh=vh;
-          const dw = Math.max(50, Math.floor(sw * 0.35));
-          const dh = Math.max(50, Math.floor(sh * 0.35));
-          const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
-          const tctx = temp.getContext('2d', { willReadFrequently:true });
-          tctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
-          const frame = tctx.getImageData(0,0,dw,dh);
-
-          if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-            const eff = uiToPercent(sens.value);
-            const thrPix = 18 + Math.round((100 - eff) * 0.6);
-            let diffPix = 0, total=0;
-            for(let i=0;i<frame.data.length;i+=4){
-              const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
-                        Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
-                        Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
-              if(d > thrPix) diffPix++; total++;
-            }
-            if(diffPix < MIN_PIXELS){ diffPix = 0; }
-            const activity = diffPix / Math.max(1,total);
-            actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
-            const { up, down } = thresholdsFromSens(eff);
-
-            if(!above){ if(actEma >= up){ above = true; aboveSince = nowPerf; } }
-            else{
-              if(actEma <= down){ above = false; aboveSince = 0; }
-              else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
-            }
+      // Reset eventos del usuario
+      $('btnReset').onclick = async ()=>{
+        if(!confirm('¿Seguro que quieres BORRAR TODOS tus eventos y participantes?\nEsta acción no se puede deshacer.')) return;
+        stateEl.textContent='Borrando…'; stateEl.className='muted';
+        try{
+          const evs = await getDocs(collection(db,'users',uid,'events'));
+          for(const ev of evs.docs){
+            const partsSnap = await getDocs(collection(ev.ref,'participants'));
+            for(const p of partsSnap.docs) await deleteDoc(p.ref);
+            const syncSnap = await getDocs(collection(ev.ref,'sync'));
+            for(const s of syncSnap.docs) await deleteDoc(s.ref);
+            await deleteDoc(ev.ref);
           }
-          prevFrame = frame;
+          stateEl.textContent='Reset completado'; stateEl.className='ok';
+        }catch(e){
+          stateEl.textContent='Error al resetear: '+(e.message||e); stateEl.className='err';
+          console.error(e);
         }
-
-        requestAnimationFrame(loop);
-      }
-
-      function drawOverlayCurrent(w,h){
-        const nowSync = Date.now() + serverOffsetMS;
-        let name='—', t='—';
-        if(current){
-          name = (current.name||'').toUpperCase();
-          t = fmt(nowSync - tsToMillis(current.startTS));
-        }else if(nextPtr){
-          name = (nextPtr.name||'').toUpperCase();
-          t = 'LISTO';
-        }
-
-        const base = Math.max(20, Math.floor(h*0.045));
-        const rowH = base*1.6;
-        const radius = rowH/2.4;
-        const left = Math.floor(w*0.06), right = w - left;
-        const y = Math.floor(h*0.18); // algo más bajo para no pisar “Siguiente”
-
-        // pastilla
-        const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
-        roundRect(octx, pillX, pillY, pillW, pillH, radius);
-        octx.fillStyle = 'rgba(0,0,0,.45)'; octx.fill();
-        if(current){ octx.lineWidth=3; octx.strokeStyle='rgba(127,255,182,.85)'; octx.stroke(); }
-
-        octx.textBaseline='middle';
-        octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-        octx.strokeStyle = 'rgba(0,0,0,.65)';
-        octx.lineWidth = Math.max(2, Math.floor(base*0.13));
-        octx.fillStyle = current ? '#7cffb6' : '#ffffff';
-
-        // nombre (izq)
-        octx.textAlign='left';
-        textStrokeFill(octx, name, left + 16, y + rowH/2);
-
-        // tiempo (der)
-        octx.textAlign='right';
-        textStrokeFill(octx, t, right - 16, y + rowH/2);
-      }
-      function textStrokeFill(ctx, text, x, y){ ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
-      function roundRect(ctx,x,y,w,h,r){
-        const rr = Math.min(r, h/2, w/2);
-        ctx.beginPath();
-        ctx.moveTo(x+rr, y);
-        ctx.arcTo(x+w, y,   x+w, y+h, rr);
-        ctx.arcTo(x+w, y+h, x,   y+h, rr);
-        ctx.arcTo(x,   y+h, x,   y,   rr);
-        ctx.arcTo(x,   y,   x+w, y,   rr);
-        ctx.closePath();
-      }
+      };
     })();
   </script>
 </body>
