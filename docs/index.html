@@ -30,11 +30,9 @@
 <body>
   <div class="wrap">
 
-    <!-- Login / Register -->
     <div class="panel">
       <div class="title" id="formTitle">Log in</div>
       <div class="row">
-        <!-- LOGIN -->
         <div id="loginBox">
           <label>Email</label>
           <input id="loginEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
@@ -45,7 +43,6 @@
           <div id="loginErr" class="err"></div>
         </div>
 
-        <!-- REGISTER -->
         <div id="registerBox" style="display:none">
           <label>Email</label>
           <input id="regEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
@@ -65,7 +62,6 @@
       </div>
     </div>
 
-    <!-- Selección de apps -->
     <div class="panel">
       <div class="title">MI CRONO WEB</div>
       <div class="cards">
@@ -84,12 +80,10 @@
     </div>
   </div>
 
-  <!-- Módulo principal SIN top-level await -->
   <script type="module">
     import { ensureAuthInit, loginEmail, registerEmail, logout, onUser, currentCtx } from './js/auth.js';
 
-    // Logger simple por si algo peta en prod
-    window.addEventListener('error', e=>{ console.log(e?.error||e); });
+    window.addEventListener('error', e=>{ console.log('GlobalError', e?.error||e); });
 
     async function init(){
       await ensureAuthInit();
