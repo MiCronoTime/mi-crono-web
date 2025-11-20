@@ -44,13 +44,11 @@
     /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto} /* capturamos clicks */
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
-    /* HUD superior */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
 
-    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
@@ -72,9 +70,12 @@
     <p class="tag" id="tag">Conectando…</p>
   </header>
 
+  <!-- barra opcional: “Conectado: …” -->
+  <div id="userBar" style="display:none"></div>
+
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
-      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y crea/únete a un evento.
+      <b>Falta el código de evento.</b> Vuelve a <a href="singletrack_index.html">Inicio</a> y crea/únete a un evento.
     </section>
 
     <section class="card">
@@ -117,46 +118,47 @@
     </section>
   </main>
 
-  <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
+  <footer style="margin-top:10px"><a class="muted" href="singletrack_index.html">⇦ Volver a Inicio</a></footer>
 
+  <!-- AUTH y APP -->
   <script type="module">
-    // ---------- Utils ----------
-    const $=(id)=>document.getElementById(id);
-    const two=(n)=>String(n).padStart(2,'0');
-    const three=(n)=>String(n).padStart(3,'0');
-    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
-      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-      return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const getParam=(k)=> new URL(location.href).searchParams.get(k);
-    const code=(getParam('code')||'').toUpperCase();
-    const mode=(getParam('mode')||'start'); // start|finish
+    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
 
-    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
-    const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
-    const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
-    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
-    const octx=overlay.getContext('2d',{willReadFrequently:true});
+    (async function init(){
+      // Auth obligatorio
+      await ensureAuthInit();
+      await requireAuth('index.html');
+      mountUserBar('userBar');
 
-    tag.textContent=`Evento ${code||'—'}`;
-    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
-    else { evState.textContent=code; evState.className='ok'; }
-    btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
+      // Parámetros
+      const params = new URL(location.href).searchParams;
+      const code = (params.get('code')||'').toUpperCase();
+      const mode = (params.get('mode')||'start'); // start | finish
 
-    // Slider → % efectivo
-    const uiToPercent = (ui)=>{
-      const v = Math.max(0, Math.min(100, Number(ui)||50));
-      if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-    };
-    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
-    updateSensLabel(); sens.oninput = updateSensLabel;
+      const $=(id)=>document.getElementById(id);
+      const two=(n)=>String(n).padStart(2,'0');
+      const three=(n)=>String(n).padStart(3,'0');
+      const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+        const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+        return `${two(m)}:${two(s)}.${three(ms3)}`; };
 
-    // ---------- Reloj sincronizado ----------
-    let serverOffsetMS = 0;
-    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+      // UI básica
+      $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+      $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
+      $('evState').textContent = code || '—';
+      $('evState').className   = code ? 'ok' : 'err';
 
-    // ---------- Firebase ----------
-    try{
-      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+      if(!code){
+        $('noCodeBox').style.display='';
+        return;
+      }
+
+      // Navegar a resultados
+      $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
+
+      // Firebase (ESM)
+      const { initializeApp, getApps, getApp } =
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
         serverTimestamp, collection, query, orderBy, getDocs, addDoc
@@ -172,16 +174,23 @@
       };
       const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
       const db  = getFirestore(app);
-      window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
+      $('fbState').textContent='OK'; $('fbState').className='ok';
 
-      const eventRef = doc(db,'events',code);
+      // Contexto usuario → ruta /users/{uid}/events/{code}
+      const { uid } = currentCtx();
+      if(!uid){ alert('Sesión perdida. Vuelve a iniciar sesión.'); location.href='index.html'; return; }
+
+      const eventRef = doc(db,'users',uid,'events',code);
       const partsCol = collection(eventRef,'participants');
       const syncCol  = collection(eventRef,'sync');
 
+      // Crea evento si no existe
       const s=await getDoc(eventRef);
       if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // Offset con servidor
+      // Reloj sincronizado (offset con serverTimestamp)
+      const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+      let serverOffsetMS = 0;
       try{
         const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
         const pingSnap = await getDoc(pingRef);
@@ -189,7 +198,7 @@
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
       }catch(_){ serverOffsetMS=0; }
 
-      // Participants
+      // Estado participantes
       let participants=[];
       async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
         participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
@@ -197,16 +206,14 @@
       const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
         .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
+      // Acciones
       async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
         await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
       async function stopById(pid){ await reload(); const p=participants.find(x=>x.id===pid && x.startTS && !x.stopTS); if(!p) return null;
         await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-      // Selección META
-      let currentLive=[];          // [{id,order,name,startMS}]
-      let selectedRunnerId=null;   // a quién parar
-      let overlayRowHitboxes=[];   // para clicks
-
+      // SUSCRIPCIÓN: cronos en vivo + UI
+      let currentLive=[]; let selectedRunnerId=null; let overlayRowHitboxes=[];
       function ensureSelection(){
         if(mode!=='finish') return;
         const ids = new Set(currentLive.map(r=>r.id));
@@ -214,7 +221,6 @@
           selectedRunnerId = currentLive.length ? currentLive.slice().sort((a,b)=>a.startMS-b.startMS)[0].id : null;
         }
       }
-
       function renderList(){
         const nowSync = Date.now() + serverOffsetMS;
         const list = $('runningList');
@@ -234,7 +240,6 @@
           });
         }
       }
-
       onSnapshot(partsCol, async ()=>{
         await reload();
         currentLive = runningSorted().map(p=>({
@@ -248,14 +253,23 @@
 
         const hasStart = participants.some(p=>p.startTS);
         const hasStop  = participants.some(p=>p.stopTS);
-        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+        $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
 
         ensureSelection();
         renderList();
       });
 
-      // ===== Detector con hold + histeresis + delay 2s =====
-      btnEnable.onclick = async ()=>{
+      // ===== Cámara + Detección =====
+      const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
+      const octx=overlay.getContext('2d',{willReadFrequently:true});
+      const uiToPercent = (ui)=>{
+        const v = Math.max(0, Math.min(100, Number(ui)||50));
+        if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
+      };
+      const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
+      updateSensLabel(); sens.oninput = updateSensLabel;
+
+      $('btnEnableCam').onclick = async ()=>{
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
           const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
@@ -264,7 +278,7 @@
           if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
           video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
           await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
-          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+          this.textContent='CÁMARA ACTIVADA'; this.disabled=true;
 
           detectionEnabled = false;
           armingEndsAt = performance.now() + ARMING_DELAY_MS;
@@ -273,6 +287,7 @@
         }catch(e){ alert('Error cámara: '+(e?.message||e)); }
       };
 
+      // Detector (parámetros ajustados)
       const COOLDOWN_START_MS  = 2400;
       const COOLDOWN_FINISH_MS = 1800;
       const EMA_ALPHA          = 0.35;
@@ -280,9 +295,9 @@
       const HOLD_MS            = 140;
       const ARMING_DELAY_MS    = 2000;
       let prevFrame=null;
-
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
+      let actEma = 0, above=false, aboveSince = 0;
 
       function thresholdsFromSens(effPercent){
         const frac = effPercent/100;
@@ -290,30 +305,28 @@
         const down = up * 0.6;
         return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
       }
-
-      let actEma = 0, above=false, aboveSince = 0;
-
       const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
 
-      const trigger = async ()=>{
-        if(!armed || !detectionEnabled) return;
-        armed=false; above=false; aboveSince=0;
-
-        if(mode==='start'){
-          const p=await startNext(); if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
-          armAfter(COOLDOWN_START_MS); return;
-        }
-
+      async function startNextAction(){
+        const p=await startNext(); if(p){ $('lastAction').textContent='Inicio: '+(p.name||p.id); }
+        armAfter(COOLDOWN_START_MS);
+      }
+      async function stopSelectedAction(){
         ensureSelection();
         const id = selectedRunnerId || (currentLive[0]?.id || null);
         if(!id){ armAfter(800); return; }
         const p=await stopById(id);
-        if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+        if(p){ $('lastAction').textContent='Fin: '+(p.name||p.id); }
         setTimeout(()=>{ ensureSelection(); renderList(); }, 50);
         armAfter(COOLDOWN_FINISH_MS);
+      }
+
+      const trigger = async ()=>{
+        if(!armed || !detectionEnabled) return;
+        armed=false; above=false; aboveSince=0;
+        if(mode==='start') await startNextAction(); else await stopSelectedAction();
       };
 
-      // Click en overlay para seleccionar fila
       overlay.addEventListener('click', (ev)=>{
         if(mode!=='finish' || !overlayRowHitboxes.length) return;
         const rect = overlay.getBoundingClientRect();
@@ -332,20 +345,15 @@
         }
 
         const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
-
-        // ROI
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
-        // Dibujo ROI
         octx.clearRect(0,0,w,h);
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-        // Cronos overlay “pastilla”
         drawOverlayRows(w,h,currentLive, selectedRunnerId);
 
-        // Detector en ROI
         const vw=video.videoWidth, vh=video.videoHeight;
         if(vw && vh){
           const scaleX = vw / stage.clientWidth;
@@ -386,24 +394,28 @@
         requestAnimationFrame(loop);
       }
 
-      // ======= Dibujo de filas estilo “pastilla” =======
+      // Pastillas sobreimpresas (nombre izquierda, tiempo derecha)
       function drawOverlayRows(w,h,rows, selectedId){
         overlayRowHitboxes = [];
         if(!rows.length) return;
         const nowSync = Date.now() + serverOffsetMS;
 
-        // más reciente arriba
         const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
         const base = Math.max(18, Math.floor(h*0.026));
-        const gap  = Math.max(5, Math.floor(h*0.011)) * 1.5;  // +50%
+        const gapBase  = Math.max(5, Math.floor(h*0.011));
+        const gap  = gapBase * 2.2;           /* separación ampliada */
         const padX = Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.14);
-        const rowH = base*1.4;                 // alto de pastilla
+        const topPad = Math.floor(h*0.18);    /* deja margen para HUD */
+        const rowH = base*1.4;
         const radius = rowH/2.2;
         const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
 
         const left = padX, right = w - padX;
+
+        octx.textBaseline='middle';
+        octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        octx.strokeStyle = 'rgba(0,0,0,.65)'; 
 
         let y = topPad;
         for(let i=0;i<maxRows;i++){
@@ -413,45 +425,27 @@
           const nameText = r.name || '—';
           const isSel = (mode==='finish' && r.id===selectedId);
 
-          // Pastilla fondo
           const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
           roundRect(octx, pillX, pillY, pillW, pillH, radius);
           octx.fillStyle = 'rgba(0,0,0,.35)'; octx.fill();
-
-          // Borde si seleccionado
           if(isSel){ octx.lineWidth=3; octx.strokeStyle='rgba(127,255,182,.85)'; octx.stroke(); }
 
-          // Contenido
-          octx.textBaseline='middle';
-          octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+          octx.lineWidth = Math.max(2, Math.floor(base*0.13));
           octx.fillStyle = isSel ? '#7cffb6' : '#ffffff';
-          octx.strokeStyle = 'rgba(0,0,0,.65)'; octx.lineWidth = Math.max(2, Math.floor(base*0.13));
-
-          // Badge #n
-          const badge = `#${r.order}`;
-          octx.textAlign='left';
-          const badgeX = left + 10;
-          textStrokeFill(octx, badge, badgeX, y + rowH/2);
 
           // Nombre (izq)
-          const nameX = badgeX + octx.measureText(badge).width + 14;
-          textStrokeFill(octx, nameText, nameX, y + rowH/2);
+          octx.textAlign='left';
+          textStrokeFill(octx, nameText, left + 14, y + rowH/2);
 
           // Tiempo (der)
           octx.textAlign='right';
           textStrokeFill(octx, timeText, right - 14, y + rowH/2);
 
-          // Área clicable
           overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
-
           y += rowH + gap;
         }
       }
-
-      function textStrokeFill(ctx, text, x, y){
-        ctx.strokeText(text, x, y);
-        ctx.fillText(text, x, y);
-      }
+      function textStrokeFill(ctx, text, x, y){ ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
       function roundRect(ctx,x,y,w,h,r){
         const rr = Math.min(r, h/2, w/2);
         ctx.beginPath();
@@ -462,11 +456,7 @@
         ctx.arcTo(x,   y,   x+w, y,   rr);
         ctx.closePath();
       }
-
-    }catch(e){
-      window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
-      alert('Firebase error: '+(e.message||e));
-    }
+    })();
   </script>
 </body>
 </html>
