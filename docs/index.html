@@ -22,7 +22,6 @@
     .card{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:18px}
     .card h3{margin:0 0 8px 0;font-size:24px;text-transform:uppercase}
     .cta{margin-top:14px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .link{color:var(--accent);text-decoration:none} .link:hover{color:var(--accent2)}
     .err{color:var(--danger);font-weight:700;margin-top:6px}
     @media (max-width:760px){ .row,.cards{grid-template-columns:1fr} }
@@ -31,7 +30,7 @@
 <body>
   <div class="wrap">
 
-    <!-- Auth -->
+    <!-- Login / Register -->
     <div class="panel">
       <div class="title" id="formTitle">Log in</div>
       <div class="row">
@@ -66,7 +65,7 @@
       </div>
     </div>
 
-    <!-- Selección apps -->
+    <!-- Selección de apps -->
     <div class="panel">
       <div class="title">MI CRONO WEB</div>
       <div class="cards">
@@ -85,74 +84,80 @@
     </div>
   </div>
 
-  <!-- Módulo principal -->
+  <!-- Módulo principal SIN top-level await -->
   <script type="module">
     import { ensureAuthInit, loginEmail, registerEmail, logout, onUser, currentCtx } from './js/auth.js';
 
-    // Inicializa Auth (sin top-level await)
-    await ensureAuthInit();
+    // Logger simple por si algo peta en prod
+    window.addEventListener('error', e=>{ console.log(e?.error||e); });
 
-    const formTitle   = document.getElementById('formTitle');
-    const loginBox    = document.getElementById('loginBox');
-    const registerBox = document.getElementById('registerBox');
-    const toRegister  = document.getElementById('toRegister');
-    const toLogin     = document.getElementById('toLogin');
+    async function init(){
+      await ensureAuthInit();
 
-    const loginEmailEl = document.getElementById('loginEmail');
-    const loginPassEl  = document.getElementById('loginPass');
-    const regEmailEl   = document.getElementById('regEmail');
-    const regPassEl    = document.getElementById('regPass');
-    const regPass2El   = document.getElementById('regPass2');
+      const formTitle   = document.getElementById('formTitle');
+      const loginBox    = document.getElementById('loginBox');
+      const registerBox = document.getElementById('registerBox');
+      const toRegister  = document.getElementById('toRegister');
+      const toLogin     = document.getElementById('toLogin');
 
-    const btnLogin   = document.getElementById('btnLogin');
-    const btnRegister= document.getElementById('btnRegister');
-    const btnLogout  = document.getElementById('btnLogout');
+      const loginEmailEl = document.getElementById('loginEmail');
+      const loginPassEl  = document.getElementById('loginPass');
+      const regEmailEl   = document.getElementById('regEmail');
+      const regPassEl    = document.getElementById('regPass');
+      const regPass2El   = document.getElementById('regPass2');
 
-    const loginErr = document.getElementById('loginErr');
-    const regErr   = document.getElementById('regErr');
-    const userInfo = document.getElementById('userInfo');
+      const btnLogin   = document.getElementById('btnLogin');
+      const btnRegister= document.getElementById('btnRegister');
+      const btnLogout  = document.getElementById('btnLogout');
 
-    function show(mode){
-      if(mode==='register'){ formTitle.textContent='Register'; loginBox.style.display='none'; registerBox.style.display=''; }
-      else { formTitle.textContent='Log in'; loginBox.style.display=''; registerBox.style.display='none'; }
-      loginErr.textContent=''; regErr.textContent='';
+      const loginErr = document.getElementById('loginErr');
+      const regErr   = document.getElementById('regErr');
+      const userInfo = document.getElementById('userInfo');
+
+      function show(mode){
+        if(mode==='register'){ formTitle.textContent='Register'; loginBox.style.display='none'; registerBox.style.display=''; }
+        else { formTitle.textContent='Log in'; loginBox.style.display=''; registerBox.style.display='none'; }
+        loginErr.textContent=''; regErr.textContent='';
+      }
+
+      toRegister?.addEventListener('click', e=>{ e.preventDefault(); show('register'); });
+      toLogin?.addEventListener('click', e=>{ e.preventDefault(); show('login'); });
+
+      btnLogin.addEventListener('click', async ()=>{
+        loginErr.textContent='';
+        try{
+          await loginEmail(loginEmailEl.value.trim(), loginPassEl.value);
+        }catch(e){ loginErr.textContent = e.message || String(e); }
+      });
+
+      btnRegister.addEventListener('click', async ()=>{
+        regErr.textContent='';
+        try{
+          if(regPassEl.value !== regPass2El.value) throw new Error('Las contraseñas no coinciden');
+          await registerEmail(regEmailEl.value.trim(), regPassEl.value);
+          show('login');
+        }catch(e){ regErr.textContent = e.message || String(e); }
+      });
+
+      btnLogout.addEventListener('click', async ()=>{ await logout(); });
+
+      onUser(user=>{
+        if(user){
+          const ctx = currentCtx();
+          userInfo.textContent = `Conectado: ${ctx.email}`;
+          btnLogout.style.display='';
+          document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
+          document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
+        }else{
+          userInfo.textContent = '';
+          btnLogout.style.display='none';
+          document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
+          document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
+        }
+      });
     }
 
-    toRegister?.addEventListener('click', e=>{ e.preventDefault(); show('register'); });
-    toLogin?.addEventListener('click', e=>{ e.preventDefault(); show('login'); });
-
-    btnLogin.addEventListener('click', async ()=>{
-      loginErr.textContent='';
-      try{
-        await loginEmail(loginEmailEl.value.trim(), loginPassEl.value);
-      }catch(e){ loginErr.textContent = e.message || String(e); }
-    });
-
-    btnRegister.addEventListener('click', async ()=>{
-      regErr.textContent='';
-      try{
-        if(regPassEl.value !== regPass2El.value) throw new Error('Las contraseñas no coinciden');
-        await registerEmail(regEmailEl.value.trim(), regPassEl.value);
-        show('login');
-      }catch(e){ regErr.textContent = e.message || String(e); }
-    });
-
-    btnLogout.addEventListener('click', async ()=>{ await logout(); });
-
-    onUser(user=>{
-      if(user){
-        const ctx = currentCtx();
-        userInfo.textContent = `Conectado: ${ctx.email}`;
-        btnLogout.style.display='';
-        document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
-        document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
-      }else{
-        userInfo.textContent = '';
-        btnLogout.style.display='none';
-        document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-        document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-      }
-    });
+    init();
   </script>
 </body>
 </html>
