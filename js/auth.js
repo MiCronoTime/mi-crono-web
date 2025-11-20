@@ -1,4 +1,4 @@
-// docs/js/auth.js  —  ES module sin top-level await
+// docs/js/auth.js  —  ES Module sin top-level await
 import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, onAuthStateChanged,
@@ -19,7 +19,7 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 
-// Evita top-level await: inicializamos una sola vez
+// -------- init sin TLA
 let _initPromise = null;
 function saveCtx(user){
   if(!user){
@@ -41,7 +41,7 @@ export function ensureAuthInit(){
   return _initPromise;
 }
 
-// API
+// -------- API
 export const getDb = ()=>db;
 export const getAuthInstance = ()=>auth;
 export const onUser = (cb)=> onAuthStateChanged(auth, cb);
@@ -63,15 +63,18 @@ export async function registerEmail(email, pass){
   }, { merge: true });
   return user;
 }
+
 export async function loginEmail(email, pass){
   await ensureAuthInit();
   const { user } = await signInWithEmailAndPassword(auth, email, pass);
   return user;
 }
+
 export async function logout(){
   await ensureAuthInit();
   await signOut(auth);
 }
+
 export async function requireAuth(redirectIfMissing='index.html'){
   await ensureAuthInit();
   return new Promise(resolve=>{
@@ -82,6 +85,7 @@ export async function requireAuth(redirectIfMissing='index.html'){
     });
   });
 }
+
 export function mountUserBar(targetId='userBar'){
   const el = document.getElementById(targetId);
   if(!el) return;
