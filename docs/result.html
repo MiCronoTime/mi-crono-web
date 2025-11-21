@@ -35,7 +35,7 @@
         grid-template-columns: 1fr auto; /* título a la izq, acciones a la dcha */
         align-items:end;
       }
-      .actions{ grid-template-columns: auto auto auto; justify-self:end }
+      .actions{ grid-template-columns: auto auto; justify-self:end }
       .pills{ grid-template-columns: auto auto auto; justify-self:start }
     }
 
@@ -51,10 +51,17 @@
     .card{background:#141922;border:1px solid #242b39;border-radius:14px;padding:14px;margin-top:12px}
     .muted{color:#aeb6c4}
 
-    /* selector de tramos / añadir eventos */
-    .addbar{display:grid; gap:8px; grid-template-columns: 1fr auto auto; align-items:center; margin-bottom:10px}
-    select, input[type=text]{background:#0f141d;border:1px solid var(--b1);color:#e8ecf1;border-radius:10px;padding:10px 12px; width:100%}
-    .plus{width:42px; height:42px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:22px; line-height:1}
+    /* selector de tramos / añadir/quitar eventos */
+    .addbar{
+      display:grid; gap:8px; align-items:center; margin-bottom:10px;
+      grid-template-columns: 1fr auto auto; /* select, +, - */
+    }
+    @media (min-width: 520px){
+      .addbar{ grid-template-columns: 1fr auto auto auto } /* sitio para texto */
+    }
+    select{background:#0f141d;border:1px solid var(--b1);color:#e8ecf1;border-radius:10px;padding:10px 12px; width:100%}
+    .iconbtn{width:42px; height:42px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:22px; line-height:1}
+    .minus{ border:1px solid #374151; background:#0f141d }
 
     /* tabla resultados (tema oscuro en pantalla) */
     .scroll{overflow:auto;border:1px solid var(--b1);border-radius:12px}
@@ -96,7 +103,6 @@
           <h1>RESULTADOS</h1>
         </div>
         <div class="actions">
-          <button class="btn" id="btnPrint">Imprimir</button>
           <button class="btn primary" id="btnPDF">Descargar PDF</button>
           <a class="btn" id="btnHome" href="singletrack_index.html">Inicio</a>
         </div>
@@ -110,9 +116,10 @@
 
     <section class="card">
       <div class="addbar">
-        <label class="muted">Añadir tramo (evento) al resultado:</label>
         <select id="selEvents"></select>
-        <button class="btn plus" id="btnAdd">+</button>
+        <button class="btn iconbtn" id="btnAdd">+</button>
+        <button class="btn iconbtn minus" id="btnRemove">−</button>
+        <span class="muted" style="display:none" id="hintTxt">Puedes añadir varios (TC1, TC2, TC3…)</span>
       </div>
 
       <div class="scroll">
@@ -168,7 +175,6 @@
     $('pillCode').textContent = 'Evento: ' + (baseCode||'—');
     $('pillUser').textContent = 'Usuario: ' + (email||uid);
     $('when').textContent     = 'Fecha/hora: ' + new Date().toLocaleString();
-    // Link a CronoLap si result viene de allí (opcional)
     if (document.referrer.includes('cronolap')) $('btnHome').href = 'cronolap_index.html';
 
     // eventos seleccionados (primer elemento = base)
@@ -181,6 +187,7 @@
     const allCodes = evSnap.docs.map(d => d.id);
     const sel = $('selEvents');
     sel.innerHTML = allCodes.map(c => `<option value="${c}">${c}</option>`).join('');
+    // si viene con base, intenta apuntar a otro distinto por defecto
     if (baseCode) {
       const idx = allCodes.indexOf(baseCode);
       if (idx >= 0 && allCodes.length>1) sel.selectedIndex = (idx===0?1:0);
@@ -188,14 +195,28 @@
 
     // Añadir evento al conjunto (+)
     $('btnAdd').onclick = ()=>{
-      const code = sel.value.toUpperCase();
+      const code = (sel.value||'').toUpperCase();
       if (!code) return;
       if (!selectedCodes.includes(code)) selectedCodes.push(code);
       renderCombined();
     };
 
-    // Botones
-    $('btnPrint').onclick = ()=> window.print();
+    // Quitar evento del conjunto (−)
+    $('btnRemove').onclick = ()=>{
+      const code = (sel.value||'').toUpperCase();
+      if (!code) return;
+      if (!selectedCodes.includes(code)) return; // nada que quitar
+      // no permitir dejar la lista vacía; si solo queda 1 y es el base, no quitar
+      if (selectedCodes.length===1 && selectedCodes[0]===baseCode) return;
+      // si se intenta quitar el base y hay más, permitimos (el base dejaría de estar incluido)
+      const next = selectedCodes.filter(c => c !== code);
+      // si quedara vacío, reponemos el base si existe
+      if (next.length===0 && baseCode) next.push(baseCode);
+      selectedCodes.splice(0, selectedCodes.length, ...next);
+      renderCombined();
+    };
+
+    // ====== Botón PDF ======
     $('btnPDF').onclick   = exportPDF;
 
     // ====== Carga y combinación de resultados ======
@@ -241,7 +262,7 @@
         return `<tr>${cells.join('')}</tr>`;
       }).join('');
 
-      $('eventsJoined').textContent = 'Eventos incluidos: ' + model.events.join(' + ');
+      $('eventsJoined').textContent = 'Eventos incluidos: ' + (model.events.length? model.events.join(' + ') : '—');
       lastTableModel = { head, body: model.rows.map(r=>[
         r.name,
         ...model.events.map(ev=> typeof r.tiempos[ev]==='number' ? fmt(r.tiempos[ev]) : '—' ),
