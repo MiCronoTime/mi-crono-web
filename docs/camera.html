@@ -20,6 +20,7 @@
                   var(--bg);
       color:var(--text);
     }
+    a{color:var(--accent);text-decoration:none}
     .wrap{max-width:1000px;margin:0 auto;padding:16px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
     .tag{opacity:.9}
@@ -109,9 +110,9 @@
   <footer style="margin-top:10px"><a class="muted" href="singletrack_index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
+    import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    /* ================= Utilidades ================= */
+    /* ===== Utilidades ===== */
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -120,14 +121,13 @@
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    /* ================= Auth + Parámetros ================= */
     await ensureAuthInit();
     await requireAuth('index.html');
-    mountUserBar?.('userBar');
 
-    const params = new URL(location.href).searchParams;
-    const code = (params.get('code')||'').toUpperCase();
-    const mode = (params.get('mode')||'start'); // start | finish
+    /* ===== Parámetros ===== */
+    const p = new URL(location.href).searchParams;
+    const code = (p.get('code')||'').toUpperCase();
+    const mode = (p.get('mode')||'start'); // start|finish
 
     $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
@@ -136,7 +136,7 @@
     $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
     if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
 
-    /* ================= Firebase ================= */
+    /* ===== Firebase ===== */
     const { initializeApp, getApps, getApp } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
@@ -164,7 +164,7 @@
     const s=await getDoc(eventRef);
     if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-    /* ================= Reloj sync ================= */
+    /* ===== Reloj sync ===== */
     let serverOffsetMS = 0;
     try{
       const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
@@ -174,7 +174,7 @@
       await deleteDoc(pingRef);
     }catch(_){ serverOffsetMS=0; }
 
-    /* ================= Participantes ================= */
+    /* ===== Participantes ===== */
     let participants=[];
     async function reload(){
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
@@ -204,7 +204,7 @@
       return p;
     }
 
-    /* ================= UI en vivo ================= */
+    /* ===== UI en vivo ===== */
     let currentLive=[];           // [{id,order,name,startMS}]
     let overlayRowHitboxes=[];
 
@@ -248,7 +248,7 @@
       ensureStatus();
     });
 
-    /* ================= Cámara + Detección ================= */
+    /* ===== Cámara + Detección ===== */
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
@@ -359,7 +359,7 @@
       octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
       octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-      drawOverlayTimes(w,h,currentLive); // cronos estilo captura
+      drawOverlayTimes(w,h,currentLive);
 
       // Detector
       const vw=video.videoWidth, vh=video.videoHeight;
@@ -402,7 +402,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ======= Overlay EXACTO como la captura ======= */
+    /* ===== Overlay: texto blanco puro, diseño de tu captura ===== */
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
       if(!rows.length) return;
@@ -419,10 +419,11 @@
       const rowH = base*1.45;
       const radius = rowH/1.9;
 
+      octx.globalAlpha = 1;
       octx.textBaseline='middle';
-      octx.fillStyle = '#ffffff';
-      octx.strokeStyle = 'rgba(0,0,0,.68)';           // contorno más marcado aún
-      octx.lineWidth = Math.max(2, Math.floor(base*0.16));
+      octx.fillStyle = '#FFFFFF';
+      octx.strokeStyle = 'rgba(0,0,0,.9)';
+      octx.lineWidth = Math.max(3, Math.floor(base*0.2));
 
       const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
@@ -435,13 +436,11 @@
 
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
 
-        // Fondo de la “pastilla” con degradé suave + borde interno claro
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
         octx.fillStyle = grad; octx.fill();
-        // borde interno sutil para el “volumen”
         octx.save();
         octx.lineWidth = 2;
         octx.strokeStyle = 'rgba(255,255,255,.12)';
@@ -449,7 +448,6 @@
         octx.stroke();
         octx.restore();
 
-        // Marco verde (solo META y seleccionado)
         if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -459,41 +457,38 @@
           octx.restore();
         }
 
-        // Badge circular gris “#n”
+        // Badge
         const badgeR = rowH*0.36;
         const badgeCx = leftPad + badgeR + 4;
         const badgeCy = y + rowH/2;
         octx.save();
-        // círculo base
         octx.beginPath();
         octx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2);
         octx.closePath();
         octx.fillStyle = 'rgba(180,186,198,.34)';
         octx.fill();
-        // anillo sutil
         octx.lineWidth = 2;
         octx.strokeStyle = 'rgba(0,0,0,.35)';
         octx.stroke();
-        // texto #
         octx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='center';
-        octx.strokeStyle='rgba(0,0,0,.68)';
-        octx.lineWidth=Math.max(2, Math.floor(base*0.16));
+        octx.strokeStyle='rgba(0,0,0,.9)';
+        octx.lineWidth=Math.max(3, Math.floor(base*0.2));
         octx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
-        octx.fillStyle='#fff';
+        octx.fillStyle='#FFFFFF';
         octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
         octx.restore();
 
-        // Nombre (izquierda)
         const nameX = leftPad + badgeR*2 + 24;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='left';
         octx.strokeText(nText, nameX, y + rowH/2);
+        octx.fillStyle='#FFFFFF';
         octx.fillText  (nText, nameX, y + rowH/2);
 
-        // Tiempo (derecha)
         octx.textAlign='right';
         octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
+        octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
