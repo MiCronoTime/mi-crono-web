@@ -3,267 +3,303 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono — RESULTADOS</title>
-  <link rel="stylesheet" href="styles.css"/>
+  <title>Resultados</title>
   <style>
     :root{
-      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9;
-      --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff;
+      --bg:#111416; --text:#e8ecf1; --muted:#b5bdc9; --accent:#5ea1ff;
+      --border:#d8dde6;
     }
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
-      margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                 var(--bg);
-      color:var(--text)
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:#0e1115; color:var(--text);
     }
-    .wrap{max-width:1000px;margin:0 auto;padding:16px}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-    h1{margin:0;text-transform:uppercase;letter-spacing:.04em}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
-    .muted{color:var(--muted)}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text);font-weight:800;text-transform:uppercase;cursor:pointer}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
-    .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
-    .badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#0f1217;border:1px solid var(--border)}
-    table{width:100%;border-collapse:separate;border-spacing:0 8px}
-    th, td{padding:10px 12px;text-align:left}
-    thead th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#cfd6e3}
-    tbody tr{background:#0f1217;border:1px solid var(--border)}
-    tbody td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
-    tbody td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px;text-align:right}
-    .right{text-align:right}
-    .ok{color:#7cffb6;font-weight:800}
-    .err{color:#ff758d;font-weight:800}
-    @media (max-width: 480px){
-      th, td{padding:8px 10px;font-size:14px}
-      .top{gap:10px;flex-direction:column;align-items:flex-start}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    h1{margin:0;font-size:20px;letter-spacing:.04em;text-transform:uppercase}
+    .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .pill{padding:6px 10px;border-radius:999px;background:#1b2330;color:#cfe1ff;font-weight:700}
+    .btn{
+      display:inline-flex;gap:8px;align-items:center;justify-content:center;
+      padding:10px 14px;border-radius:10px;border:1px solid #2b3240;background:#131821;
+      color:#e8ecf1;cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase;font-size:13px;
+    }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .card{background:#141922;border:1px solid #242b39;border-radius:14px;padding:14px}
+    .muted{color:#aeb6c4}
+
+    /* selector de tramos / añadir eventos */
+    .addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+    select, input[type=text]{background:#0f141d;border:1px solid #263147;color:#e8ecf1;border-radius:10px;padding:10px 12px}
+    .plus{width:42px; height:42px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:22px; line-height:1}
+
+    /* tabla resultados (tema oscuro en pantalla) */
+    .scroll{overflow:auto;border:1px solid #263147;border-radius:12px}
+    table{width:100%; border-collapse:collapse; min-width:680px; background:#10151e}
+    thead th{
+      position:sticky; top:0; background:#0f131b; color:#cfe1ff; text-align:left;
+      font-size:12px; letter-spacing:.06em; text-transform:uppercase; padding:10px; border-bottom:1px solid #263147;
+    }
+    tbody td{padding:10px;border-bottom:1px solid #1d2534}
+    tbody tr:nth-child(odd){background:#0f141d}
+    .name{font-weight:900}
+    .time{font-variant-numeric:tabular-nums; font-feature-settings: "tnum" 1; font-weight:900}
+    .delta{color:#cfd6e3; font-variant-numeric:tabular-nums}
+    .total{font-weight:900}
+
+    /* tira de info */
+    .info{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#c7d2e4}
+    .info .item{background:#101723;border:1px solid #263147;border-radius:10px;padding:8px 10px;font-size:13px}
+
+    /* versión de impresión/PDF (fondo blanco, tabla clara) */
+    @media print {
+      body{ background:#fff; color:#111 }
+      .wrap{ padding:0 }
+      header .pill, .card, .btn, .addbar, .info{ display:none !important }
+      .scroll{ border:none }
+      table{ background:#fff; border:1px solid #cfd4dd }
+      thead th{ background:#f6f8fb; color:#111; border-bottom:1px solid #cfd4dd }
+      tbody td{ border-bottom:1px solid #eceff4; color:#111 }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
-      <h1 id="title">RESULTADOS</h1>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="btnPdf" class="btn primary">Descargar PDF</button>
-        <a class="btn" href="singletrack_index.html">⇦ Inicio</a>
+    <header>
+      <h1>RESULTADOS</h1>
+      <div class="bar">
+        <span class="pill" id="pillCode">Evento: —</span>
+        <span class="pill" id="pillUser">Usuario: —</span>
+        <button class="btn" id="btnPrint">Imprimir</button>
+        <button class="btn primary" id="btnPDF">Descargar PDF</button>
+        <a class="btn" href="singletrack_index.html">Inicio</a>
       </div>
-    </div>
+    </header>
 
-    <div class="card">
-      <div id="headerInfo" class="muted">Cargando…</div>
-    </div>
+    <section class="card">
+      <div class="addbar">
+        <label class="muted">Añadir tramo (evento) al resultado:</label>
+        <select id="selEvents"></select>
+        <button class="btn plus" id="btnAdd">+</button>
+        <span class="muted">Puedes añadir varios (TC1, TC2, TC3…).</span>
+      </div>
 
-    <div class="card">
-      <div class="muted" id="stateLine">Cargando…</div>
-      <div style="overflow-x:auto;margin-top:8px">
+      <div class="scroll">
         <table id="tbl">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Participante</th>
-              <th class="right">Tiempo</th>
-              <th class="right">Δ respecto 1º</th>
-            </tr>
-          </thead>
-          <tbody id="tbody">
-            <tr><td colspan="4" class="muted">Cargando…</td></tr>
-          </tbody>
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
         </table>
       </div>
-    </div>
+
+      <div class="info">
+        <div class="item" id="when">Fecha/hora: —</div>
+        <div class="item" id="eventsJoined">Eventos incluidos: —</div>
+      </div>
+    </section>
   </div>
 
-  <!-- jsPDF para exportar -->
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-
-  <!-- Auth + datos -->
+  <!-- Auth / Firebase / PDF -->
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    const params = new URL(location.href).searchParams;
-    const code = (params.get('code')||'').toUpperCase();
+    const $ = (id)=>document.getElementById(id);
+    const two = (n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt = (ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const tsToMillis = (ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    const $=id=>document.getElementById(id);
-    const two=n=>String(n).padStart(2,'0');
-    const three=n=>String(n).padStart(3,'0');
-    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0)); const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000; return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+    // ====== Auth ======
+    await ensureAuthInit();
+    await requireAuth('index.html');
+    const { uid, email } = currentCtx();
 
-    (async function init(){
-      await ensureAuthInit();
-      await requireAuth('index.html');
+    // ====== Firebase ======
+    const { initializeApp, getApps, getApp } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const {
+      getFirestore, doc, getDoc, collection, getDocs, query, orderBy
+    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-      $('title').textContent = `RESULTADOS — ${code || '—'}`;
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-      // Firebase ESM
-      const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-      const {
-        getFirestore, doc, getDoc, collection, onSnapshot, query, orderBy, addDoc, serverTimestamp
-      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+    // ====== Base: evento en la URL + selección de más eventos ======
+    const p = new URL(location.href).searchParams;
+    const baseCode = (p.get('code')||'').toUpperCase();
+    $('pillCode').textContent = 'Evento: ' + (baseCode||'—');
+    $('pillUser').textContent = 'Usuario: ' + (email||uid);
+    $('when').textContent = 'Fecha/hora: ' + new Date().toLocaleString();
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+    // eventos seleccionados para combinar (primer elemento = base)
+    const selectedCodes = [];
+    if (baseCode) selectedCodes.push(baseCode);
 
-      const { uid } = currentCtx();
-      if(!uid || !code){
-        $('stateLine').textContent = 'Error: sesion o código no válidos';
-        $('stateLine').className = 'err';
-        return;
-      }
+    // Rellena selector con TODOS los eventos del usuario (ordenados por fecha desc)
+    const eventsCol = collection(doc(db,'users',uid),'events');
+    const evSnap = await getDocs(query(eventsCol, orderBy('createdAt','desc')));
+    const allCodes = evSnap.docs.map(d => d.id);
+    const sel = $('selEvents');
+    sel.innerHTML = allCodes.map(c => `<option value="${c}">${c}</option>`).join('');
+    if (baseCode) {
+      // Por comodidad, si el base está, selecciónalo siguiente
+      const idx = allCodes.indexOf(baseCode);
+      if (idx >= 0 && allCodes.length>1) sel.selectedIndex = (idx===0?1:0);
+    }
 
-      const eventRef = doc(db,'users',uid,'events',code);
-      const partsCol = collection(eventRef,'participants');
-      const syncCol  = collection(eventRef,'sync');
+    // Añadir evento al conjunto (+)
+    $('btnAdd').onclick = ()=>{
+      const code = sel.value.toUpperCase();
+      if (!code) return;
+      if (!selectedCodes.includes(code)) selectedCodes.push(code);
+      renderCombined();
+    };
 
-      // Fecha/hora del evento (si no existe createdAt, lo fijamos ahora)
-      const evSnap = await getDoc(eventRef);
-      if(!evSnap.exists()){
-        // crea contenedor básico para evitar “cargando” eterno
-        await (await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js'))
-          .setDoc(eventRef,{ code, createdAt: serverTimestamp() },{ merge:true });
-      }
+    // Botón imprimir
+    $('btnPrint').onclick = ()=> window.print();
 
-      // Offset de reloj (una sola lectura)
-      let serverOffsetMS = 0;
-      try{
-        const { id } = await (await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js'))
-          .addDoc(syncCol,{ serverNow: serverTimestamp() });
-        const pingRef = doc(syncCol, id);
-        const pingSnap = await getDoc(pingRef);
-        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
-        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
-      }catch(_){ serverOffsetMS = 0; }
+    // Botón PDF (limpio)
+    $('btnPDF').onclick = async ()=>{
+      const { jsPDF } = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+      await import('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
 
-      // Render header (fecha y hora del evento)
-      async function renderHeader(){
-        const e = await getDoc(eventRef);
-        const d = e.data()||{};
-        let when = '—';
-        if(d.createdAt){
-          const ms = tsToMillis(d.createdAt);
-          const dt = new Date(ms);
-          when = dt.toLocaleString();
-        }
-        $('headerInfo').innerHTML = `
-          <span class="badge">Evento</span> <b>${code}</b> &nbsp;•&nbsp;
-          <span class="badge">Fecha</span> ${when}
-        `;
-      }
-      await renderHeader();
+      const docx = new jsPDF({orientation:'p', unit:'pt', format:'a4'});
+      const marginX = 28, marginY = 32;
 
-      // Suscripción en tiempo real a los participantes
-      let lastRows = [];
-      const tbody = $('tbody');
-      $('stateLine').textContent = 'Cargando…';
-      $('stateLine').className = 'muted';
+      // Título
+      docx.setFont('helvetica','bold'); docx.setFontSize(14);
+      docx.text('RESULTADOS', marginX, marginY);
+      docx.setFont('helvetica','normal'); docx.setFontSize(10);
+      docx.text(`Usuario: ${email||uid}`, marginX, marginY+14);
+      docx.text(`Fecha/hora: ${new Date().toLocaleString()}`, marginX, marginY+28);
+      docx.text(`Eventos: ${selectedCodes.join(' + ')}`, marginX, marginY+42);
 
-      onSnapshot(query(partsCol, orderBy('order','asc')), (snap)=>{
-        // Construye lista con tiempos calculados
-        const rows = snap.docs.map(d=>{
-          const x = d.data();
-          const start = tsToMillis(x.startTS);
-          const stop  = tsToMillis(x.stopTS);
-          const ms = (start!=null && stop!=null) ? (stop - start) : null;
-          return {
-            id:d.id, name:(x.name||'').toUpperCase(), order:x.order||0,
-            startMS:start, stopMS:stop, timeMS:ms
-          };
-        });
-
-        // Orden: por tiempo (los que no tienen tiempo van al final)
-        rows.sort((a,b)=>{
-          if(a.timeMS==null && b.timeMS==null) return a.order - b.order;
-          if(a.timeMS==null) return 1;
-          if(b.timeMS==null) return -1;
-          return a.timeMS - b.timeMS;
-        });
-
-        // Δ respecto 1º
-        const base = rows.find(r=>r.timeMS!=null)?.timeMS ?? null;
-        // Render tabla
-        if(rows.length===0){
-          tbody.innerHTML = `<tr><td colspan="4" class="muted">Sin participantes</td></tr>`;
-        }else{
-          tbody.innerHTML = rows.map((r,i)=>{
-            const t = r.timeMS!=null ? fmt(r.timeMS) : '—';
-            const d = (base!=null && r.timeMS!=null) ? fmt(r.timeMS - base) : '—';
-            return `<tr>
-              <td style="width:60px">#${r.order}</td>
-              <td>${r.name}</td>
-              <td class="right">${t}</td>
-              <td class="right">${d}</td>
-            </tr>`;
-          }).join('');
-        }
-
-        $('stateLine').textContent = 'Actualizado';
-        $('stateLine').className = 'ok';
-        lastRows = rows;
-      }, (err)=>{
-        $('stateLine').textContent = 'Error: '+(err.message||err); $('stateLine').className='err';
+      // Tabla a partir del modelo actual (cabeceras y body ya calculados)
+      const { head, body } = lastTableModel;
+      docx.autoTable({
+        startY: marginY + 56,
+        head: [head],
+        body,
+        styles: { font: 'helvetica', fontSize: 10, halign: 'left', valign: 'middle' },
+        headStyles: { fillColor: [246,248,251], textColor: [0,0,0], lineWidth: 0.4, lineColor: [207,212,221] },
+        bodyStyles: { fillColor: [255,255,255], textColor: [0,0,0], lineWidth: 0.25, lineColor: [230,234,241] },
+        alternateRowStyles: { fillColor: [248,250,253] },
+        columnStyles: {
+          0: { cellWidth: 150 }, // participante
+          // dinámicas para tramos se ajustan automático
+        },
+        theme: 'grid',
+        margin: { left: marginX, right: marginX }
       });
 
-      // -------- PDF sin cortes (autoTable) --------
-      $('btnPdf').onclick = async ()=>{
-        const { jsPDF } = window.jspdf;
-        const docpdf = new jsPDF({ unit:'pt', format:'a4', compress:true });
+      docx.save(`resultados_${selectedCodes.join('+')}.pdf`);
+    };
 
-        // Encabezado
-        const pageW = docpdf.internal.pageSize.getWidth();
-        docpdf.setFont('helvetica','bold'); docpdf.setFontSize(16);
-        docpdf.text(`Resultados — ${code}`, 40, 48);
-        const ev = await getDoc(eventRef);
-        const when = ev.data()?.createdAt ? new Date(tsToMillis(ev.data().createdAt)).toLocaleString() : '';
-        docpdf.setFont('helvetica','normal'); docpdf.setFontSize(11);
-        docpdf.text(`Fecha: ${when}`, 40, 66);
+    // ====== Carga y combinación de resultados ======
+    // Estructura final (por nombre):
+    // rows[name] = { name, tiempos: {EV1:ms, EV2:ms,...}, total:ms }
+    let lastTableModel = { head: [], body: [] };
 
-        // Tabla
-        const head = [['#','Participante','Tiempo','Δ respecto 1º']];
-        const body = [];
-        // Clona última vista ya ordenada
-        const base = lastRows.find(r=>r.timeMS!=null)?.timeMS ?? null;
-        lastRows.forEach(r=>{
-          body.push([
-            String(r.order),
-            r.name || '',
-            r.timeMS!=null ? fmt(r.timeMS) : '—',
-            (base!=null && r.timeMS!=null) ? fmt(r.timeMS - base) : '—'
-          ]);
+    async function loadEventResults(code){
+      // Lee participantes de un evento → devuelve { nameUpper: msFinal|null }
+      const partsCol = collection(doc(db,'users',uid,'events',code),'participants');
+      const snap = await getDocs(query(partsCol, orderBy('order','asc')));
+      const out = {};
+      snap.docs.forEach(d=>{
+        const x = d.data();
+        const start = tsToMillis(x.startTS), stop = tsToMillis(x.stopTS);
+        const name = (x.name||'').toUpperCase();
+        const ms = (start && stop) ? (stop - start) : null;
+        if (name) out[name] = ms;
+      });
+      return out;
+    }
+
+    function sumMs(values){
+      return values.reduce((acc,v)=> acc + (typeof v==='number' ? v : 0), 0);
+    }
+
+    function renderTable(model){
+      const thead = $('thead'), tbody=$('tbody');
+      // head = ["Participante", ...eventCodes..., "TOTAL", ""(delta)]
+      const head = ['Participante', ...model.events, 'TOTAL', ''];
+      thead.innerHTML = `<tr>${
+        head.map((h,i)=> `<th${i===head.length-1?' style="width:90px"':''}>${i===head.length-1?'':h}</th>`).join('')
+      }</tr>`;
+
+      tbody.innerHTML = model.rows.map(r=>{
+        const cells = [
+          `<td class="name">${r.name}</td>`,
+          ...model.events.map(ev=>{
+            const ms = r.tiempos[ev];
+            return `<td class="time">${typeof ms==='number'? fmt(ms) : '—'}</td>`;
+          }),
+          `<td class="total time">${fmt(r.total)}</td>`,
+          `<td class="delta">${r.delta==null?'': ('+'+fmt(r.delta))}</td>`
+        ];
+        return `<tr>${cells.join('')}</tr>`;
+      }).join('');
+
+      $('eventsJoined').textContent = 'Eventos incluidos: ' + model.events.join(' + ');
+      lastTableModel = { head, body: model.rows.map(r=>[
+        r.name,
+        ...model.events.map(ev=> typeof r.tiempos[ev]==='number' ? fmt(r.tiempos[ev]) : '—' ),
+        fmt(r.total),
+        r.delta==null?'':('+'+fmt(r.delta))
+      ]) };
+    }
+
+    async function renderCombined(){
+      if (selectedCodes.length===0) return;
+
+      // Carga todos los eventos seleccionados
+      const perEvent = {};
+      for (const code of selectedCodes){
+        perEvent[code] = await loadEventResults(code);
+      }
+
+      // Unión por nombre
+      const names = new Set();
+      Object.values(perEvent).forEach(map=>{
+        Object.keys(map).forEach(n => names.add(n));
+      });
+
+      // Construye filas con tiempos por tramo y total
+      const rows = [];
+      names.forEach(name=>{
+        const tiempos = {};
+        selectedCodes.forEach(code=>{
+          tiempos[code] = perEvent[code][name] ?? null;
         });
+        const total = sumMs(Object.values(tiempos));
+        rows.push({ name, tiempos, total, delta:null });
+      });
 
-        docpdf.autoTable({
-          head, body,
-          startY: 88,
-          styles: { fontSize: 11, cellPadding: 6, halign:'left', valign:'middle' },
-          headStyles: { fillColor:[30,38,52], textColor:255, fontStyle:'bold' },
-          bodyStyles: { fillColor:[18,20,24], textColor: [232,236,241] },
-          alternateRowStyles: { fillColor:[23,25,31] },
-          margin: { left: 40, right: 40 },
-          tableWidth: pageW - 80,
-          theme: 'striped',
-          didDrawPage: (data)=>{
-            // pie de página
-            const str = 'Mi Crono Web';
-            docpdf.setFontSize(9);
-            docpdf.setTextColor(140);
-            docpdf.text(str, 40, docpdf.internal.pageSize.getHeight()-24);
-          }
-        });
+      // Ordena por total asc (quien no tiene tiempos contará como 0; si no te gusta, pon gran valor)
+      rows.sort((a,b)=> (a.total||Number.MAX_SAFE_INTEGER) - (b.total||Number.MAX_SAFE_INTEGER));
 
-        docpdf.save(`resultados_${code}.pdf`);
-      };
-    })();
+      // Delta respecto 1º (total del líder)
+      const leader = rows.find(r=> typeof r.total==='number' );
+      const leaderMs = leader ? leader.total : null;
+      rows.forEach(r=>{
+        r.delta = (leaderMs!=null && typeof r.total==='number') ? (r.total - leaderMs) : null;
+      });
+
+      renderTable({ events: selectedCodes.slice(), rows });
+    }
+
+    // Render inicial (solo base) y listo para añadir más con "+"
+    await renderCombined();
   </script>
 </body>
 </html>
