@@ -40,8 +40,8 @@
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
-    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
+    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
+    .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
 
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
@@ -111,7 +111,7 @@
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
 
-    /* ============== Utilidades ============== */
+    /* ================= Utilidades ================= */
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -120,7 +120,7 @@
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    /* ============== Auth + Parámetros ============== */
+    /* ================= Auth + Parámetros ================= */
     await ensureAuthInit();
     await requireAuth('index.html');
     mountUserBar?.('userBar');
@@ -136,7 +136,7 @@
     $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
     if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
 
-    /* ============== Firebase ============== */
+    /* ================= Firebase ================= */
     const { initializeApp, getApps, getApp } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
@@ -164,7 +164,7 @@
     const s=await getDoc(eventRef);
     if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-    /* ============== Reloj sync ============== */
+    /* ================= Reloj sync ================= */
     let serverOffsetMS = 0;
     try{
       const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
@@ -174,7 +174,7 @@
       await deleteDoc(pingRef);
     }catch(_){ serverOffsetMS=0; }
 
-    /* ============== Participantes ============== */
+    /* ================= Participantes ================= */
     let participants=[];
     async function reload(){
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
@@ -204,7 +204,7 @@
       return p;
     }
 
-    /* ============== UI en vivo ============== */
+    /* ================= UI en vivo ================= */
     let currentLive=[];           // [{id,order,name,startMS}]
     let overlayRowHitboxes=[];
 
@@ -248,7 +248,7 @@
       ensureStatus();
     });
 
-    /* ============== Cámara + Detección ============== */
+    /* ================= Cámara + Detección ================= */
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
@@ -402,7 +402,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ======= Overlay como en la captura (badge, pill, marco verde) ======= */
+    /* ======= Overlay EXACTO como la captura ======= */
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
       if(!rows.length) return;
@@ -413,21 +413,18 @@
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
       const gap  = gapBase * 2.2;
-      const leftPad = Math.floor(w*0.06);
-      const rightPad= Math.floor(w*0.06);
+      const leftPad = Math.floor(w*0.065);
+      const rightPad= Math.floor(w*0.065);
       const topPad = Math.floor(h*0.18);
-      const rowH = base*1.4;
-      const radius = rowH/2.2;
+      const rowH = base*1.45;
+      const radius = rowH/1.9;
 
       octx.textBaseline='middle';
-      octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       octx.fillStyle = '#ffffff';
-      octx.strokeStyle = 'rgba(0,0,0,.65)';
-      octx.lineWidth = Math.max(2, Math.floor(base*0.15));
+      octx.strokeStyle = 'rgba(0,0,0,.68)';           // contorno más marcado aún
+      octx.lineWidth = Math.max(2, Math.floor(base*0.16));
 
-      const pillFill = 'rgba(0,0,0,.35)';
-
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+8)+gap)));
+      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
 
       for(let i=0;i<maxRows;i++){
@@ -436,52 +433,72 @@
         const tText = fmt(elapsed);
         const nText = r.name || '—';
 
-        const pillX = leftPad-6, pillW = (w - leftPad - rightPad) + 12, pillY = y-4, pillH = rowH+8;
+        const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
 
-        // pastilla general
+        // Fondo de la “pastilla” con degradé suave + borde interno claro
+        const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
+        grad.addColorStop(0, 'rgba(45,50,60,.42)');
+        grad.addColorStop(1, 'rgba(30,34,42,.42)');
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
-        octx.fillStyle = pillFill; octx.fill();
+        octx.fillStyle = grad; octx.fill();
+        // borde interno sutil para el “volumen”
+        octx.save();
+        octx.lineWidth = 2;
+        octx.strokeStyle = 'rgba(255,255,255,.12)';
+        roundRect(octx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5);
+        octx.stroke();
+        octx.restore();
 
-        // marco verde (solo META y seleccionado)
+        // Marco verde (solo META y seleccionado)
         if (mode==='finish' && selectedId===r.id){
           octx.save();
-          octx.lineWidth = Math.max(4, Math.floor(base*0.18));
+          octx.lineWidth = Math.max(4, Math.floor(base*0.20));
           octx.strokeStyle = 'rgba(127,255,182,.95)';
-          octx.strokeRect(pillX+2, pillY+2, pillW-4, pillH-4);
+          roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
+          octx.stroke();
           octx.restore();
         }
 
-        // badge circular #N (izquierda)
+        // Badge circular gris “#n”
         const badgeR = rowH*0.36;
-        const badgeCx = leftPad + badgeR + 2;
+        const badgeCx = leftPad + badgeR + 4;
         const badgeCy = y + rowH/2;
         octx.save();
+        // círculo base
         octx.beginPath();
         octx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2);
         octx.closePath();
-        octx.fillStyle = 'rgba(200,205,215,.35)';
+        octx.fillStyle = 'rgba(180,186,198,.34)';
         octx.fill();
-        octx.font = `900 ${Math.floor(base*0.9)}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        // anillo sutil
+        octx.lineWidth = 2;
+        octx.strokeStyle = 'rgba(0,0,0,.35)';
+        octx.stroke();
+        // texto #
+        octx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='center';
+        octx.strokeStyle='rgba(0,0,0,.68)';
+        octx.lineWidth=Math.max(2, Math.floor(base*0.16));
         octx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
+        octx.fillStyle='#fff';
         octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
         octx.restore();
 
-        // nombre (izq, tras badge)
-        const nameX = leftPad + badgeR*2 + 20;
-        octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        // Nombre (izquierda)
+        const nameX = leftPad + badgeR*2 + 24;
+        octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='left';
         octx.strokeText(nText, nameX, y + rowH/2);
         octx.fillText  (nText, nameX, y + rowH/2);
 
-        // tiempo (der)
+        // Tiempo (derecha)
         octx.textAlign='right';
-        octx.strokeText(tText, w - rightPad - 14, y + rowH/2);
-        octx.fillText  (tText, w - rightPad - 14, y + rowH/2);
+        octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
+        octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
-        y += (rowH+8) + gap;
+        y += (rowH+10) + gap;
       }
     }
 
