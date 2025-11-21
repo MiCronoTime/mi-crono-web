@@ -28,6 +28,7 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
+    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -38,7 +39,9 @@
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+    .btn.ghost{ background:#0f1217; border-color:var(--border) }
 
+    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
@@ -62,6 +65,9 @@
     <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">CRONOLAP</h1>
     <p class="tag" id="tag">Conectando…</p>
   </header>
+
+  <!-- barra opcional: “Conectado: …” -->
+  <div id="userBar" style="display:none"></div>
 
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
@@ -110,29 +116,41 @@
 
   <footer style="margin-top:10px"><a class="muted" href="cronolap_index.html">⇦ Volver a Inicio</a></footer>
 
+  <!-- AUTH y APP -->
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
+    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
 
     (async function init(){
+      // Auth obligatorio
       await ensureAuthInit();
       await requireAuth('index.html');
+      mountUserBar('userBar');
 
+      // Parámetros
       const params = new URL(location.href).searchParams;
       const code = (params.get('code')||'').toUpperCase();
 
-      const $ = (id)=>document.getElementById(id);
+      const $=(id)=>document.getElementById(id);
       const two=(n)=>String(n).padStart(2,'0');
       const three=(n)=>String(n).padStart(3,'0');
       const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
         const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
         return `${two(m)}:${two(s)}.${three(ms3)}`; };
 
-      $('btnResult').onclick=(e)=>{ e.preventDefault(); if(code) location.href=`result.html?code=${encodeURIComponent(code)}`; };
+      // UI básica
+      $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
       $('evState').textContent = code || '—';
-      if(!code){ $('noCodeBox').style.display=''; return; }
+      $('evState').className   = code ? 'ok' : 'err';
+      $('btnResult').onclick=(e)=>{ e.preventDefault(); if(code) location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-      // Firebase
-      const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+      if(!code){
+        $('noCodeBox').style.display='';
+        return;
+      }
+
+      // Firebase (ESM)
+      const { initializeApp, getApps, getApp } =
+        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
       const {
         getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
         serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
@@ -150,16 +168,19 @@
       const db  = getFirestore(app);
       $('fbState').textContent='OK'; $('fbState').className='ok';
 
+      // Contexto usuario → ruta /users/{uid}/events/{code}
       const { uid } = currentCtx();
+      if(!uid){ alert('Sesión perdida. Vuelve a iniciar sesión.'); location.href='index.html'; return; }
+
       const eventRef = doc(db,'users',uid,'events',code);
       const partsCol = collection(eventRef,'participants');
       const syncCol  = collection(eventRef,'sync');
 
-      const evSnap = await getDoc(eventRef);
-      if(!evSnap.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
-      $('tag').textContent = `Evento ${code}`;
+      // Crea evento si no existe
+      const s=await getDoc(eventRef);
+      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // reloj servidor
+      // Reloj sincronizado (offset con serverTimestamp)
       const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
       let serverOffsetMS = 0;
       try{
@@ -168,20 +189,26 @@
         const serverNowMs = tsToMillis(pingSnap.data().serverNow);
         serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
         await deleteDoc(pingRef);
-      }catch(_){ serverOffsetMS = 0; }
+      }catch(_){ serverOffsetMS=0; }
 
-      // participantes y punteros
-      let participants=[], current=null, nextPtr=null;
+      // === Estado participantes y punteros de flujo ===
+      let participants=[];               // array con todos (orden asc)
+      let current = null;                // participante en curso (doc completo) o null
+      let nextPtr = null;                // siguiente sin startTS
+
       async function reload(){
         const snap=await getDocs(query(partsCol, orderBy('order','asc')));
         participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
         current = participants.find(p=>p.startTS && !p.stopTS) || null;
         nextPtr = participants.find(p=>!p.startTS) || null;
-        $('hudNext').textContent = 'Siguiente: ' + (nextPtr ? (nextPtr.name||'—').toUpperCase() : '—');
-        renderSideList();
       }
-      function renderSideList(){
+      const renderHeader = ()=>{
+        $('hudNext').textContent = 'Siguiente: ' + (nextPtr ? (nextPtr.name||'—').toUpperCase() : '—');
+        $('tag').textContent = `Evento ${code} • ${ current ? 'Cronometrando' : 'Listo' }`;
+      };
+      const renderList = ()=>{
         const nowSync = Date.now() + serverOffsetMS;
+        const list = $('runningList');
         const rows = [];
         if(current){
           rows.push({ badge:'#'+(current.order||'?'), name:(current.name||'').toUpperCase(), t:fmt(nowSync - tsToMillis(current.startTS)) });
@@ -189,13 +216,18 @@
         if(nextPtr){
           rows.push({ badge:'SIG.', name:(nextPtr.name||'').toUpperCase(), t:'—' });
         }
-        $('runningList').innerHTML = rows.length
+        list.innerHTML = rows.length
           ? rows.map(r=>`<div class="runner"><div class="badge">${r.badge}</div><div class="rname">${r.name}</div><div class="rtime">${r.t}</div></div>`).join('')
           : '—';
-      }
-      onSnapshot(partsCol, reload);
+      };
 
-      // ===== cámara + detección =====
+      onSnapshot(partsCol, async ()=>{
+        await reload();
+        renderHeader();
+        renderList();
+      });
+
+      // ===== Cámara + Detección =====
       const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
       const octx=overlay.getContext('2d',{willReadFrequently:true});
       const uiToPercent = (ui)=>{
@@ -205,7 +237,9 @@
       const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
       updateSensLabel(); sens.oninput = updateSensLabel;
 
-      $('btnEnableCam').onclick = async function (e) {
+      // *** Botón cámara (función normal + currentTarget) ***
+      const btnEnable = $('btnEnableCam');
+      btnEnable.onclick = async function (e) {
         const btn = e.currentTarget;
         try{
           if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
@@ -240,14 +274,13 @@
         }
       };
 
-      // parámetros de disparo
-      const COOLDOWN_START_MS  = 2400;  // tras marcar SALIDA
-      const COOLDOWN_FINISH_MS = 1800;  // tras marcar META
+      // Detector (parámetros)
+      const COOLDOWN_START_MS  = 2400;  // tras salida
+      const COOLDOWN_FINISH_MS = 1800;  // tras llegada
       const EMA_ALPHA          = 0.35;
       const MIN_PIXELS         = 28;
       const HOLD_MS            = 140;
-      const ARMING_DELAY_MS    = 2000;
-
+      const ARMING_DELAY_MS    = 2000;  // al abrir cámara
       let prevFrame=null;
       let armed=true, cooldownTimer=null;
       let detectionEnabled=false, armingEndsAt=0;
@@ -278,19 +311,23 @@
         return p;
       }
 
-      // Alternancia exacta: cada cruce alterna SALIDA/META
+      // Lógica de alternancia:
+      //  - Si NO hay corredor en curso → trigger = SALIDA del siguiente.
+      //  - Si hay corredor en curso → trigger = META para ese corredor.
       async function trigger(){
         if(!armed || !detectionEnabled) return;
         armed=false; above=false; aboveSince=0;
 
         await reload();
         if(!current){
-          await startNext();      // 1ª detección → salida del siguiente
+          const p = await startNext();
           await reload();
+          renderHeader(); renderList();
           armAfter(COOLDOWN_START_MS);
         }else{
-          await stopCurrent();    // 2ª detección → meta del actual
+          const p = await stopCurrent();
           await reload();
+          renderHeader(); renderList();
           armAfter(COOLDOWN_FINISH_MS);
         }
       }
@@ -307,10 +344,12 @@
         const roiWidth=Math.max(12, Math.round(w*0.08));
         const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
 
+        // Franjas rojas
         octx.clearRect(0,0,w,h);
         octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
         octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
+        // Texto grande con el corredor actual
         drawOverlayCurrent(w,h);
 
         const vw=video.videoWidth, vh=video.videoHeight;
@@ -353,7 +392,6 @@
         requestAnimationFrame(loop);
       }
 
-      // Pastilla grande con NOMBRE (izq) y TIEMPO/ESTADO (der)
       function drawOverlayCurrent(w,h){
         const nowSync = Date.now() + serverOffsetMS;
         let name='—', t='—';
@@ -369,8 +407,9 @@
         const rowH = base*1.6;
         const radius = rowH/2.4;
         const left = Math.floor(w*0.06), right = w - left;
-        const y = Math.floor(h*0.18);
+        const y = Math.floor(h*0.18); // algo más bajo para no pisar “Siguiente”
 
+        // pastilla
         const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
         octx.fillStyle = 'rgba(0,0,0,.45)'; octx.fill();
@@ -382,9 +421,11 @@
         octx.lineWidth = Math.max(2, Math.floor(base*0.13));
         octx.fillStyle = current ? '#7cffb6' : '#ffffff';
 
+        // nombre (izq)
         octx.textAlign='left';
         textStrokeFill(octx, name, left + 16, y + rowH/2);
 
+        // tiempo (der)
         octx.textAlign='right';
         textStrokeFill(octx, t, right - 16, y + rowH/2);
       }
