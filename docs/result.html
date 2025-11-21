@@ -6,43 +6,65 @@
   <title>Resultados</title>
   <style>
     :root{
-      --bg:#111416; --text:#e8ecf1; --muted:#b5bdc9; --accent:#5ea1ff;
-      --border:#d8dde6;
+      --text:#e8ecf1; --accent:#5ea1ff; --b1:#263147; --b2:#1d2534; --b3:#0f141d;
+      --ink:#111; --paper:#fff; --thead:#f6f8fb; --grid:#cfd4dd; --alt:#f8fafd;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:#0e1115; color:var(--text);
-    }
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0e1115; color:var(--text); }
     .wrap{max-width:1100px;margin:0 auto;padding:16px}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+
+    /* Header responsive */
+    header{margin-bottom:10px}
+    .topgrid{
+      display:grid; gap:8px;
+      grid-template-columns: 1fr; /* móvil por defecto */
+    }
+    .title{display:flex;align-items:center;justify-content:space-between;gap:8px}
     h1{margin:0;font-size:20px;letter-spacing:.04em;text-transform:uppercase}
-    .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .pill{padding:6px 10px;border-radius:999px;background:#1b2330;color:#cfe1ff;font-weight:700}
+    .actions{
+      display:grid; gap:8px;
+      grid-template-columns: 1fr 1fr; /* dos columnas en móvil */
+    }
+    .pills{
+      display:grid; gap:8px;
+      grid-template-columns: 1fr; /* se apilan en móvil */
+    }
+    @media (min-width: 640px){
+      .topgrid{
+        grid-template-columns: 1fr auto; /* título a la izq, acciones a la dcha */
+        align-items:end;
+      }
+      .actions{ grid-template-columns: auto auto auto; justify-self:end }
+      .pills{ grid-template-columns: auto auto auto; justify-self:start }
+    }
+
+    .pill{padding:6px 10px;border-radius:999px;background:#1b2330;color:#cfe1ff;font-weight:700; width:100%; text-align:center}
     .btn{
       display:inline-flex;gap:8px;align-items:center;justify-content:center;
       padding:10px 14px;border-radius:10px;border:1px solid #2b3240;background:#131821;
-      color:#e8ecf1;cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase;font-size:13px;
+      color:#e8ecf1;cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase;font-size:13px; width:100%;
     }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
-    .card{background:#141922;border:1px solid #242b39;border-radius:14px;padding:14px}
+    .btn:disabled{ opacity:.6; cursor:not-allowed }
+
+    .card{background:#141922;border:1px solid #242b39;border-radius:14px;padding:14px;margin-top:12px}
     .muted{color:#aeb6c4}
 
     /* selector de tramos / añadir eventos */
-    .addbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-    select, input[type=text]{background:#0f141d;border:1px solid #263147;color:#e8ecf1;border-radius:10px;padding:10px 12px}
+    .addbar{display:grid; gap:8px; grid-template-columns: 1fr auto auto; align-items:center; margin-bottom:10px}
+    select, input[type=text]{background:#0f141d;border:1px solid var(--b1);color:#e8ecf1;border-radius:10px;padding:10px 12px; width:100%}
     .plus{width:42px; height:42px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:22px; line-height:1}
 
     /* tabla resultados (tema oscuro en pantalla) */
-    .scroll{overflow:auto;border:1px solid #263147;border-radius:12px}
+    .scroll{overflow:auto;border:1px solid var(--b1);border-radius:12px}
     table{width:100%; border-collapse:collapse; min-width:680px; background:#10151e}
     thead th{
       position:sticky; top:0; background:#0f131b; color:#cfe1ff; text-align:left;
-      font-size:12px; letter-spacing:.06em; text-transform:uppercase; padding:10px; border-bottom:1px solid #263147;
+      font-size:12px; letter-spacing:.06em; text-transform:uppercase; padding:10px; border-bottom:1px solid var(--b1);
     }
-    tbody td{padding:10px;border-bottom:1px solid #1d2534}
-    tbody tr:nth-child(odd){background:#0f141d}
+    tbody td{padding:10px;border-bottom:1px solid var(--b2)}
+    tbody tr:nth-child(odd){background:var(--b3)}
     .name{font-weight:900}
     .time{font-variant-numeric:tabular-nums; font-feature-settings: "tnum" 1; font-weight:900}
     .delta{color:#cfd6e3; font-variant-numeric:tabular-nums}
@@ -50,30 +72,39 @@
 
     /* tira de info */
     .info{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#c7d2e4}
-    .info .item{background:#101723;border:1px solid #263147;border-radius:10px;padding:8px 10px;font-size:13px}
+    .info .item{background:#101723;border:1px solid var(--b1);border-radius:10px;padding:8px 10px;font-size:13px}
 
-    /* versión de impresión/PDF (fondo blanco, tabla clara) */
+    /* versión impresión (PDF limpio fondo blanco) */
     @media print {
-      body{ background:#fff; color:#111 }
+      body{ background:var(--paper); color:var(--ink) }
       .wrap{ padding:0 }
-      header .pill, .card, .btn, .addbar, .info{ display:none !important }
+      .card{ border:none }
+      .topgrid{ grid-template-columns: 1fr; }
+      .actions, .pills, .addbar{ display:none !important }
       .scroll{ border:none }
-      table{ background:#fff; border:1px solid #cfd4dd }
-      thead th{ background:#f6f8fb; color:#111; border-bottom:1px solid #cfd4dd }
-      tbody td{ border-bottom:1px solid #eceff4; color:#111 }
+      table{ background:var(--paper); border:1px solid var(--grid) }
+      thead th{ background:var(--thead); color:var(--ink); border-bottom:1px solid var(--grid) }
+      tbody td{ border-bottom:1px solid #eceff4; color:var(--ink) }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <h1>RESULTADOS</h1>
-      <div class="bar">
-        <span class="pill" id="pillCode">Evento: —</span>
-        <span class="pill" id="pillUser">Usuario: —</span>
-        <button class="btn" id="btnPrint">Imprimir</button>
-        <button class="btn primary" id="btnPDF">Descargar PDF</button>
-        <a class="btn" href="singletrack_index.html">Inicio</a>
+      <div class="topgrid">
+        <div class="title">
+          <h1>RESULTADOS</h1>
+        </div>
+        <div class="actions">
+          <button class="btn" id="btnPrint">Imprimir</button>
+          <button class="btn primary" id="btnPDF">Descargar PDF</button>
+          <a class="btn" id="btnHome" href="singletrack_index.html">Inicio</a>
+        </div>
+        <div class="pills">
+          <span class="pill" id="pillCode">Evento: —</span>
+          <span class="pill" id="pillUser">Usuario: —</span>
+          <span class="pill" id="when">Fecha/hora: —</span>
+        </div>
       </div>
     </header>
 
@@ -82,7 +113,6 @@
         <label class="muted">Añadir tramo (evento) al resultado:</label>
         <select id="selEvents"></select>
         <button class="btn plus" id="btnAdd">+</button>
-        <span class="muted">Puedes añadir varios (TC1, TC2, TC3…).</span>
       </div>
 
       <div class="scroll">
@@ -93,13 +123,11 @@
       </div>
 
       <div class="info">
-        <div class="item" id="when">Fecha/hora: —</div>
         <div class="item" id="eventsJoined">Eventos incluidos: —</div>
       </div>
     </section>
   </div>
 
-  <!-- Auth / Firebase / PDF -->
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
@@ -139,9 +167,11 @@
     const baseCode = (p.get('code')||'').toUpperCase();
     $('pillCode').textContent = 'Evento: ' + (baseCode||'—');
     $('pillUser').textContent = 'Usuario: ' + (email||uid);
-    $('when').textContent = 'Fecha/hora: ' + new Date().toLocaleString();
+    $('when').textContent     = 'Fecha/hora: ' + new Date().toLocaleString();
+    // Link a CronoLap si result viene de allí (opcional)
+    if (document.referrer.includes('cronolap')) $('btnHome').href = 'cronolap_index.html';
 
-    // eventos seleccionados para combinar (primer elemento = base)
+    // eventos seleccionados (primer elemento = base)
     const selectedCodes = [];
     if (baseCode) selectedCodes.push(baseCode);
 
@@ -152,7 +182,6 @@
     const sel = $('selEvents');
     sel.innerHTML = allCodes.map(c => `<option value="${c}">${c}</option>`).join('');
     if (baseCode) {
-      // Por comodidad, si el base está, selecciónalo siguiente
       const idx = allCodes.indexOf(baseCode);
       if (idx >= 0 && allCodes.length>1) sel.selectedIndex = (idx===0?1:0);
     }
@@ -165,49 +194,11 @@
       renderCombined();
     };
 
-    // Botón imprimir
+    // Botones
     $('btnPrint').onclick = ()=> window.print();
-
-    // Botón PDF (limpio)
-    $('btnPDF').onclick = async ()=>{
-      const { jsPDF } = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
-      await import('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
-
-      const docx = new jsPDF({orientation:'p', unit:'pt', format:'a4'});
-      const marginX = 28, marginY = 32;
-
-      // Título
-      docx.setFont('helvetica','bold'); docx.setFontSize(14);
-      docx.text('RESULTADOS', marginX, marginY);
-      docx.setFont('helvetica','normal'); docx.setFontSize(10);
-      docx.text(`Usuario: ${email||uid}`, marginX, marginY+14);
-      docx.text(`Fecha/hora: ${new Date().toLocaleString()}`, marginX, marginY+28);
-      docx.text(`Eventos: ${selectedCodes.join(' + ')}`, marginX, marginY+42);
-
-      // Tabla a partir del modelo actual (cabeceras y body ya calculados)
-      const { head, body } = lastTableModel;
-      docx.autoTable({
-        startY: marginY + 56,
-        head: [head],
-        body,
-        styles: { font: 'helvetica', fontSize: 10, halign: 'left', valign: 'middle' },
-        headStyles: { fillColor: [246,248,251], textColor: [0,0,0], lineWidth: 0.4, lineColor: [207,212,221] },
-        bodyStyles: { fillColor: [255,255,255], textColor: [0,0,0], lineWidth: 0.25, lineColor: [230,234,241] },
-        alternateRowStyles: { fillColor: [248,250,253] },
-        columnStyles: {
-          0: { cellWidth: 150 }, // participante
-          // dinámicas para tramos se ajustan automático
-        },
-        theme: 'grid',
-        margin: { left: marginX, right: marginX }
-      });
-
-      docx.save(`resultados_${selectedCodes.join('+')}.pdf`);
-    };
+    $('btnPDF').onclick   = exportPDF;
 
     // ====== Carga y combinación de resultados ======
-    // Estructura final (por nombre):
-    // rows[name] = { name, tiempos: {EV1:ms, EV2:ms,...}, total:ms }
     let lastTableModel = { head: [], body: [] };
 
     async function loadEventResults(code){
@@ -262,19 +253,16 @@
     async function renderCombined(){
       if (selectedCodes.length===0) return;
 
-      // Carga todos los eventos seleccionados
       const perEvent = {};
       for (const code of selectedCodes){
         perEvent[code] = await loadEventResults(code);
       }
 
-      // Unión por nombre
       const names = new Set();
       Object.values(perEvent).forEach(map=>{
         Object.keys(map).forEach(n => names.add(n));
       });
 
-      // Construye filas con tiempos por tramo y total
       const rows = [];
       names.forEach(name=>{
         const tiempos = {};
@@ -285,10 +273,8 @@
         rows.push({ name, tiempos, total, delta:null });
       });
 
-      // Ordena por total asc (quien no tiene tiempos contará como 0; si no te gusta, pon gran valor)
       rows.sort((a,b)=> (a.total||Number.MAX_SAFE_INTEGER) - (b.total||Number.MAX_SAFE_INTEGER));
 
-      // Delta respecto 1º (total del líder)
       const leader = rows.find(r=> typeof r.total==='number' );
       const leaderMs = leader ? leader.total : null;
       rows.forEach(r=>{
@@ -298,8 +284,62 @@
       renderTable({ events: selectedCodes.slice(), rows });
     }
 
-    // Render inicial (solo base) y listo para añadir más con "+"
     await renderCombined();
+
+    // ====== PDF (carga UMD y usa window.jspdf.jsPDF) ======
+    async function loadScript(src){
+      return new Promise((resolve,reject)=>{
+        const s=document.createElement('script');
+        s.src=src; s.async=true; s.onload=()=>resolve(); s.onerror=()=>reject(new Error('No se pudo cargar '+src));
+        document.head.appendChild(s);
+      });
+    }
+    async function ensureJsPDF(){
+      if(window.jspdf && window.jspdf.jsPDF && window.jspdf.autoTable) return;
+      if(!(window.jspdf && window.jspdf.jsPDF)){
+        await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+      }
+      if(!window.jspdf?.autoTable){
+        await loadScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
+      }
+    }
+
+    async function exportPDF(){
+      try{
+        const btn = $('btnPDF'); btn.disabled=true;
+        await ensureJsPDF();
+        const docx = new window.jspdf.jsPDF({orientation:'p', unit:'pt', format:'a4'});
+        const marginX = 28, marginY = 32;
+
+        // Cabecera limpia
+        docx.setFont('helvetica','bold'); docx.setFontSize(14);
+        docx.text('RESULTADOS', marginX, marginY);
+        docx.setFont('helvetica','normal'); docx.setFontSize(10);
+        docx.text(`Usuario: ${ (currentCtx().email||uid) }`, marginX, marginY+14);
+        docx.text(`Fecha/hora: ${ new Date().toLocaleString() }`, marginX, marginY+28);
+        docx.text(`Eventos: ${ selectedCodes.join(' + ') }`, marginX, marginY+42);
+
+        const { head, body } = lastTableModel;
+        docx.autoTable({
+          startY: marginY + 56,
+          head: [head],
+          body,
+          styles: { font: 'helvetica', fontSize: 10, halign: 'left', valign: 'middle' },
+          headStyles: { fillColor: [246,248,251], textColor: [0,0,0], lineWidth: 0.4, lineColor: [207,212,221] },
+          bodyStyles: { fillColor: [255,255,255], textColor: [0,0,0], lineWidth: 0.25, lineColor: [230,234,241] },
+          alternateRowStyles: { fillColor: [248,250,253] },
+          columnStyles: { 0: { cellWidth: 150 } },
+          theme: 'grid',
+          margin: { left: marginX, right: marginX }
+        });
+
+        docx.save(`resultados_${selectedCodes.join('+')}.pdf`);
+      }catch(err){
+        alert('No se pudo generar el PDF: '+(err?.message||err));
+      }finally{
+        $('btnPDF').disabled=false;
+      }
+    }
   </script>
 </body>
 </html>
