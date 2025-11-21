@@ -282,7 +282,6 @@
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel(); sens.oninput = updateSensLabel;
 
-    // Botón cámara (función normal + currentTarget)
     const btnEnable = $('btnEnableCam');
     btnEnable.onclick = async function (e) {
       const btn = e.currentTarget;
@@ -349,7 +348,7 @@
       }
     }
 
-    // Click/tap en overlay para seleccionar en META
+    // Tap/click en overlay -> seleccionar participante en META
     overlay.addEventListener('click', (e)=>{
       if(mode!=='finish') return;
       const rect = overlay.getBoundingClientRect();
@@ -378,7 +377,7 @@
       octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
       octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-      // Tiempos sobreimpresos
+      // Tiempos sobreimpresos — estilo unificado (SALIDA y META)
       drawOverlayTimes(w,h,currentLive);
 
       // Detector
@@ -429,6 +428,7 @@
 
       const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
+      // === Estilo unificado de SALIDA/META ===
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
       const gap  = gapBase * 2.2;                 // separación grande
@@ -437,15 +437,20 @@
       const topPad = Math.floor(h*0.18);          // no pisa “Siguiente”
       const rowH = base*1.4;
       const radius = rowH/2.2;
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
 
+      // Texto blanco con contorno oscuro, sin desenfoque
       octx.textBaseline='middle';
       octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       octx.fillStyle = '#ffffff';
-      octx.strokeStyle = 'rgba(0,0,0,.55)';       // contorno nítido
-      octx.lineWidth = Math.max(2, Math.floor(base*0.13));
+      octx.strokeStyle = 'rgba(0,0,0,.65)';       // contorno más marcado
+      octx.lineWidth = Math.max(2, Math.floor(base*0.15));
 
+      // Pastilla de fondo neutra (igual en ambos modos)
+      const pillFill = 'rgba(0,0,0,.35)';
+
+      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+8)+gap)));
       let y = topPad;
+
       for(let i=0;i<maxRows;i++){
         const r = sorted[i];
         const elapsed = nowSync - (r.startMS||nowSync);
@@ -455,7 +460,7 @@
         // pastilla
         const pillX = leftPad-6, pillW = (w - leftPad - rightPad) + 12, pillY = y-4, pillH = rowH+8;
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
-        octx.fillStyle = 'rgba(0,0,0,.35)'; octx.fill();
+        octx.fillStyle = pillFill; octx.fill();
 
         // marco verde si seleccionado (solo META)
         if (mode==='finish' && selectedId===r.id){
@@ -476,10 +481,10 @@
         octx.strokeText(tText, w - rightPad - 14, y + rowH/2);
         octx.fillText  (tText, w - rightPad - 14, y + rowH/2);
 
-        // guardar hitbox para selección por tap
+        // hitbox para tap
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
-        y += rowH + gap;
+        y += (rowH+8) + gap;
       }
     }
 
