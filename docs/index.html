@@ -30,7 +30,8 @@
 <body>
   <div class="wrap">
 
-    <div class="panel">
+    <!-- AÑADIDO id="authPanel" para poder ocultar/mostrar -->
+    <div class="panel" id="authPanel">
       <div class="title" id="formTitle">Log in</div>
       <div class="row">
         <div id="loginBox">
@@ -108,6 +109,9 @@
       const regErr   = document.getElementById('regErr');
       const userInfo = document.getElementById('userInfo');
 
+      // NUEVO: referencia al panel de autenticación para ocultarlo/mostrarlo
+      const authPanel = document.getElementById('authPanel');
+
       function show(mode){
         if(mode==='register'){ formTitle.textContent='Register'; loginBox.style.display='none'; registerBox.style.display=''; }
         else { formTitle.textContent='Log in'; loginBox.style.display=''; registerBox.style.display='none'; }
@@ -140,11 +144,13 @@
           const ctx = currentCtx();
           userInfo.textContent = `Conectado: ${ctx.email}`;
           btnLogout.style.display='';
+          if (authPanel) authPanel.style.display = 'none';  // oculta login/registro al estar logueado
           document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
           document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
         }else{
           userInfo.textContent = '';
           btnLogout.style.display='none';
+          if (authPanel) authPanel.style.display = '';      // muestra login/registro al no estar logueado
           document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
           document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
         }
