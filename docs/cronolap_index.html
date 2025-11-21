@@ -178,7 +178,7 @@ CORREDOR 3"></textarea>
       $('goCrono').onclick = (e)=>{ e.preventDefault();
         const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
         // Usa tu cámara estándar; si tienes una variante para cronolap, cambia a camera_cronolap.html
-        location.href = `camera.html?code=${encodeURIComponent(c)}&mode=start`;
+        location.href = `camera_cronolap.html?code=${encodeURIComponent(c)}&mode=start`;
       };
 
       // Resultados
