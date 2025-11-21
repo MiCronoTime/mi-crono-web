@@ -30,7 +30,13 @@
 <body>
   <div class="wrap">
 
-    <!-- AÑADIDO id="authPanel" para poder ocultar/mostrar -->
+    <!-- Barra superior de sesión (solo visible si hay usuario) -->
+    <div id="sessionTop" style="display:none;margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#0f1217;display:flex;gap:8px;align-items:center;justify-content:space-between;">
+      <div>Conectado: <span id="whoTop" class="muted"></span></div>
+      <button id="btnLogoutTop" class="btn" type="button">Cerrar sesión</button>
+    </div>
+
+    <!-- Panel de Login/Registro (se oculta al estar logueado) -->
     <div class="panel" id="authPanel">
       <div class="title" id="formTitle">Log in</div>
       <div class="row">
@@ -109,7 +115,12 @@
       const regErr   = document.getElementById('regErr');
       const userInfo = document.getElementById('userInfo');
 
-      // NUEVO: referencia al panel de autenticación para ocultarlo/mostrarlo
+      // NUEVO: barra superior
+      const sessionTop   = document.getElementById('sessionTop');
+      const whoTop       = document.getElementById('whoTop');
+      const btnLogoutTop = document.getElementById('btnLogoutTop');
+
+      // Para ocultar/mostrar el panel de autenticación
       const authPanel = document.getElementById('authPanel');
 
       function show(mode){
@@ -138,19 +149,36 @@
       });
 
       btnLogout.addEventListener('click', async ()=>{ await logout(); });
+      btnLogoutTop.addEventListener('click', async ()=>{ await logout(); });
 
       onUser(user=>{
         if(user){
           const ctx = currentCtx();
+          // Barra superior visible
+          sessionTop.style.display = '';
+          whoTop.textContent = ctx.email;
+
+          // Oculta login/registro
+          if (authPanel) authPanel.style.display = 'none';
+
+          // Info y botón inferior (opcional, lo mantenemos por compatibilidad)
           userInfo.textContent = `Conectado: ${ctx.email}`;
           btnLogout.style.display='';
-          if (authPanel) authPanel.style.display = 'none';  // oculta login/registro al estar logueado
+
+          // Navegación
           document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
           document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
         }else{
+          // Oculta barra superior
+          sessionTop.style.display = 'none';
+          whoTop.textContent = '';
+
+          // Muestra login/registro
+          if (authPanel) authPanel.style.display = '';
+
           userInfo.textContent = '';
           btnLogout.style.display='none';
-          if (authPanel) authPanel.style.display = '';      // muestra login/registro al no estar logueado
+
           document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
           document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
         }
