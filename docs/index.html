@@ -26,9 +26,8 @@
     .err{color:var(--danger);font-weight:700;margin-top:6px}
     @media (max-width:760px){ .row,.cards{grid-template-columns:1fr} }
 
-    /* Barra superior de sesión */
     .sessionTop{
-      display:none; /* se muestra cuando hay usuario */
+      display:none;
       margin-bottom:12px; padding:10px 12px;
       border:1px solid var(--border); border-radius:12px;
       background:#0f1217; color:var(--text);
@@ -37,15 +36,12 @@
     }
     .sessionWho{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
     .sessionLabel{color:var(--muted); margin-right:6px}
-    @media (max-width:460px){
-      .sessionLabel{ display:none; } /* en móvil solo se muestra el email */
-    }
+    @media (max-width:460px){ .sessionLabel{ display:none; } }
   </style>
 </head>
 <body>
   <div class="wrap">
 
-    <!-- Barra superior: conectado a la izquierda, botón cerrar a la derecha -->
     <div id="sessionTop" class="sessionTop">
       <div class="sessionWho">
         <span class="sessionLabel">Conectado:</span>
@@ -54,7 +50,6 @@
       <button id="btnLogoutTop" class="btn" type="button">Cerrar sesión</button>
     </div>
 
-    <!-- Panel de Login/Registro (se oculta al estar logueado) -->
     <div class="panel" id="authPanel">
       <div class="title" id="formTitle">Log in</div>
       <div class="row">
@@ -64,7 +59,11 @@
           <label>Password</label>
           <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
           <div class="cta"><button id="btnLogin" class="btn primary" type="button" style="width:100%">Log in</button></div>
-          <div class="muted" style="margin-top:8px">Don't have an account? <a href="#" id="toRegister" class="link">Register</a></div>
+          <div class="muted" style="margin-top:8px">
+            Don't have an account? <a href="#" id="toRegister" class="link">Register</a>
+            &nbsp;·&nbsp;
+            <a href="#" id="forgotPwd" class="link">Forgot your password?</a>
+          </div>
           <div id="loginErr" class="err"></div>
         </div>
 
@@ -131,13 +130,12 @@
       const regErr   = document.getElementById('regErr');
       const userInfo = document.getElementById('userInfo');
 
-      // Barra superior
       const sessionTop   = document.getElementById('sessionTop');
       const whoTop       = document.getElementById('whoTop');
       const btnLogoutTop = document.getElementById('btnLogoutTop');
 
-      // Panel auth para ocultar/mostrar
       const authPanel = document.getElementById('authPanel');
+      const forgotPwd = document.getElementById('forgotPwd');
 
       function show(mode){
         if(mode==='register'){ formTitle.textContent='Register'; loginBox.style.display='none'; registerBox.style.display=''; }
@@ -164,34 +162,40 @@
         }catch(e){ regErr.textContent = e?.message || String(e); }
       });
 
-      // Cerrar sesión (dos botones equivalentes)
       btnLogout.addEventListener('click', async ()=>{ await logout(); });
       btnLogoutTop.addEventListener('click', async ()=>{ await logout(); });
 
-      // Alterna UI por sesión
+      forgotPwd?.addEventListener('click', async (e)=>{
+        e.preventDefault();
+        const email = (loginEmailEl.value || '').trim();
+        if (!email) { alert('Escribe tu email en el campo de Login para enviarte el enlace de recuperación.'); return; }
+        try{
+          const { getAuth, sendPasswordResetEmail } =
+            await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js');
+          await sendPasswordResetEmail(getAuth(), email);
+          alert('Te hemos enviado un correo para restablecer tu contraseña (revisa también Spam).');
+        }catch(err){
+          alert('No se pudo enviar el correo de recuperación: ' + (err?.message || err));
+        }
+      });
+
       onUser(user=>{
         if(user){
           const ctx = currentCtx();
-          // Barra superior visible en una línea
           sessionTop.style.display = 'flex';
           whoTop.textContent = ctx.email;
 
-          // Oculta login/registro
           if (authPanel) authPanel.style.display = 'none';
 
-          // Info (panel inferior; lo mantenemos por compatibilidad)
           userInfo.textContent = `Conectado: ${ctx.email}`;
           btnLogout.style.display='';
 
-          // Navegación
           document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
           document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
         }else{
-          // Oculta barra superior
           sessionTop.style.display = 'none';
           whoTop.textContent = '';
 
-          // Muestra login/registro
           if (authPanel) authPanel.style.display = '';
 
           userInfo.textContent = '';
