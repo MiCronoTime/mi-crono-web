@@ -245,6 +245,13 @@
         name: (p.name||'').toUpperCase(),
         startMS: tsToMillis(p.startTS)
       }));
+        if (mode === 'finish') {
+    const run = runningSorted();                 // ya ordenados por más antiguo primero
+    const earliest = run[0]?.id || null;         // el que debería llegar primero
+    if (!selectedId || !run.some(p => p.id === selectedId)) {
+      selectedId = earliest;                     // marca verde por defecto
+    }
+  }
       ensureStatus();
     });
 
