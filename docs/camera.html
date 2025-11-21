@@ -28,7 +28,6 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
-    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -39,9 +38,7 @@
     .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
-    .btn.ghost{ background:#0f1217; border-color:var(--border) }
 
-    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
@@ -53,11 +50,7 @@
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
     .list{margin-top:12px}
-    .runner{
-      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
-    }
-    .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
+    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
@@ -69,9 +62,6 @@
     <h1 id="title" style="text-transform:uppercase;letter-spacing:.04em">MODO</h1>
     <p class="tag" id="tag">Conectando…</p>
   </header>
-
-  <!-- barra opcional: “Conectado: …” -->
-  <div id="userBar" style="display:none"></div>
 
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
@@ -96,10 +86,7 @@
       </div>
 
       <div class="sub">
-        <label>
-          Sensibilidad detector (franja roja)
-          <span id="sensValTxt" class="muted">(20%)</span>
-        </label>
+        <label>Sensibilidad detector (franja roja) <span id="sensValTxt" class="muted">(20%)</span></label>
         <input id="sens" type="range" min="0" max="100" value="50"/>
         <small class="muted">Mueve el control hacia la derecha para aumentar la sensibilidad.</small>
       </div>
@@ -120,363 +107,321 @@
 
   <footer style="margin-top:10px"><a class="muted" href="singletrack_index.html">⇦ Volver a Inicio</a></footer>
 
-  <!-- AUTH y APP -->
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
 
-    (async function init(){
-      // Auth obligatorio
-      await ensureAuthInit();
-      await requireAuth('index.html');
-      mountUserBar('userBar');
+    // ====== Utils ======
+    const $=(id)=>document.getElementById(id);
+    const two=(n)=>String(n).padStart(2,'0');
+    const three=(n)=>String(n).padStart(3,'0');
+    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+      const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
+      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-      // Parámetros
-      const params = new URL(location.href).searchParams;
-      const code = (params.get('code')||'').toUpperCase();
-      const mode = (params.get('mode')||'start'); // start | finish
+    // ====== Auth + params ======
+    await ensureAuthInit();
+    await requireAuth('index.html');
+    mountUserBar?.('userBar');
 
-      const $=(id)=>document.getElementById(id);
-      const two=(n)=>String(n).padStart(2,'0');
-      const three=(n)=>String(n).padStart(3,'0');
-      const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
-        const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-        return `${two(m)}:${two(s)}.${three(ms3)}`; };
+    const params = new URL(location.href).searchParams;
+    const code = (params.get('code')||'').toUpperCase();
+    const mode = (params.get('mode')||'start'); // start | finish
 
-      // UI básica
-      $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
-      $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
-      $('evState').textContent = code || '—';
-      $('evState').className   = code ? 'ok' : 'err';
+    $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
+    $('evState').textContent = code || '—';
+    $('evState').className   = code ? 'ok' : 'err';
+    $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
+    if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
 
-      if(!code){
-        $('noCodeBox').style.display='';
-        return;
-      }
+    // ====== Firebase ESM ======
+    const { initializeApp, getApps, getApp } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const {
+      getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
+    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-      // Navegar a resultados
-      $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+    $('fbState').textContent='OK'; $('fbState').className='ok';
 
-      // Firebase (ESM)
-      const { initializeApp, getApps, getApp } =
-        await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-      const {
-        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-        serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
-      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+    const { uid } = currentCtx();
+    const eventRef = doc(db,'users',uid,'events',code);
+    const partsCol = collection(eventRef,'participants');
+    const syncCol  = collection(eventRef,'sync');
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
-      $('fbState').textContent='OK'; $('fbState').className='ok';
+    const s=await getDoc(eventRef);
+    if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-      // Contexto usuario → ruta /users/{uid}/events/{code}
-      const { uid } = currentCtx();
-      if(!uid){ alert('Sesión perdida. Vuelve a iniciar sesión.'); location.href='index.html'; return; }
+    // ====== Reloj sync ======
+    let serverOffsetMS = 0;
+    try{
+      const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
+      const pingSnap = await getDoc(pingRef);
+      const serverNowMs = tsToMillis(pingSnap.data().serverNow);
+      serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
+      await deleteDoc(pingRef);
+    }catch(_){ serverOffsetMS=0; }
 
-      const eventRef = doc(db,'users',uid,'events',code);
-      const partsCol = collection(eventRef,'participants');
-      const syncCol  = collection(eventRef,'sync');
+    // ====== Estado participantes ======
+    let participants=[];
+    const nextToStart = ()=> participants.find(p=>!p.startTS);
+    const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+      .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-      // Crea evento si no existe
-      const s=await getDoc(eventRef);
-      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
+    async function reload(){
+      const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+      participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
+    }
 
-      // Reloj sincronizado (offset con serverTimestamp)
-      const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
-      let serverOffsetMS = 0;
-      try{
-        const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
-        const pingSnap = await getDoc(pingRef);
-        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
-        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
-        await deleteDoc(pingRef);
-      }catch(_){ serverOffsetMS=0; }
+    async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
+      await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
+    async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+      await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-      // Estado participantes
-      let participants=[];
-      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
-        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
-      const nextToStart = ()=> participants.find(p=>!p.startTS);
-      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
-        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
-
-      // Acciones
-      async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
-        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-      async function stopById(pid){ await reload(); const p=participants.find(x=>x.id===pid && x.startTS && !x.stopTS); if(!p) return null;
-        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
-
-      // SUSCRIPCIÓN: cronos en vivo + UI
-      let currentLive=[]; let selectedRunnerId=null; let overlayRowHitboxes=[];
-      function ensureSelection(){
-        if(mode!=='finish') return;
-        const ids = new Set(currentLive.map(r=>r.id));
-        if(!selectedRunnerId || !ids.has(selectedRunnerId)){
-          selectedRunnerId = currentLive.length ? currentLive.slice().sort((a,b)=>a.startMS-b.startMS)[0].id : null;
-        }
-      }
-      function renderList(){
-        const nowSync = Date.now() + serverOffsetMS;
-        const list = $('runningList');
-        if(!currentLive.length){ list.innerHTML='—'; return; }
-        const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-        list.innerHTML = rows.map(p=>{
-          const sel = (mode==='finish' && p.id===selectedRunnerId) ? ' selected' : '';
-          return `<div class="runner${sel}" data-id="${p.id}">
-            <div class="badge">#${p.order}</div>
-            <div class="rname">${p.name}</div>
-            <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
-          </div>`;
-        }).join('');
-        if(mode==='finish'){
-          [...list.querySelectorAll('.runner')].forEach(el=>{
-            el.onclick=()=>{ selectedRunnerId = el.dataset.id; renderList(); };
-          });
-        }
-      }
-      onSnapshot(partsCol, async ()=>{
-        await reload();
-        currentLive = runningSorted().map(p=>({
-          id:p.id, order: p.order||0,
-          name: (p.name||'').toUpperCase(),
-          startMS: tsToMillis(p.startTS)
-        }));
-
-        const nxt = nextToStart();
-        $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
-
-        const hasStart = participants.some(p=>p.startTS);
-        const hasStop  = participants.some(p=>p.stopTS);
-        $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
-
-        ensureSelection();
-        renderList();
-      });
-
-      // ===== Cámara + Detección =====
-      const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
-      const octx=overlay.getContext('2d',{willReadFrequently:true});
-      const uiToPercent = (ui)=>{
-        const v = Math.max(0, Math.min(100, Number(ui)||50));
-        if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-      };
-      const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
-      updateSensLabel(); sens.oninput = updateSensLabel;
-
-      // *** ARREGLO DEL BOTÓN: función normal y e.currentTarget ***
-      const btnEnable = $('btnEnableCam');
-      btnEnable.onclick = async function (e) {
-        const btn = e.currentTarget;
-        try{
-          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-          const tries=[
-            {video:{facingMode:{ideal:'environment'}},audio:false},
-            {video:{facingMode:'environment'},audio:false},
-            {video:true,audio:false}
-          ];
-          let stream=null,lastErr=null;
-          for(const c of tries){
-            try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }
-            catch(err){ lastErr=err; }
-          }
-          if(!stream){
-            alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
-            return;
-          }
-          video.setAttribute('playsinline','true');
-          video.muted=true;
-          video.srcObject=stream;
-          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
-          await video.play().catch(()=>{});
-          btn.textContent='CÁMARA ACTIVADA';
-          btn.disabled=true;
-
-          detectionEnabled = false;
-          armingEndsAt = performance.now() + ARMING_DELAY_MS;
-          $('hudStatus').textContent = 'Calibrando… 2.0s';
-          requestAnimationFrame(loop);
-        }catch(err){
-          alert('Error cámara: '+(err?.message||err));
-        }
-      };
-
-      // Detector (parámetros ajustados)
-      const COOLDOWN_START_MS  = 2400;
-      const COOLDOWN_FINISH_MS = 1800;
-      const EMA_ALPHA          = 0.35;
-      const MIN_PIXELS         = 28;
-      const HOLD_MS            = 140;
-      const ARMING_DELAY_MS    = 2000;
-      let prevFrame=null;
-      let armed=true, cooldownTimer=null;
-      let detectionEnabled=false, armingEndsAt=0;
-      let actEma = 0, above=false, aboveSince = 0;
-
-      function thresholdsFromSens(effPercent){
-        const frac = effPercent/100;
-        const up = 0.095 - frac*0.055;
-        const down = up * 0.6;
-        return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
-      }
-      const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
-
-      async function startNextAction(){
-        const p=await startNext(); if(p){ $('lastAction').textContent='Inicio: '+(p.name||p.id); }
-        armAfter(COOLDOWN_START_MS);
-      }
-      async function stopSelectedAction(){
-        ensureSelection();
-        const id = selectedRunnerId || (currentLive[0]?.id || null);
-        if(!id){ armAfter(800); return; }
-        const p=await stopById(id);
-        if(p){ $('lastAction').textContent='Fin: '+(p.name||p.id); }
-        setTimeout(()=>{ ensureSelection(); renderList(); }, 50);
-        armAfter(COOLDOWN_FINISH_MS);
-      }
-
-      const trigger = async ()=>{
-        if(!armed || !detectionEnabled) return;
-        armed=false; above=false; aboveSince=0;
-        if(mode==='start') await startNextAction(); else await stopSelectedAction();
-      };
-
-      overlay.addEventListener('click', (ev)=>{
-        if(mode!=='finish' || !overlayRowHitboxes.length) return;
-        const rect = overlay.getBoundingClientRect();
-        const x = ev.clientX - rect.left;
-        const y = ev.clientY - rect.top;
-        const hit = overlayRowHitboxes.find(r=> x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h );
-        if(hit){ selectedRunnerId = hit.id; renderList(); }
-      });
-
-      function loop(){
-        const nowPerf = performance.now();
-        if(!detectionEnabled){
-          const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
-          if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
-          else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
-        }
-
-        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
-        const roiWidth=Math.max(12, Math.round(w*0.08));
-        const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
-
-        octx.clearRect(0,0,w,h);
-        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
-
-        drawOverlayRows(w,h,currentLive, selectedRunnerId);
-
-        const vw=video.videoWidth, vh=video.videoHeight;
-        if(vw && vh){
-          const scaleX = vw / stage.clientWidth;
-          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
-          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
-          const sy=0, sh=vh;
-          const dw = Math.max(50, Math.floor(sw * 0.35));
-          const dh = Math.max(50, Math.floor(sh * 0.35));
-          const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
-          const tctx = temp.getContext('2d', { willReadFrequently:true });
-          tctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
-          const frame = tctx.getImageData(0,0,dw,dh);
-
-          if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-            const eff = uiToPercent(sens.value);
-            const thrPix = 18 + Math.round((100 - eff) * 0.6);
-            let diffPix = 0, total=0;
-            for(let i=0;i<frame.data.length;i+=4){
-              const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
-                        Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
-                        Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
-              if(d > thrPix) diffPix++; total++;
-            }
-            if(diffPix < MIN_PIXELS){ diffPix = 0; }
-            const activity = diffPix / Math.max(1,total);
-            actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
-            const { up, down } = thresholdsFromSens(eff);
-
-            if(!above){ if(actEma >= up){ above = true; aboveSince = nowPerf; } }
-            else{
-              if(actEma <= down){ above = false; aboveSince = 0; }
-              else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
-            }
-          }
-          prevFrame = frame;
-        }
-
-        requestAnimationFrame(loop);
-      }
-
-      // Pastillas sobreimpresas (nombre izquierda, tiempo derecha)
-      function drawOverlayRows(w,h,rows, selectedId){
-        overlayRowHitboxes = [];
-        if(!rows.length) return;
-        const nowSync = Date.now() + serverOffsetMS;
-
-        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-
-        const base = Math.max(18, Math.floor(h*0.026));
-        const gapBase  = Math.max(5, Math.floor(h*0.011));
-        const gap  = gapBase * 2.2;
-        const padX = Math.floor(w*0.06);
-        const topPad = Math.floor(h*0.18);
-        const rowH = base*1.4;
-        const radius = rowH/2.2;
-        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
-
-        const left = padX, right = w - padX;
-
-        octx.textBaseline='middle';
-        octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-        octx.strokeStyle = 'rgba(0,0,0,.65)';
-
-        let y = topPad;
-        for(let i=0;i<maxRows;i++){
-          const r = sorted[i];
-          const elapsed = nowSync - (r.startMS||nowSync);
-          const timeText = fmt(elapsed);
-          const nameText = r.name || '—';
-          const isSel = (mode==='finish' && r.id===selectedId);
-
-          const pillX = left-6, pillW = (right - left) + 12, pillY = y-4, pillH = rowH+8;
-          roundRect(octx, pillX, pillY, pillW, pillH, radius);
-          octx.fillStyle = 'rgba(0,0,0,.35)'; octx.fill();
-          if(isSel){ octx.lineWidth=3; octx.strokeStyle='rgba(127,255,182,.85)'; octx.stroke(); }
-
-          octx.lineWidth = Math.max(2, Math.floor(base*0.13));
-          octx.fillStyle = isSel ? '#7cffb6' : '#ffffff';
-
-          // Nombre (izq)
-          octx.textAlign='left';
-          textStrokeFill(octx, nameText, left + 14, y + rowH/2);
-
-          // Tiempo (der)
-          octx.textAlign='right';
-          textStrokeFill(octx, timeText, right - 14, y + rowH/2);
-
-          overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
-          y += rowH + gap;
-        }
-      }
-      function textStrokeFill(ctx, text, x, y){ ctx.strokeText(text, x, y); ctx.fillText(text, x, y); }
-      function roundRect(ctx,x,y,w,h,r){
-        const rr = Math.min(r, h/2, w/2);
-        ctx.beginPath();
-        ctx.moveTo(x+rr, y);
-        ctx.arcTo(x+w, y,   x+w, y+h, rr);
-        ctx.arcTo(x+w, y+h, x,   y+h, rr);
-        ctx.arcTo(x,   y+h, x,   y,   rr);
-        ctx.arcTo(x,   y,   x+w, y,   rr);
-        ctx.closePath();
-      }
+    // ====== UI dinámica ======
+    let currentLive=[];           // [{id,order,name,startMS}]
+    let overlayRowHitboxes=[];
+    function ensureStatus(){
+      const nxt = nextToStart();
+      $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+      const hasStart = participants.some(p=>p.startTS);
+      const hasStop  = participants.some(p=>p.stopTS);
+      $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+    }
+    function renderListNow(){
+      const nowSync = Date.now() + serverOffsetMS;
+      const list = $('runningList');
+      if(!currentLive.length){ list.innerHTML='—'; return; }
+      list.innerHTML = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+        .map(p=>`<div class="runner"><div class="badge">#${p.order}</div><div class="rname">${p.name}</div><div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div></div>`)
+        .join('');
+    }
+    // ticker para “En curso” (100ms)
+    (function tickList(){
+      renderListNow();
+      setTimeout(tickList, 100);
     })();
+
+    onSnapshot(partsCol, async ()=>{
+      await reload();
+      currentLive = runningSorted().map(p=>({
+        id:p.id, order: p.order||0,
+        name: (p.name||'').toUpperCase(),
+        startMS: tsToMillis(p.startTS)
+      }));
+      ensureStatus();
+    });
+
+    // ====== Cámara + Detección ======
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
+    const octx=overlay.getContext('2d',{willReadFrequently:true});
+
+    // Canvas HiDPI nítido
+    function fitCanvas(){
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = Math.floor(stage.clientWidth);
+      const h = Math.floor(stage.clientHeight);
+      overlay.width  = Math.max(1, Math.floor(w * dpr));
+      overlay.height = Math.max(1, Math.floor(h * dpr));
+      overlay.style.width  = w+'px';
+      overlay.style.height = h+'px';
+      octx.setTransform(dpr,0,0,dpr,0,0); // dibujamos en coords CSS
+      return {w,h,dpr};
+    }
+
+    const uiToPercent = (ui)=>{
+      const v = Math.max(0, Math.min(100, Number(ui)||50));
+      if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
+    };
+    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
+    updateSensLabel(); sens.oninput = updateSensLabel;
+
+    const btnEnable = $('btnEnableCam');
+    btnEnable.onclick = async function (e) {
+      const btn = e.currentTarget;
+      try{
+        if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
+        const tries=[
+          {video:{facingMode:{ideal:'environment'}},audio:false},
+          {video:{facingMode:'environment'},audio:false},
+          {video:true,audio:false}
+        ];
+        let stream=null,lastErr=null;
+        for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(err){ lastErr=err; } }
+        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+        video.setAttribute('playsinline','true');
+        video.muted=true;
+        video.srcObject=stream;
+        await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
+        await video.play().catch(()=>{});
+        btn.textContent='CÁMARA ACTIVADA';
+        btn.disabled=true;
+
+        detectionEnabled = false;
+        armingEndsAt = performance.now() + ARMING_DELAY_MS;
+        $('hudStatus').textContent = 'Calibrando… 2.0s';
+        requestAnimationFrame(loop);
+      }catch(err){ alert('Error cámara: '+(err?.message||err)); }
+    };
+
+    // Detector
+    const COOLDOWN_START_MS  = 2400;
+    const COOLDOWN_FINISH_MS = 1800;
+    const EMA_ALPHA          = 0.35;
+    const MIN_PIXELS         = 28;
+    const HOLD_MS            = 140;
+    const ARMING_DELAY_MS    = 2000;
+    let prevFrame=null;
+    let armed=true, cooldownTimer=null;
+    let detectionEnabled=false, armingEndsAt=0;
+    let actEma = 0, above=false, aboveSince = 0;
+
+    function thresholdsFromSens(effPercent){
+      const frac = effPercent/100;
+      const up = 0.095 - frac*0.055;
+      const down = up * 0.6;
+      return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
+    }
+    const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
+
+    async function trigger(){
+      if(!armed || !detectionEnabled) return;
+      armed=false; above=false; aboveSince=0;
+      if(mode==='start'){ await startNext(); armAfter(COOLDOWN_START_MS); }
+      else{ await stopEarliest(); armAfter(COOLDOWN_FINISH_MS); }
+      $('lastAction').textContent = (mode==='start'?'Inicio':'Fin')+' marcado';
+    }
+
+    function loop(){
+      const {w,h} = fitCanvas();
+
+      const nowPerf = performance.now();
+      if(!detectionEnabled){
+        const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
+        if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
+        else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
+      }
+
+      // ROI y fondo
+      const roiWidth=Math.max(12, Math.round(w*0.08));
+      const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+      octx.clearRect(0,0,w,h);
+      octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+      octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+
+      // tiempos sobreimpresos (nítidos)
+      drawOverlayTimes(w,h,currentLive);
+
+      // Detector
+      const vw=video.videoWidth, vh=video.videoHeight;
+      if(vw && vh){
+        const scaleX = vw / stage.clientWidth;
+        const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+        const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+        const sy=0, sh=vh;
+        const dw = Math.max(50, Math.floor(sw * 0.35));
+        const dh = Math.max(50, Math.floor(sh * 0.35));
+        const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
+        const tctx = temp.getContext('2d', { willReadFrequently:true });
+        tctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
+        const frame = tctx.getImageData(0,0,dw,dh);
+
+        if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
+          const eff = uiToPercent(sens.value);
+          const thrPix = 18 + Math.round((100 - eff) * 0.6);
+          let diffPix = 0, total=0;
+          for(let i=0;i<frame.data.length;i+=4){
+            const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
+                      Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
+                      Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
+            if(d > thrPix) diffPix++; total++;
+          }
+          if(diffPix < MIN_PIXELS){ diffPix = 0; }
+          const activity = diffPix / Math.max(1,total);
+          actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
+          const { up, down } = thresholdsFromSens(eff);
+
+          if(!above){ if(actEma >= up){ above = true; aboveSince = nowPerf; } }
+          else{
+            if(actEma <= down){ above = false; aboveSince = 0; }
+            else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
+          }
+        }
+        prevFrame = frame;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    function drawOverlayTimes(w,h,rows){
+      if(!rows.length) return;
+      const nowSync = Date.now() + serverOffsetMS;
+
+      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+
+      const base = Math.max(18, Math.floor(h*0.026));
+      const gapBase  = Math.max(5, Math.floor(h*0.011));
+      const gap  = gapBase * 2.2;                 // separación grande
+      const leftPad = Math.floor(w*0.06);
+      const rightPad= Math.floor(w*0.06);
+      const topPad = Math.floor(h*0.18);          // no pisa “Siguiente”
+      const rowH = base*1.4;
+      const radius = rowH/2.2;
+      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(rowH+gap)));
+
+      octx.textBaseline='middle';
+      octx.font = `900 ${base}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      octx.fillStyle = '#ffffff';
+      octx.strokeStyle = 'rgba(0,0,0,.55)';       // contorno nítido (no blur)
+      octx.lineWidth = Math.max(2, Math.floor(base*0.13));
+
+      let y = topPad;
+      for(let i=0;i<maxRows;i++){
+        const r = sorted[i];
+        const elapsed = nowSync - (r.startMS||nowSync);
+        const tText = fmt(elapsed);
+        const nText = r.name || '—';
+
+        // pastilla semitransparente
+        const pillX = leftPad-6, pillW = (w - leftPad - rightPad) + 12, pillY = y-4, pillH = rowH+8;
+        roundRect(octx, pillX, pillY, pillW, pillH, radius);
+        octx.fillStyle = 'rgba(0,0,0,.35)'; octx.fill();
+
+        // nombre (izq)
+        octx.fillStyle = '#ffffff';
+        octx.textAlign='left';
+        octx.strokeText(nText, leftPad + 14, y + rowH/2);
+        octx.fillText  (nText, leftPad + 14, y + rowH/2);
+
+        // tiempo (der)
+        octx.textAlign='right';
+        octx.strokeText(tText, w - rightPad - 14, y + rowH/2);
+        octx.fillText  (tText, w - rightPad - 14, y + rowH/2);
+
+        y += rowH + gap;
+      }
+    }
+    function roundRect(ctx,x,y,w,h,r){
+      const rr = Math.min(r, h/2, w/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y,   x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x,   y+h, rr);
+      ctx.arcTo(x,   y+h, x,   y,   rr);
+      ctx.arcTo(x,   y,   x+w, y,   rr);
+      ctx.closePath();
+    }
   </script>
 </body>
 </html>
