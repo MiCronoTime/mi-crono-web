@@ -7,207 +7,214 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9;
-      --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
+      --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff;
     }
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{
-      margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                 var(--bg);
-      color:var(--text)
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+                  var(--bg);
+      color:var(--text);
     }
-    .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-    .title{font-size:32px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-    .userbar{margin-top:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:inline-block}
-
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
-    h2{margin:0 0 12px 0;text-transform:uppercase;letter-spacing:.04em;font-size:24px}
-    label{display:block;margin:10px 0 6px 0;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-    input,textarea{
-      width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);font-size:15px
-    }
-    textarea{min-height:140px;resize:vertical}
-    small.muted{color:var(--muted)}
-    .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;
-      border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text);
-      font-weight:900;text-transform:uppercase;letter-spacing:.03em;cursor:pointer
-    }
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
-    .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
-    .btn.ghost{background:#0f1217;border-color:var(--border)}
-    .btn.danger{background:#611b26;border-color:#8a2b3a}
-    .rowbtns{display:flex;gap:10px;flex-wrap:wrap}
-    .tools{margin-top:16px}
+    .wrap{max-width:900px;margin:0 auto;padding:16px}
+    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    h1{margin:0; text-transform:uppercase; letter-spacing:.04em; display:flex; align-items:center; gap:10px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px}
+    .row{display:grid;grid-template-columns:1fr auto;gap:10px}
+    label{display:block;font-weight:800;margin-bottom:8px;text-transform:uppercase;letter-spacing:.03em}
+    input[type=text]{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#0f1217;color:var(--text);font-weight:800}
+    .upper{ text-transform: uppercase; }
     .muted{color:var(--muted)}
-    .ok{color:#7cffb6;font-weight:800}
-    .err{color:#ff7b8c;font-weight:800}
-    @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 16px;border-radius:12px;border:1px solid var(--border);
+         background:#0f1217;color:var(--text);cursor:pointer;text-decoration:none;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
+    .btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+    .btn.warn{background:#262227;border-color:#3a2c2e}
+    .list{display:grid;gap:10px}
+    .row-2{display:grid;grid-template-columns:1fr auto;gap:8px}
+    .pill{display:inline-block;padding:6px 12px;border-radius:999px;background:#1f2430;color:#e8ecf1;font-weight:700}
+    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="header">
-      <div class="title">CRONOLAP</div>
-    </div>
-    <div id="userBar" class="userbar" style="display:none">Conectado: —</div>
+    <header class="top">
+      <h1>🕒 CRONOLAP</h1>
+      <div id="userInfo" class="pill">Conectando…</div>
+    </header>
 
-    <div class="grid" style="margin-top:12px">
-      <section class="panel">
-        <h2>Crear evento</h2>
-
-        <label>Código del evento</label>
-        <input id="eventCode" placeholder="P.EJ. TEST1" oninput="this.value=this.value.toUpperCase()"/>
-
-        <label style="margin-top:10px">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="parts" placeholder="CORREDOR 1
-CORREDOR 2
-CORREDOR 3"></textarea>
-
-        <small class="muted" style="display:block;margin-top:10px">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
-        </small>
-
-        <div class="rowbtns" style="margin-top:14px">
-          <button id="btnSave" class="btn primary">Guardar evento</button>
-        </div>
-
-        <div id="state" class="muted" style="margin-top:10px">—</div>
-      </section>
-
-      <section class="panel">
-        <h2>Unirse a un evento</h2>
-
-        <label>Código</label>
-        <input id="joinCode" placeholder="TEST1" oninput="this.value=this.value.toUpperCase()"/>
-
-        <div class="rowbtns" style="margin-top:14px">
-          <a id="goCrono"  class="btn ghost">📷&nbsp;Abrir Cronolap</a>
-          <a id="goResult" class="btn ghost">🗂️&nbsp;Resultados</a>
-        </div>
-
-        <small class="muted" style="display:block;margin-top:12px">
-          En <b>CRONOLAP</b> la <b>SALIDA</b> y la <b>META</b> las marca el <b>mismo dispositivo</b>.
-          Sale un participante, completa la vuelta y entonces sale el siguiente.
-        </small>
-      </section>
-    </div>
-
-    <section class="panel tools">
-      <h2>Herramientas</h2>
-      <p class="muted">
-        <b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de tu base de datos. Úsalo solo si quieres limpiar por completo.
-      </p>
-      <div class="rowbtns">
-        <button id="btnReset" class="btn danger">Reset eventos</button>
+    <section class="card">
+      <label for="code">Código de evento</label>
+      <div class="row">
+        <input id="code" type="text" class="upper" placeholder="EJ: TEST1" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters"/>
+        <button id="copy" class="btn" title="Copiar">Copiar</button>
       </div>
+      <small class="muted">Usa un código corto y fácil. CRONOLAP alterna SALIDA/META en el mismo dispositivo.</small>
+    </section>
+
+    <section class="card">
+      <label>Participantes (orden de salida)</label>
+      <div id="plist" class="list"></div>
+      <div class="actions">
+        <button id="add" class="btn">Añadir participante</button>
+        <button id="save" class="btn primary">GUARDAR EVENTO</button>
+        <a id="openLap" class="btn" href="#">Abrir CRONOLAP</a>
+      </div>
+    </section>
+
+    <section class="card">
+      <div><b>Resultado</b></div>
+      <div class="actions">
+        <a id="openResults" class="btn" href="#">RESULTADO</a>
+        <button id="resetAll" class="btn warn">RESET EVENTOS</button>
+      </div>
+      <small class="muted">“Reset eventos” borra todos tus eventos de tu usuario. Aparecerá confirmación.</small>
     </section>
   </div>
 
+  <!-- Fuerza mayúsculas en inputs .pname y normaliza al guardar -->
+  <script type="module" src="js/force_upper.js"></script>
+
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
-    import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
-    import {
-      getFirestore, doc, setDoc, collection, addDoc, getDocs, deleteDoc,
-      serverTimestamp
-    } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
+    import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    (async function init(){
-      // Auth + barra usuario
-      await ensureAuthInit();
-      await requireAuth('index.html');
-      mountUserBar('userBar');
+    const $=s=>document.querySelector(s);
+    const elCode = $('#code');
+    const elList = $('#plist');
+    const elCopy = $('#copy');
+    const elAdd  = $('#add');
+    const elSave = $('#save');
+    const aLap   = $('#openLap');
+    const aRes   = $('#openResults');
+    const btnReset = $('#resetAll');
 
-      // Firebase
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+    await ensureAuthInit();
+    await requireAuth('index.html');
+    const { uid, user } = currentCtx();
+    $('#userInfo').textContent = `Conectado: ${user?.email||uid}`;
 
-      const { uid } = currentCtx();
-      const $=id=>document.getElementById(id);
+    // Firebase
+    const { initializeApp, getApps, getApp } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const { getFirestore, doc, getDoc, setDoc, collection, getDocs, addDoc, deleteDoc, serverTimestamp, writeBatch } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
-      const codeEl   = $('eventCode');
-      const partsEl  = $('parts');
-      const joinCode = $('joinCode');
-      const stateEl  = $('state');
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-      const CODE = () => (codeEl.value||'').trim().toUpperCase();
-      const JCODE= () => (joinCode.value||'').trim().toUpperCase();
-      const PARTS= () => (partsEl.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(s=>s.toUpperCase());
+    // Helpers
+    function addRow(name=''){
+      const wrap = document.createElement('div');
+      wrap.className='row-2';
+      wrap.innerHTML = `
+        <input type="text" class="pname upper" placeholder="NOMBRE DEL PARTICIPANTE" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" value="${(name||'').toUpperCase()}"/>
+        <button class="btn rmv" title="Eliminar">✕</button>
+      `;
+      wrap.querySelector('.rmv').onclick = ()=> wrap.remove();
+      elList.appendChild(wrap);
+    }
+    function getParticipantsRaw(){
+      return Array.from(elList.querySelectorAll('.pname')).map((el, i)=>({
+        order: i+1,
+        name : el.value || ''
+      }));
+    }
 
-      // Guardar evento (resetea el existente y crea participantes)
-      $('btnSave').onclick = async ()=>{
-        stateEl.textContent='Guardando…'; stateEl.className='muted';
-        try{
-          const code = CODE(); if(!code) throw new Error('Escribe un código de evento');
-          const eventRef = doc(db,'users',uid,'events',code);
-          await setDoc(eventRef,{ code, createdAt: serverTimestamp() },{ merge:true });
+    // Cargar desde ?code=
+    const qp = new URL(location.href).searchParams;
+    const codeFromQS = (qp.get('code')||'').toUpperCase();
+    if(codeFromQS){ elCode.value = codeFromQS; }
 
-          const list = PARTS();
-          if(list.length){
-            const partsCol = collection(eventRef,'participants');
-            // elimina antiguos
-            const prev = await getDocs(partsCol);
-            for(const d of prev.docs) await deleteDoc(d.ref);
-            // crea nuevos
-            for(let i=0;i<list.length;i++){
-              await addDoc(partsCol,{
-                name:list[i], order:i+1, startTS:null, stopTS:null, createdAt: serverTimestamp()
-              });
-            }
-          }
-          stateEl.textContent='Evento guardado'; stateEl.className='ok';
-        }catch(e){
-          stateEl.textContent='Error: '+(e.message||e); stateEl.className='err';
-          console.error(e);
-        }
-      };
+    async function loadIfExists(){
+      const code = (elCode.value || '').trim().toUpperCase();
+      if(!code) return;
+      const eventRef = doc(db,'users',uid,'events',code);
+      const snap = await getDoc(eventRef);
+      elList.innerHTML='';
+      if(!snap.exists()){ addRow(''); addRow(''); return; }
+      const partsCol = collection(eventRef,'participants');
+      const ps = await getDocs(partsCol);
+      const arr = ps.docs.map(d=>d.data()).sort((a,b)=>(a.order||0)-(b.order||0));
+      if(arr.length===0){ addRow(''); addRow(''); }
+      else arr.forEach(p=> addRow((p.name||'').toUpperCase()));
+    }
+    await loadIfExists();
 
-      // Abrir Cronolap (misma cámara, un dispositivo marca salida y meta del mismo corredor)
-      $('goCrono').onclick = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        // Usa tu cámara estándar; si tienes una variante para cronolap, cambia a camera_cronolap.html
-        location.href = `camera_cronolap.html?code=${encodeURIComponent(c)}&mode=start`;
-      };
+    // Botones
+    elAdd.onclick = ()=> addRow('');
+    elCopy.onclick = async ()=>{
+      const v = (elCode.value||'').toUpperCase();
+      if(!v){ alert('Introduce un código'); return; }
+      await navigator.clipboard.writeText(v);
+      elCopy.textContent='Copiado'; setTimeout(()=> elCopy.textContent='Copiar',1200);
+    };
 
-      // Resultados
-      $('goResult').onclick = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        location.href = `result.html?code=${encodeURIComponent(c)}`;
-      };
+    elSave.onclick = async ()=>{
+      const code = (elCode.value || '').trim().toUpperCase();
+      if(!code) return alert('Introduce un código de evento');
 
-      // Reset eventos del usuario
-      $('btnReset').onclick = async ()=>{
-        if(!confirm('¿Seguro que quieres BORRAR TODOS tus eventos y participantes?\nEsta acción no se puede deshacer.')) return;
-        stateEl.textContent='Borrando…'; stateEl.className='muted';
-        try{
-          const evs = await getDocs(collection(db,'users',uid,'events'));
-          for(const ev of evs.docs){
-            const partsSnap = await getDocs(collection(ev.ref,'participants'));
-            for(const p of partsSnap.docs) await deleteDoc(p.ref);
-            const syncSnap = await getDocs(collection(ev.ref,'sync'));
-            for(const s of syncSnap.docs) await deleteDoc(s.ref);
-            await deleteDoc(ev.ref);
-          }
-          stateEl.textContent='Reset completado'; stateEl.className='ok';
-        }catch(e){
-          stateEl.textContent='Error al resetear: '+(e.message||e); stateEl.className='err';
-          console.error(e);
-        }
-      };
-    })();
+      // Normaliza a MAYÚSCULAS (¡clave!)
+      const participants = window.__forceUpper.mapNamesUpper(getParticipantsRaw());
+
+      const eventRef = doc(db,'users',uid,'events',code);
+      await setDoc(eventRef, { code, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge:true });
+
+      const partsCol = collection(eventRef,'participants');
+      // Borrado previo
+      const prev = await getDocs(partsCol);
+      const batch = writeBatch(db);
+      prev.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      // Inserción
+      for(const p of participants){
+        await addDoc(partsCol, p);
+      }
+      alert('Evento guardado');
+    };
+
+    aLap.onclick = (e)=>{ e.preventDefault();
+      const code = (elCode.value || '').trim().toUpperCase();
+      if(!code) return alert('Introduce un código de evento');
+      location.href = `camera_cronolap.html?code=${encodeURIComponent(code)}`;
+    };
+    aRes.onclick = (e)=>{ e.preventDefault();
+      const code = (elCode.value || '').trim().toUpperCase();
+      if(!code) return alert('Introduce un código de evento');
+      location.href = `result.html?code=${encodeURIComponent(code)}`;
+    };
+
+    btnReset.onclick = async ()=>{
+      if(!confirm('¿Seguro que quieres borrar TODOS tus eventos? Esta acción no se puede deshacer.')) return;
+      const eventsCol = collection(db,'users',uid,'events');
+      const evs = await getDocs(eventsCol);
+      for(const ev of evs.docs){
+        const parts = await getDocs(collection(ev.ref,'participants'));
+        const b1 = writeBatch(db);
+        parts.forEach(d=> b1.delete(d.ref));
+        await b1.commit().catch(()=>{});
+        const sync = await getDocs(collection(ev.ref,'sync'));
+        const b2 = writeBatch(db);
+        sync.forEach(d=> b2.delete(d.ref));
+        await b2.commit().catch(()=>{});
+        await deleteDoc(ev.ref).catch(()=>{});
+      }
+      alert('Eventos borrados');
+      elList.innerHTML=''; addRow(''); addRow('');
+    };
+
+    elCode.addEventListener('change', loadIfExists);
+    elCode.addEventListener('blur', loadIfExists);
   </script>
 </body>
 </html>
-
