@@ -25,14 +25,32 @@
     .link{color:var(--accent);text-decoration:none} .link:hover{color:var(--accent2)}
     .err{color:var(--danger);font-weight:700;margin-top:6px}
     @media (max-width:760px){ .row,.cards{grid-template-columns:1fr} }
+
+    /* Barra superior de sesión */
+    .sessionTop{
+      display:none; /* se muestra cuando hay usuario */
+      margin-bottom:12px; padding:10px 12px;
+      border:1px solid var(--border); border-radius:12px;
+      background:#0f1217; color:var(--text);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      flex-wrap:nowrap;
+    }
+    .sessionWho{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .sessionLabel{color:var(--muted); margin-right:6px}
+    @media (max-width:460px){
+      .sessionLabel{ display:none; } /* en móvil solo se muestra el email */
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
 
-    <!-- Barra superior de sesión (solo visible si hay usuario) -->
-    <div id="sessionTop" style="display:none;margin-bottom:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:#0f1217;display:flex;gap:8px;align-items:center;justify-content:space-between;">
-      <div>Conectado: <span id="whoTop" class="muted"></span></div>
+    <!-- Barra superior: conectado a la izquierda, botón cerrar a la derecha -->
+    <div id="sessionTop" class="sessionTop">
+      <div class="sessionWho">
+        <span class="sessionLabel">Conectado:</span>
+        <span id="whoTop"></span>
+      </div>
       <button id="btnLogoutTop" class="btn" type="button">Cerrar sesión</button>
     </div>
 
@@ -90,8 +108,6 @@
   <script type="module">
     import { ensureAuthInit, loginEmail, registerEmail, logout, onUser, currentCtx } from './js/auth.js';
 
-    window.addEventListener('error', e=>{ console.log('GlobalError', e?.error||e); });
-
     async function init(){
       await ensureAuthInit();
 
@@ -115,12 +131,12 @@
       const regErr   = document.getElementById('regErr');
       const userInfo = document.getElementById('userInfo');
 
-      // NUEVO: barra superior
+      // Barra superior
       const sessionTop   = document.getElementById('sessionTop');
       const whoTop       = document.getElementById('whoTop');
       const btnLogoutTop = document.getElementById('btnLogoutTop');
 
-      // Para ocultar/mostrar el panel de autenticación
+      // Panel auth para ocultar/mostrar
       const authPanel = document.getElementById('authPanel');
 
       function show(mode){
@@ -135,33 +151,35 @@
       btnLogin.addEventListener('click', async ()=>{
         loginErr.textContent='';
         try{
-          await loginEmail(loginEmailEl.value.trim(), loginPassEl.value);
-        }catch(e){ loginErr.textContent = e.message || String(e); }
+          await loginEmail((loginEmailEl.value||'').trim(), loginPassEl.value||'');
+        }catch(e){ loginErr.textContent = e?.message || String(e); }
       });
 
       btnRegister.addEventListener('click', async ()=>{
         regErr.textContent='';
         try{
-          if(regPassEl.value !== regPass2El.value) throw new Error('Las contraseñas no coinciden');
-          await registerEmail(regEmailEl.value.trim(), regPassEl.value);
+          if((regPassEl.value||'') !== (regPass2El.value||'')) throw new Error('Las contraseñas no coinciden');
+          await registerEmail((regEmailEl.value||'').trim(), regPassEl.value||'');
           show('login');
-        }catch(e){ regErr.textContent = e.message || String(e); }
+        }catch(e){ regErr.textContent = e?.message || String(e); }
       });
 
+      // Cerrar sesión (dos botones equivalentes)
       btnLogout.addEventListener('click', async ()=>{ await logout(); });
       btnLogoutTop.addEventListener('click', async ()=>{ await logout(); });
 
+      // Alterna UI por sesión
       onUser(user=>{
         if(user){
           const ctx = currentCtx();
-          // Barra superior visible
-          sessionTop.style.display = '';
+          // Barra superior visible en una línea
+          sessionTop.style.display = 'flex';
           whoTop.textContent = ctx.email;
 
           // Oculta login/registro
           if (authPanel) authPanel.style.display = 'none';
 
-          // Info y botón inferior (opcional, lo mantenemos por compatibilidad)
+          // Info (panel inferior; lo mantenemos por compatibilidad)
           userInfo.textContent = `Conectado: ${ctx.email}`;
           btnLogout.style.display='';
 
