@@ -9,7 +9,6 @@
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
-      --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -26,11 +25,14 @@
     .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
       background:#0f1217;color:var(--text);cursor:pointer;text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px}
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:none}
+
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
+
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
@@ -166,12 +168,10 @@
     async function stopCurrent(){ await reload(); const p=runningOne(); if(!p) return null;
       await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-    // Estado CRONOLAP: alterna salida/meta
-    let phase = 'start'; // 'start' o 'finish'
+    let phase = 'start'; // 'start' | 'finish'
     function setPhase(ph){ phase=ph; $('lapMode').textContent = ph==='start'?'SALIDA':'META'; }
 
-    // UI en vivo
-    let currentLive=[];
+    // UI live
     function ensureStatus(){
       const nxt = nextToStart();
       $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
@@ -193,11 +193,9 @@
 
     onSnapshot(partsCol, async ()=>{
       await reload();
-      currentLive = participants.filter(p=>p.startTS && !p.stopTS).map(p=>({
-        id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-      }));
+      const run = runningOne();
+      setPhase(run ? 'finish' : 'start');
       ensureStatus();
-      setPhase(runningOne() ? 'finish' : 'start');
     });
 
     // Cámara + detección
@@ -272,6 +270,8 @@
       }
     }
 
+    // overlay cache (100ms)
+    let lastOverlayUpdate=0; let overlayCache = [];
     function loop(){
       const {w,h} = fitCanvas();
 
@@ -288,10 +288,19 @@
       octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
       octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-      drawOverlayTimes(w,h, participants.filter(p=>p.startTS && !p.stopTS).map(p=>({
-        id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-      })));
+      const nowSync = Date.now() + serverOffsetMS;
+      if (nowPerf - lastOverlayUpdate >= 100) {
+        overlayCache = (await getDocs(query(partsCol, orderBy('order','asc')))).docs
+          .map(d=>({ id:d.id, ...d.data() }))
+          .filter(p=>p.startTS && !p.stopTS)
+          .map(p=>({ id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS) }))
+          .sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+          .map(r=>({ ...r, tText: fmt(nowSync - (r.startMS||nowSync)) }));
+        lastOverlayUpdate = nowPerf;
+      }
+      drawOverlayTimes(w,h,overlayCache);
 
+      // Detector
       const vw=video.videoWidth, vh=video.videoHeight;
       if(vw && vh){
         const scaleX = vw / stage.clientWidth;
@@ -328,78 +337,57 @@
       requestAnimationFrame(loop);
     }
 
-    // Overlay igual que en camera.html (blanco puro)
     function drawOverlayTimes(w,h,rows){
       if(!rows.length) return;
-      const nowSync = Date.now() + serverOffsetMS;
-
-      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
       const base = Math.max(18, Math.floor(h*0.026));
-      const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.2;
-      const leftPad = Math.floor(w*0.065);
-      const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.18);
-      const rowH = base*1.45;
-      const radius = rowH/1.9;
+      const gap  = Math.max(5, Math.floor(h*0.011)) * 2.2 * 1.2;
+      const leftPad = Math.floor(w*0.065), rightPad=Math.floor(w*0.065);
+      const topPad = Math.floor(h*0.19);
+      const rowH = base*1.45, radius=12;
 
       const ctx = overlay.getContext('2d');
-      ctx.globalAlpha = 1;
+      ctx.save();
       ctx.textBaseline='middle';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = 'rgba(0,0,0,.9)';
-      ctx.lineWidth = Math.max(3, Math.floor(base*0.2));
+      ctx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
 
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
-
-      for(let i=0;i<maxRows;i++){
-        const r = sorted[i];
-        const elapsed = nowSync - (r.startMS||nowSync);
-        const tText = fmt(elapsed);
-        const nText = r.name || '—';
-
+      for(const r of rows){
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
 
-        const grad = ctx.createLinearGradient(0, pillY, 0, pillY+pillH);
-        grad.addColorStop(0, 'rgba(45,50,60,.42)');
-        grad.addColorStop(1, 'rgba(30,34,42,.42)');
+        ctx.fillStyle = 'rgba(28,32,40,.55)';
         roundRect(ctx, pillX, pillY, pillW, pillH, radius);
-        ctx.fillStyle = grad; ctx.fill();
-        ctx.save(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.12)';
-        roundRect(ctx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5); ctx.stroke(); ctx.restore();
+        ctx.fill();
 
-        // Badge
-        const badgeR = rowH*0.36;
-        const badgeCx = leftPad + badgeR + 4;
-        const badgeCy = y + rowH/2;
-        ctx.save();
-        ctx.beginPath(); ctx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2); ctx.closePath();
-        ctx.fillStyle = 'rgba(180,186,198,.34)'; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
-        ctx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        ctx.textAlign='center';
-        ctx.strokeStyle='rgba(0,0,0,.9)'; ctx.lineWidth=Math.max(3, Math.floor(base*0.2));
-        ctx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
-        ctx.fillStyle='#FFFFFF'; ctx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
-        ctx.restore();
+        const badgeH = Math.floor(rowH*0.7);
+        const badgeW = Math.floor(badgeH*1.4);
+        const badgeX = leftPad+2;
+        const badgeY = y + (rowH-badgeH)/2;
+        ctx.fillStyle = 'rgba(160,168,182,.38)';
+        roundRect(ctx, badgeX, badgeY, badgeW, badgeH, badgeH/2);
+        ctx.fill();
 
-        const nameX = leftPad + badgeR*2 + 24;
-        ctx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        ctx.textAlign='left';
-        ctx.strokeText(nText, nameX, y + rowH/2);
         ctx.fillStyle='#FFFFFF';
-        ctx.fillText  (nText, nameX, y + rowH/2);
+        ctx.strokeStyle='rgba(0,0,0,.85)';
+        ctx.lineWidth = Math.max(3, Math.floor(base*0.2));
+        ctx.textAlign='center';
+        ctx.strokeText(`#${r.order}`, badgeX+badgeW/2, y+rowH/2+1);
+        ctx.fillText  (`#${r.order}`, badgeX+badgeW/2, y+rowH/2+1);
+
+        ctx.textAlign='left';
+        const nameX = badgeX + badgeW + 12;
+        ctx.strokeText(r.name, nameX, y+rowH/2);
+        ctx.fillText  (r.name, nameX, y+rowH/2);
 
         ctx.textAlign='right';
-        ctx.strokeText(tText, w - rightPad - 18, y + rowH/2);
-        ctx.fillStyle='#FFFFFF';
-        ctx.fillText  (tText, w - rightPad - 18, y + rowH/2);
+        ctx.strokeText(r.tText, w - rightPad - 18, y+rowH/2);
+        ctx.fillText  (r.tText, w - rightPad - 18, y+rowH/2);
 
         y += (rowH+10) + gap;
       }
+      ctx.restore();
     }
+
     function roundRect(ctx,x,y,w,h,r){
       const rr = Math.min(r, h/2, w/2);
       ctx.beginPath();
