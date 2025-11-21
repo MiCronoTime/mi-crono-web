@@ -3,155 +3,206 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Mi Crono Web — Inicio</title>
-  <link rel="stylesheet" href="styles.css"/>
+  <title>Mi Crono Web</title>
   <style>
-    :root{ --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c; }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);color:var(--text)}
-    .wrap{max-width:1000px;margin:0 auto;padding:18px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
-    .title{font-size:32px;font-weight:900;letter-spacing:.02em;text-align:center;margin:6px 0 18px 0}
-    label{display:block;margin:10px 0 6px 0;font-weight:700}
-    input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
-    .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
-    .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
+    :root{
+      --bg:#0e1115; --panel:#141922; --panel2:#101723; --text:#e8ecf1; --muted:#aeb6c4;
+      --border:#242b39; --accent:#5ea1ff; --accent2:#7cc4ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
+                  var(--bg);
+      color:var(--text);
+    }
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    h1{margin:0;font-size:22px;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+    .clock{display:inline-block;width:22px;height:22px;border:2px solid #cfe1ff;border-radius:50%;position:relative}
+    .clock:before,.clock:after{content:"";position:absolute;background:#cfe1ff;border-radius:2px}
+    .clock:before{width:2px;height:7px;left:50%;top:5px;transform:translateX(-50%)}
+    .clock:after{width:6px;height:2px;left:50%;top:50%;transform:translate(-1px,-1px)}
+    .grid{display:grid;gap:14px}
+    @media (min-width: 760px){ .grid{grid-template-columns: 1fr 1fr} }
+
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px}
+    .card h2{margin:0 0 10px 0;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:#cfe1ff}
     .muted{color:var(--muted)}
-    .cards{display:grid;grid-template-columns:1fr 1fr;gap:20px}
-    .card{background:var(--panel2);border:1px solid var(--border);border-radius:16px;padding:18px}
-    .card h3{margin:0 0 8px 0;font-size:24px;text-transform:uppercase}
-    .cta{margin-top:14px}
-    .link{color:var(--accent);text-decoration:none} .link:hover{color:var(--accent2)}
-    .err{color:var(--danger);font-weight:700;margin-top:6px}
-    @media (max-width:760px){ .row,.cards{grid-template-columns:1fr} }
+    .row{display:grid;gap:10px}
+    .row.two{grid-template-columns:1fr 1fr}
+    label{font-weight:700;font-size:13px}
+    input[type=email],input[type=password]{
+      width:100%;background:#0f141d;color:var(--text);border:1px solid #2b3240;border-radius:12px;padding:12px 14px;
+    }
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      padding:12px 16px;border-radius:12px;border:1px solid #2b3240;background:#101723;color:var(--text);
+      font-weight:800;letter-spacing:.03em;text-transform:uppercase;cursor:pointer
+    }
+    .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn:hover{ filter:brightness(1.05) }
+    .btn.full{ width:100% }
+    .hint{font-size:12px;color:var(--muted)}
+    .ok{color:#7cffb6;font-weight:800}
+    .err{color:#ff90a1;font-weight:800}
+
+    .session{display:none;margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2)}
+    .apps{display:grid;gap:12px}
+    @media (min-width: 520px){ .apps{grid-template-columns:1fr 1fr} }
+    .app{background:var(--panel2);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+    .app h3{margin:0;text-transform:uppercase;letter-spacing:.06em}
+    .app .desc{color:var(--muted);font-size:14px}
   </style>
 </head>
 <body>
   <div class="wrap">
+    <header>
+      <h1><span class="clock" aria-hidden="true"></span> MI CRONO WEB</h1>
+      <a class="btn" href="modes.html">Cambiar modo</a>
+    </header>
 
-    <div class="panel">
-      <div class="title" id="formTitle">Log in</div>
-      <div class="row">
-        <div id="loginBox">
-          <label>Email</label>
-          <input id="loginEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
-          <label>Password</label>
-          <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"/>
-          <div class="cta"><button id="btnLogin" class="btn primary" type="button" style="width:100%">Log in</button></div>
-          <div class="muted" style="margin-top:8px">Don't have an account? <a href="#" id="toRegister" class="link">Register</a></div>
-          <div id="loginErr" class="err"></div>
-        </div>
-
-        <div id="registerBox" style="display:none">
-          <label>Email</label>
-          <input id="regEmail" type="email" placeholder="tu@correo.com" autocomplete="email"/>
-          <label>Password</label>
-          <input id="regPass" type="password" placeholder="mín. 6 caracteres" autocomplete="new-password"/>
-          <label>Confirm Password</label>
-          <input id="regPass2" type="password" placeholder="repite la contraseña" autocomplete="new-password"/>
-          <div class="cta"><button id="btnRegister" class="btn primary" type="button" style="width:100%">Register</button></div>
-          <div class="muted" style="margin-top:8px">Already have an account? <a href="#" id="toLogin" class="link">Log in</a></div>
-          <div id="regErr" class="err"></div>
-        </div>
-      </div>
-
-      <div class="cta" style="margin-top:10px; display:flex; gap:8px;">
-        <span id="userInfo" class="muted"></span>
-        <button id="btnLogout" class="btn" type="button" style="display:none;margin-left:auto">Cerrar sesión</button>
-      </div>
+    <!-- Zona sesión (visible solo cuando hay usuario) -->
+    <div id="sessionBox" class="session">
+      Conectado: <span id="who"></span>
+      <button id="btnLogout" class="btn" style="margin-left:10px">Cerrar sesión</button>
     </div>
 
-    <div class="panel">
-      <div class="title">MI CRONO WEB</div>
-      <div class="cards">
-        <div class="card">
-          <h3>Singletrack</h3>
-          <p>Dos dispositivos, uno en <b>SALIDA</b> y otro en <b>META</b>.</p>
-          <div class="cta"><a id="goSingle" class="btn primary">Entrar a Singletrack</a></div>
+    <!-- Zona Login / Registro (se oculta al estar logueado) -->
+    <div id="authBox" class="grid">
+      <section class="card">
+        <h2>Login</h2>
+        <div class="row">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" autocomplete="email" placeholder="tu@correo.com"/>
+          <label for="loginPass">Password</label>
+          <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••"/>
+          <button id="btnLogin" class="btn primary">Entrar</button>
+          <div id="loginMsg" class="hint"></div>
         </div>
-        <div class="card">
-          <h3>Cronolap</h3>
-          <p>Un único dispositivo marca <b>SALIDA</b> y <b>META</b> en el mismo punto.</p>
-          <div class="cta"><a id="goCrono" class="btn" style="background:#ff7b8c;border-color:#ff7b8c;color:#111">Entrar a Cronolap</a></div>
+      </section>
+
+      <section class="card">
+        <h2>Registro</h2>
+        <div class="row">
+          <label for="regEmail">Email</label>
+          <input id="regEmail" type="email" autocomplete="email" placeholder="tu@correo.com"/>
+          <div class="row two">
+            <div>
+              <label for="regPass">Password</label>
+              <input id="regPass" type="password" autocomplete="new-password" placeholder="Mín. 6 caracteres"/>
+            </div>
+            <div>
+              <label for="regPass2">Confirmar</label>
+              <input id="regPass2" type="password" autocomplete="new-password" placeholder="Repite la contraseña"/>
+            </div>
+          </div>
+          <button id="btnRegister" class="btn">Crear cuenta</button>
+          <div id="regMsg" class="hint"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Acceso a modos (siempre visibles; si no hay sesión, Singletrack/Cronolap pedirán login) -->
+    <section class="card" style="margin-top:12px">
+      <h2>Elige modo</h2>
+      <div class="apps">
+        <div class="app">
+          <h3>SINGLETRACK</h3>
+          <p class="desc">Dos dispositivos: uno marca la SALIDA y otro la META.</p>
+          <a class="btn primary full" href="singletrack_index.html">Abrir SINGLETRACK</a>
+        </div>
+        <div class="app">
+          <h3>CRONOLAP</h3>
+          <p class="desc">Un único puesto: SALIDA y META en el mismo punto, vueltas consecutivas.</p>
+          <a class="btn primary full" href="cronolap_index.html">Abrir CRONOLAP</a>
         </div>
       </div>
-      <div class="muted" style="margin-top:6px">Debes iniciar sesión para acceder.</div>
-    </div>
+    </section>
   </div>
 
+  <!-- Auth: controla visibilidad de login/registro vs. sesión activa -->
   <script type="module">
-    import { ensureAuthInit, loginEmail, registerEmail, logout, onUser, currentCtx } from './js/auth.js';
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
-    window.addEventListener('error', e=>{ console.log('GlobalError', e?.error||e); });
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    };
 
-    async function init(){
-      await ensureAuthInit();
+    const app  = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const auth = getAuth(app);
 
-      const formTitle   = document.getElementById('formTitle');
-      const loginBox    = document.getElementById('loginBox');
-      const registerBox = document.getElementById('registerBox');
-      const toRegister  = document.getElementById('toRegister');
-      const toLogin     = document.getElementById('toLogin');
+    const authBox    = document.getElementById('authBox');
+    const sessionBox = document.getElementById('sessionBox');
+    const who        = document.getElementById('who');
+    const btnLogout  = document.getElementById('btnLogout');
 
-      const loginEmailEl = document.getElementById('loginEmail');
-      const loginPassEl  = document.getElementById('loginPass');
-      const regEmailEl   = document.getElementById('regEmail');
-      const regPassEl    = document.getElementById('regPass');
-      const regPass2El   = document.getElementById('regPass2');
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPass  = document.getElementById('loginPass');
+    const btnLogin   = document.getElementById('btnLogin');
+    const loginMsg   = document.getElementById('loginMsg');
 
-      const btnLogin   = document.getElementById('btnLogin');
-      const btnRegister= document.getElementById('btnRegister');
-      const btnLogout  = document.getElementById('btnLogout');
+    const regEmail = document.getElementById('regEmail');
+    const regPass  = document.getElementById('regPass');
+    const regPass2 = document.getElementById('regPass2');
+    const btnRegister = document.getElementById('btnRegister');
+    const regMsg   = document.getElementById('regMsg');
 
-      const loginErr = document.getElementById('loginErr');
-      const regErr   = document.getElementById('regErr');
-      const userInfo = document.getElementById('userInfo');
-
-      function show(mode){
-        if(mode==='register'){ formTitle.textContent='Register'; loginBox.style.display='none'; registerBox.style.display=''; }
-        else { formTitle.textContent='Log in'; loginBox.style.display=''; registerBox.style.display='none'; }
-        loginErr.textContent=''; regErr.textContent='';
+    onAuthStateChanged(auth, (user)=>{
+      if (user) {
+        if (who) who.textContent = user.email || user.uid;
+        if (authBox)    authBox.style.display = 'none';
+        if (sessionBox) sessionBox.style.display = '';
+      } else {
+        if (authBox)    authBox.style.display = '';
+        if (sessionBox) sessionBox.style.display = 'none';
+        if (who) who.textContent = '';
       }
+    });
 
-      toRegister?.addEventListener('click', e=>{ e.preventDefault(); show('register'); });
-      toLogin?.addEventListener('click', e=>{ e.preventDefault(); show('login'); });
+    btnLogin?.addEventListener('click', async ()=>{
+      loginMsg.textContent = '';
+      try{
+        await signInWithEmailAndPassword(auth, (loginEmail.value||'').trim(), loginPass.value||'');
+        loginMsg.textContent = 'Login correcto';
+        loginMsg.className = 'hint ok';
+      }catch(e){
+        loginMsg.textContent = 'Error: ' + (e?.message||e);
+        loginMsg.className = 'hint err';
+      }
+    });
 
-      btnLogin.addEventListener('click', async ()=>{
-        loginErr.textContent='';
-        try{
-          await loginEmail(loginEmailEl.value.trim(), loginPassEl.value);
-        }catch(e){ loginErr.textContent = e.message || String(e); }
-      });
+    btnRegister?.addEventListener('click', async ()=>{
+      regMsg.textContent = '';
+      const em = (regEmail.value||'').trim();
+      const p1 = regPass.value||'';
+      const p2 = regPass2.value||'';
+      if(p1!==p2){
+        regMsg.textContent = 'Las contraseñas no coinciden';
+        regMsg.className = 'hint err';
+        return;
+      }
+      try{
+        await createUserWithEmailAndPassword(auth, em, p1);
+        regMsg.textContent = 'Cuenta creada. Ya estás conectado.';
+        regMsg.className = 'hint ok';
+      }catch(e){
+        regMsg.textContent = 'Error: ' + (e?.message||e);
+        regMsg.className = 'hint err';
+      }
+    });
 
-      btnRegister.addEventListener('click', async ()=>{
-        regErr.textContent='';
-        try{
-          if(regPassEl.value !== regPass2El.value) throw new Error('Las contraseñas no coinciden');
-          await registerEmail(regEmailEl.value.trim(), regPassEl.value);
-          show('login');
-        }catch(e){ regErr.textContent = e.message || String(e); }
-      });
-
-      btnLogout.addEventListener('click', async ()=>{ await logout(); });
-
-      onUser(user=>{
-        if(user){
-          const ctx = currentCtx();
-          userInfo.textContent = `Conectado: ${ctx.email}`;
-          btnLogout.style.display='';
-          document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
-          document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
-        }else{
-          userInfo.textContent = '';
-          btnLogout.style.display='none';
-          document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-          document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
-        }
-      });
-    }
-
-    init();
+    btnLogout?.addEventListener('click', async ()=>{
+      try{ await signOut(auth); }catch(e){ alert('No se pudo cerrar sesión: '+(e?.message||e)); }
+    });
   </script>
 </body>
 </html>
