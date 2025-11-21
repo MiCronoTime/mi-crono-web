@@ -26,6 +26,7 @@
     .err{color:var(--danger);font-weight:700;margin-top:6px}
     @media (max-width:760px){ .row,.cards{grid-template-columns:1fr} }
 
+    /* Barra superior sesión */
     .sessionTop{
       display:none;
       margin-bottom:12px; padding:10px 12px;
@@ -37,11 +38,21 @@
     .sessionWho{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
     .sessionLabel{color:var(--muted); margin-right:6px}
     @media (max-width:460px){ .sessionLabel{ display:none; } }
+
+    /* Aviso email no verificado */
+    .verifyBanner{
+      display:none;
+      margin-bottom:12px; padding:10px 12px;
+      border:1px solid #3b305a; border-radius:12px;
+      background:#201933; color:#e9dcff;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
 
+    <!-- Barra superior: conectado a la izquierda, botón cerrar a la derecha -->
     <div id="sessionTop" class="sessionTop">
       <div class="sessionWho">
         <span class="sessionLabel">Conectado:</span>
@@ -50,6 +61,13 @@
       <button id="btnLogoutTop" class="btn" type="button">Cerrar sesión</button>
     </div>
 
+    <!-- Aviso si el email no está verificado -->
+    <div id="verifyBox" class="verifyBanner">
+      <span id="verifyMsg">Tu email no está verificado. Revisa tu correo y sigue el enlace.</span>
+      <button id="btnResend" class="btn" type="button">Reenviar verificación</button>
+    </div>
+
+    <!-- Panel de Login/Registro (se oculta al estar logueado) -->
     <div class="panel" id="authPanel">
       <div class="title" id="formTitle">Log in</div>
       <div class="row">
@@ -125,17 +143,20 @@
       const btnLogin   = document.getElementById('btnLogin');
       const btnRegister= document.getElementById('btnRegister');
       const btnLogout  = document.getElementById('btnLogout');
+      const btnLogoutTop = document.getElementById('btnLogoutTop');
 
       const loginErr = document.getElementById('loginErr');
       const regErr   = document.getElementById('regErr');
       const userInfo = document.getElementById('userInfo');
 
-      const sessionTop   = document.getElementById('sessionTop');
-      const whoTop       = document.getElementById('whoTop');
-      const btnLogoutTop = document.getElementById('btnLogoutTop');
+      const sessionTop = document.getElementById('sessionTop');
+      const whoTop     = document.getElementById('whoTop');
+      const authPanel  = document.getElementById('authPanel');
 
-      const authPanel = document.getElementById('authPanel');
-      const forgotPwd = document.getElementById('forgotPwd');
+      const forgotPwd  = document.getElementById('forgotPwd');
+      const verifyBox  = document.getElementById('verifyBox');
+      const verifyMsg  = document.getElementById('verifyMsg');
+      const btnResend  = document.getElementById('btnResend');
 
       function show(mode){
         if(mode==='register'){ formTitle.textContent='Register'; loginBox.style.display='none'; registerBox.style.display=''; }
@@ -153,18 +174,35 @@
         }catch(e){ loginErr.textContent = e?.message || String(e); }
       });
 
+      // Registro con envío de verificación + sign-out
       btnRegister.addEventListener('click', async ()=>{
         regErr.textContent='';
         try{
-          if((regPassEl.value||'') !== (regPass2El.value||'')) throw new Error('Las contraseñas no coinciden');
-          await registerEmail((regEmailEl.value||'').trim(), regPassEl.value||'');
+          const email = (regEmailEl.value||'').trim();
+          const p1 = regPassEl.value||'', p2 = regPass2El.value||'';
+          if(p1 !== p2) throw new Error('Las contraseñas no coinciden');
+
+          // crea cuenta
+          await registerEmail(email, p1);
+
+          // envía verificación y cierra sesión
+          const { getAuth, sendEmailVerification } =
+            await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js');
+          const auth = getAuth();
+          if (auth.currentUser) {
+            await sendEmailVerification(auth.currentUser);
+          }
+          alert('Te hemos enviado un email de verificación. Ábrelo y pulsa el enlace para finalizar el registro.');
+          await logout();
           show('login');
         }catch(e){ regErr.textContent = e?.message || String(e); }
       });
 
+      // Cerrar sesión
       btnLogout.addEventListener('click', async ()=>{ await logout(); });
       btnLogoutTop.addEventListener('click', async ()=>{ await logout(); });
 
+      // Forgot password
       forgotPwd?.addEventListener('click', async (e)=>{
         e.preventDefault();
         const email = (loginEmailEl.value || '').trim();
@@ -179,7 +217,8 @@
         }
       });
 
-      onUser(user=>{
+      // Control de sesión + verificación
+      onUser(async (user)=>{
         if(user){
           const ctx = currentCtx();
           sessionTop.style.display = 'flex';
@@ -190,16 +229,39 @@
           userInfo.textContent = `Conectado: ${ctx.email}`;
           btnLogout.style.display='';
 
-          document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
-          document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
+          // Si NO está verificado, bloqueamos navegación y mostramos aviso
+          if (!user.emailVerified) {
+            verifyBox.style.display = 'flex';
+            document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Verifica tu email para continuar.'); };
+            document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Verifica tu email para continuar.'); };
+
+            // Reenviar verificación
+            btnResend.onclick = async ()=>{
+              try{
+                const { getAuth, sendEmailVerification } =
+                  await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js');
+                const auth = getAuth();
+                if (auth.currentUser) {
+                  await sendEmailVerification(auth.currentUser);
+                  alert('Correo de verificación reenviado. Revisa tu bandeja de entrada.');
+                }
+              }catch(err){
+                alert('No se pudo reenviar el correo: ' + (err?.message || err));
+              }
+            };
+          } else {
+            verifyBox.style.display = 'none';
+            document.getElementById('goSingle').onclick = ()=> location.href='singletrack_index.html';
+            document.getElementById('goCrono').onclick  = ()=> location.href='cronolap_index.html';
+          }
         }else{
           sessionTop.style.display = 'none';
           whoTop.textContent = '';
-
           if (authPanel) authPanel.style.display = '';
 
           userInfo.textContent = '';
           btnLogout.style.display='none';
+          verifyBox.style.display = 'none';
 
           document.getElementById('goSingle').onclick = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
           document.getElementById('goCrono').onclick  = (e)=>{ e.preventDefault(); alert('Inicia sesión para continuar'); };
