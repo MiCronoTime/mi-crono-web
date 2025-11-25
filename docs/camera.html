@@ -10,6 +10,7 @@
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
+      --go:#38d66b; --back:#e54848;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -57,29 +58,6 @@
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
-
-    /* GO/BACK (solo SALIDA) */
-    .decision {
-      position:absolute; left:16px; right:16px; top:18%;
-      display:none; z-index:30; border-radius:18px; overflow:hidden;
-      box-shadow:0 12px 28px rgba(0,0,0,.35);
-      border:1px solid rgba(0,0,0,.25);
-    }
-    .decision .wrap2{ display:flex; }
-    .decision .half{
-      flex:1; display:flex; align-items:center; justify-content:center;
-      padding:14px 10px; font-weight:900; font-size:22px; letter-spacing:.02em;
-      color:#fff; user-select:none; cursor:pointer;
-    }
-    .decision .left { background:#e84242; }   /* BACK */
-    .decision .right{ background:#28c24a; }   /* GO   */
-    .decision .half:active{ filter:brightness(.95); }
-    .decision .labelTop{
-      position:absolute; top:-12px; left:16px; right:16px; text-align:center;
-      background:rgba(15,18,23,.85); color:#e8ecf1; font-weight:800;
-      font-size:13px; padding:6px 10px; border-radius:999px; backdrop-filter:blur(4px);
-      border:1px solid rgba(255,255,255,.08);
-    }
   </style>
 </head>
 <body class="wrap">
@@ -108,15 +86,6 @@
           <span id="hudStatus">Listo</span>
           • <span id="hudNext" class="pill">Siguiente: —</span>
         </div>
-
-        <!-- GO/BACK -->
-        <div id="decision" class="decision" role="dialog" aria-hidden="true">
-          <div class="labelTop" id="decisionWho">—</div>
-          <div class="wrap2">
-            <div class="half left"  id="btnBack">BACK</div>
-            <div class="half right" id="btnGo">GO</div>
-          </div>
-        </div>
       </div>
 
       <div class="sub">
@@ -144,7 +113,7 @@
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    // ===== Utils =====
+    /* ===== Utilidades ===== */
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -156,12 +125,11 @@
     await ensureAuthInit();
     await requireAuth('index.html');
 
-    // ===== Parámetros =====
+    /* ===== Parámetros ===== */
     const p = new URL(location.href).searchParams;
     const code = (p.get('code')||'').toUpperCase();
     const mode = (p.get('mode')||'start'); // start|finish
 
-    document.title = `Mi Crono — CÁMARA`;
     $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
     $('evState').textContent = code || '—';
@@ -169,12 +137,12 @@
     $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
     if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
 
-    // ===== Firebase (con UID) =====
+    /* ===== Firebase ===== */
     const { initializeApp, getApps, getApp } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc, deleteField
+      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
     } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
     const firebaseConfig = {
@@ -189,7 +157,6 @@
     const db  = getFirestore(app);
     $('fbState').textContent='OK'; $('fbState').className='ok';
 
-    // todas las rutas bajo users/{uid}/events/{code}  ✅
     const { uid } = currentCtx();
     const eventRef = doc(db,'users',uid,'events',code);
     const partsCol = collection(eventRef,'participants');
@@ -198,7 +165,7 @@
     const s=await getDoc(eventRef);
     if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-    // ===== Reloj sync =====
+    /* ===== Reloj sync ===== */
     let serverOffsetMS = 0;
     try{
       const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
@@ -208,7 +175,7 @@
       await deleteDoc(pingRef);
     }catch(_){ serverOffsetMS=0; }
 
-    // ===== Participantes =====
+    /* ===== Participantes ===== */
     let participants=[];
     async function reload(){
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
@@ -222,6 +189,8 @@
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
     let selectedId = null; // META: seleccionado manualmente
+    let goBackId   = null; // SALIDA: fila con GO/BACK visible
+
     async function stopSelectedOrEarliest(){
       await reload();
       let p = null;
@@ -238,9 +207,18 @@
       return p;
     }
 
-    // ===== UI en vivo =====
+    // Revertir salida (BACK): deja al corredor en parrilla
+    async function revertStart(id){
+      const p = participants.find(x=>x.id===id);
+      if(!p) return;
+      await updateDoc(p.ref, { startTS: null, stopTS: null });
+      goBackId = null;
+      $('lastAction').textContent='BACK aplicado';
+    }
+
+    /* ===== UI en vivo ===== */
     let currentLive=[];           // [{id,order,name,startMS}]
-    let overlayRowHitboxes=[];
+    let overlayRowHitboxes=[];    // para tocar sobreimpresos
 
     function ensureStatus(){
       const nxt = nextToStart();
@@ -266,16 +244,17 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
+    // Click en lista EN CURSO:
     $('runningList').addEventListener('click',(e)=>{
       const item = e.target.closest('.runner');
-      if(!item) return;
+      if(!item?.dataset.id) return;
+      const id = item.dataset.id;
 
-      if(mode==='finish'){ // seleccionar llegada
-        selectedId=item.dataset.id;
+      if(mode==='finish'){
+        selectedId=id;
         $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId);
-      }else{               // SALIDA -> abrir GO/BACK
-        const p = participants.find(x=>x.id===item.dataset.id && x.startTS && !x.stopTS);
-        if (p) showDecision(p);
+      }else{ // start -> abre GO/BACK para ese crono
+        goBackId = (goBackId===id ? null : id);
       }
     });
 
@@ -286,15 +265,22 @@
         name: (p.name||'').toUpperCase(),
         startMS: tsToMillis(p.startTS)
       }));
+
       if (mode === 'finish') {
         const run = runningSorted();
         const earliest = run[0]?.id || null;
-        if (!selectedId || !run.some(p => p.id === selectedId)) selectedId = earliest;
+        if (!selectedId || !run.some(p => p.id === selectedId)) {
+          selectedId = earliest;
+        }
+      } else {
+        // Si el que tenía GO/BACK ya no está corriendo, cierra el panel
+        if(goBackId && !currentLive.some(r=>r.id===goBackId)) goBackId=null;
       }
+
       ensureStatus();
     });
 
-    // ===== Cámara + Detección =====
+    /* ===== Cámara + Detección ===== */
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
@@ -310,7 +296,7 @@
       return {w,h,dpr};
     }
 
-    const uiToPercent = (ui)=>{ const v=Math.max(0,Math.min(100,Number(ui)||50)); return v<=50? 5+(v/50)*(20-5) : 20+((v-50)/50)*(60-20); };
+    const uiToPercent = (ui)=>{ const v = Math.max(0, Math.min(100, Number(ui)||50)); return v<=50 ? 5+(v/50)*(20-5) : 20+((v-50)/50)*(60-20); };
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel(); sens.oninput = updateSensLabel;
 
@@ -325,20 +311,13 @@
           {video:true,audio:false}
         ];
         let stream=null,lastErr=null;
-        for(const c of tries){
-          try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }
-          catch(err){ lastErr=err; }
-        }
-        if(!stream){
-          alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
-          return;
-        }
+        for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(err){ lastErr=err; } }
+        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
         video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
         await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
         await video.play().catch(()=>{});
         btn.textContent='CÁMARA ACTIVADA'; btn.disabled=true;
 
-        // retardo 2s para estabilizar
         detectionEnabled = false;
         armingEndsAt = performance.now() + ARMING_DELAY_MS;
         $('hudStatus').textContent = 'Calibrando… 2.0s';
@@ -346,6 +325,7 @@
       }catch(err){ alert('Error cámara: '+(err?.message||err)); }
     };
 
+    // Detector
     const COOLDOWN_START_MS  = 2400;
     const COOLDOWN_FINISH_MS = 1800;
     const EMA_ALPHA          = 0.35;
@@ -372,14 +352,19 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
+    // Click sobreimpreso (selección META o GO/BACK en SALIDA)
     overlay.addEventListener('click', (e)=>{
-      if(mode!=='finish') return;
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
       const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
-      if(hit){
+      if(!hit) return;
+
+      if(mode==='finish'){
         selectedId = hit.id;
         $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
+      }else{
+        // Si ya está abierto GO/BACK para esa fila, cerrar; si no, abrir
+        goBackId = (goBackId===hit.id ? null : hit.id);
       }
     });
 
@@ -443,7 +428,18 @@
       requestAnimationFrame(loop);
     }
 
-    // ===== Overlay (estilo blanco + selección en META) =====
+    /* ===== Dibujo sobreimpreso ===== */
+    function roundRect(ctx,x,y,w,h,r){
+      const rr = Math.min(r, h/2, w/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y,   x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x,   y+h, rr);
+      ctx.arcTo(x,   y+h, x,   y,   rr);
+      ctx.arcTo(x,   y,   x+w, y,   rr);
+      ctx.closePath();
+    }
+
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
       if(!rows.length) return;
@@ -453,10 +449,10 @@
 
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.2;
+      const gap  = gapBase * 2.4;        // separación amplia (≈ +140%)
       const leftPad = Math.floor(w*0.065);
       const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.18);
+      const topPad = Math.floor(h*0.20); // baja un poco para no chocar con “Siguiente”
       const rowH = base*1.45;
       const radius = rowH/1.9;
 
@@ -477,6 +473,7 @@
 
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
 
+        // Pastilla gris suave con borde sutil
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
@@ -489,6 +486,7 @@
         octx.stroke();
         octx.restore();
 
+        // Contorno verde en META para seleccionado
         if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -498,7 +496,7 @@
           octx.restore();
         }
 
-        // badge #
+        // Badge #
         const badgeR = rowH*0.36;
         const badgeCx = leftPad + badgeR + 4;
         const badgeCy = y + rowH/2;
@@ -520,6 +518,7 @@
         octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
         octx.restore();
 
+        // Nombre
         const nameX = leftPad + badgeR*2 + 24;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='left';
@@ -527,57 +526,58 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (nText, nameX, y + rowH/2);
 
+        // Tiempo
         octx.textAlign='right';
         octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
+        // Zona clicable del row
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
+
+        // Si estamos en SALIDA y este row está “abierto” → dibujar BACK/GO encima
+        if(mode==='start' && goBackId===r.id){
+          const mid = pillX + pillW/2;
+          // BACK (izquierda)
+          roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
+          // GO (derecha)
+          roundRect(octx, mid+1, pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
+
+          // Textos estilizados
+          octx.textAlign='center'; octx.fillStyle='#fff';
+          octx.strokeStyle='rgba(0,0,0,.55)'; octx.lineWidth = Math.max(3, Math.floor(base*0.22));
+          const ty = y + rowH/2;
+          octx.font = `900 ${Math.floor(base*1.05)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('BACK', pillX + pillW/4, ty);
+          octx.fillText  ('BACK', pillX + pillW/4, ty);
+          octx.strokeText('GO',   pillX + pillW*0.75, ty);
+          octx.fillText  ('GO',   pillX + pillW*0.75, ty);
+
+          // Guardamos hitboxes de HALFs para click
+          overlayRowHitboxes.push({ id:`${r.id}::BACK`, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ id:`${r.id}::GO`,   x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+        }
 
         y += (rowH+10) + gap;
       }
     }
 
-    function roundRect(ctx,x,y,w,h,r){
-      const rr = Math.min(r, h/2, w/2);
-      ctx.beginPath();
-      ctx.moveTo(x+rr, y);
-      ctx.arcTo(x+w, y,   x+w, y+h, rr);
-      ctx.arcTo(x+w, y+h, x,   y+h, rr);
-      ctx.arcTo(x,   y+h, x,   y,   rr);
-      ctx.arcTo(x,   y,   x+w, y,   rr);
-      ctx.closePath();
-    }
-
-    // ===== GO/BACK (solo SALIDA) =====
-    const decision = document.getElementById('decision');
-    const decisionWho = document.getElementById('decisionWho');
-    const btnBack = document.getElementById('btnBack');
-    const btnGo   = document.getElementById('btnGo');
-    let selectedP = null;
-
-    function showDecision(p){
-      if (mode !== 'start') return;
-      selectedP = p;
-      decisionWho.textContent = `#${p.order ?? '—'}  ${String(p.name||'').toUpperCase()}`;
-      decision.style.display = 'block';
-    }
-    function hideDecision(){
-      decision.style.display = 'none';
-      selectedP = null;
-    }
-    btnGo.addEventListener('click', ()=> hideDecision());
-    btnBack.addEventListener('click', async ()=>{
-      try{
-        if(!selectedP?.ref) return hideDecision();
-        // Devolver a salida: limpiar marcas
-        await updateDoc(selectedP.ref, { startTS: deleteField(), stopTS: deleteField() });
-        $('lastAction').textContent = `BACK → devuelto a salida: ${(selectedP.name||'').toUpperCase()}`;
-      }catch(e){
-        alert('No se pudo devolver a salida: ' + (e?.message||e));
-      }finally{ hideDecision(); }
+    // Click en BACK / GO (cuando hay panel abierto)
+    overlay.addEventListener('click', async (e)=>{
+      if(mode!=='start') return; // BACK/GO solo en salida
+      const rect = overlay.getBoundingClientRect();
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
+      const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
+      if(!hit) return;
+      const id = String(hit.id);
+      if(!id.includes('::')) return; // no es mitad
+      const [rowId, action] = id.split('::');
+      if(action==='BACK'){ await revertStart(rowId); }
+      else if(action==='GO'){ goBackId=null; $('lastAction').textContent='GO'; }
     });
-    overlay.addEventListener('click', ()=> hideDecision());
+
   </script>
 </body>
 </html>
