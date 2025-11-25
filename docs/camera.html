@@ -198,7 +198,7 @@
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
     let selectedId = null; // META: seleccionado manualmente
-    let goBackId   = null; // SALIDA: fila/overlay con GO/BACK visible
+    let goBackId   = null; // SALIDA: fila/overlay con RESTART/CONTINUE visible
 
     async function stopSelectedOrEarliest(){
       await reload();
@@ -220,10 +220,10 @@
       try{
         await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
         goBackId = null; selectedId = null;
-        $('lastAction').textContent='BACK aplicado';
-        armed = false; armAfter(COOLDOWN_START_MS); // evita auto-disparo por vibración
+        $('lastAction').textContent='RESTART aplicado';
+        armed = false; armAfter(COOLDOWN_START_MS); // evita autodisparo
         await reload();
-      }catch(e){ alert('No se pudo aplicar BACK: '+(e.message||e)); }
+      }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
     }
 
     /* ===== UI en vivo ===== */
@@ -250,8 +250,8 @@
         return `<div class="runner${sel}" data-id="${p.id}">
           ${showActions?`
             <div class="runner-actions">
-              <div class="half back" data-action="back" data-id="${p.id}">BACK</div>
-              <div class="half go"   data-action="go"   data-id="${p.id}">GO</div>
+              <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
+              <div class="half go"   data-action="go"   data-id="${p.id}">CONTINUE</div>
             </div>`:''}
           <div class="badge">#${p.order}</div>
           <div class="rname">${p.name}</div>
@@ -364,19 +364,19 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
-    /* Click en overlay (prioridad: botones BACK/GO > fila) */
+    /* Click en overlay (prioridad: botones > fila) */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-      // 1) Buscar primero botones
+      // 1) Botones primero
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
         const baseId = btn.baseId;
-        if(btn.btn==='BACK'){ await revertStart(baseId); return; }
-        if(btn.btn==='GO'){ goBackId=null; $('lastAction').textContent='GO'; return; }
+        if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
+        if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
       }
-      // 2) Si no hay botón, buscar fila
+      // 2) Fila
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
 
@@ -448,7 +448,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ===== Overlay: diseño de cronos + GO/BACK ===== */
+    /* ===== Overlay: helpers ===== */
     function roundRect(ctx,x,y,w,h,r){
       const rr = Math.min(r, h/2, w/2);
       ctx.beginPath();
@@ -458,6 +458,15 @@
       ctx.arcTo(x,   y+h, x,   y,   rr);
       ctx.arcTo(x,   y,   x+w, y,   rr);
       ctx.closePath();
+    }
+    function fitText(ctx, text, maxW, basePx){
+      let size = Math.floor(basePx);
+      ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      while(size>12 && ctx.measureText(text).width > maxW){
+        size -= 1;
+        ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      }
+      return size;
     }
 
     function drawOverlayTimes(w,h,rows){
@@ -535,27 +544,40 @@
         octx.textAlign='left';  octx.strokeText(nText, nameX, y + rowH/2); octx.fillStyle='#FFFFFF'; octx.fillText(nText, nameX, y + rowH/2);
         octx.textAlign='right'; octx.strokeText(tText, w - rightPad - 18, y + rowH/2); octx.fillStyle='#FFFFFF'; octx.fillText(tText, w - rightPad - 18, y + rowH/2);
 
-        // --- HITBOXES (PRIORIDAD) ---
+        // --- HITBOXES + Botones en overlay ---
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
-          // Pintar botones
+          // Botón RESTART
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
+          // Botón CONTINUE
           roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
 
+          // Texto ajustado a ancho disponible
           octx.textAlign='center'; octx.fillStyle='#fff';
-          octx.strokeStyle='rgba(0,0,0,.55)'; octx.lineWidth = Math.max(3, Math.floor(base*0.22));
+          octx.strokeStyle='rgba(0,0,0,.55)';
           const ty = y + rowH/2;
-          octx.font = `900 ${Math.floor(base*1.05)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('BACK', pillX + pillW/4,  ty); octx.fillText('BACK', pillX + pillW/4,  ty);
-          octx.strokeText('GO',   pillX + pillW*0.75,ty); octx.fillText('GO',   pillX + pillW*0.75,ty);
+          const pad = 20;
+          const halfW = pillW/2 - 3 - pad*2;
 
-          // primero botones (tienen prioridad)
-          overlayRowHitboxes.push({ kind:'btn', btn:'BACK', baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
-          overlayRowHitboxes.push({ kind:'btn', btn:'GO',   baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          // RESTART
+          let fs = fitText(octx, 'RESTART', halfW, base*1.05);
+          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
+          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('RESTART', pillX + pillW/4,  ty); octx.fillText('RESTART', pillX + pillW/4,  ty);
+
+          // CONTINUE
+          fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
+          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
+          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('CONTINUE', pillX + pillW*0.75,ty); octx.fillText('CONTINUE', pillX + pillW*0.75,ty);
+
+          // hitboxes primero (prioridad)
+          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
-        // luego la fila
+        // fila (después de botones)
         overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
         y += (rowH+10) + gap;
