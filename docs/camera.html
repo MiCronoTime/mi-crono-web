@@ -57,6 +57,29 @@
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
+
+    /* GO/BACK (solo SALIDA) */
+    .decision {
+      position:absolute; left:16px; right:16px; top:18%;
+      display:none; z-index:30; border-radius:18px; overflow:hidden;
+      box-shadow:0 12px 28px rgba(0,0,0,.35);
+      border:1px solid rgba(0,0,0,.25);
+    }
+    .decision .wrap2{ display:flex; }
+    .decision .half{
+      flex:1; display:flex; align-items:center; justify-content:center;
+      padding:14px 10px; font-weight:900; font-size:22px; letter-spacing:.02em;
+      color:#fff; user-select:none; cursor:pointer;
+    }
+    .decision .left { background:#e84242; }   /* BACK */
+    .decision .right{ background:#28c24a; }   /* GO   */
+    .decision .half:active{ filter:brightness(.95); }
+    .decision .labelTop{
+      position:absolute; top:-12px; left:16px; right:16px; text-align:center;
+      background:rgba(15,18,23,.85); color:#e8ecf1; font-weight:800;
+      font-size:13px; padding:6px 10px; border-radius:999px; backdrop-filter:blur(4px);
+      border:1px solid rgba(255,255,255,.08);
+    }
   </style>
 </head>
 <body class="wrap">
@@ -85,6 +108,15 @@
           <span id="hudStatus">Listo</span>
           • <span id="hudNext" class="pill">Siguiente: —</span>
         </div>
+
+        <!-- GO/BACK -->
+        <div id="decision" class="decision" role="dialog" aria-hidden="true">
+          <div class="labelTop" id="decisionWho">—</div>
+          <div class="wrap2">
+            <div class="half left"  id="btnBack">BACK</div>
+            <div class="half right" id="btnGo">GO</div>
+          </div>
+        </div>
       </div>
 
       <div class="sub">
@@ -112,7 +144,7 @@
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    /* ===== Utilidades ===== */
+    // ===== Utils =====
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -124,11 +156,12 @@
     await ensureAuthInit();
     await requireAuth('index.html');
 
-    /* ===== Parámetros ===== */
+    // ===== Parámetros =====
     const p = new URL(location.href).searchParams;
     const code = (p.get('code')||'').toUpperCase();
     const mode = (p.get('mode')||'start'); // start|finish
 
+    document.title = `Mi Crono — CÁMARA`;
     $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
     $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
     $('evState').textContent = code || '—';
@@ -136,12 +169,12 @@
     $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
     if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
 
-    /* ===== Firebase ===== */
+    // ===== Firebase (con UID) =====
     const { initializeApp, getApps, getApp } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
+      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc, deleteField
     } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
     const firebaseConfig = {
@@ -156,6 +189,7 @@
     const db  = getFirestore(app);
     $('fbState').textContent='OK'; $('fbState').className='ok';
 
+    // todas las rutas bajo users/{uid}/events/{code}  ✅
     const { uid } = currentCtx();
     const eventRef = doc(db,'users',uid,'events',code);
     const partsCol = collection(eventRef,'participants');
@@ -164,7 +198,7 @@
     const s=await getDoc(eventRef);
     if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-    /* ===== Reloj sync ===== */
+    // ===== Reloj sync =====
     let serverOffsetMS = 0;
     try{
       const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
@@ -174,7 +208,7 @@
       await deleteDoc(pingRef);
     }catch(_){ serverOffsetMS=0; }
 
-    /* ===== Participantes ===== */
+    // ===== Participantes =====
     let participants=[];
     async function reload(){
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
@@ -204,7 +238,7 @@
       return p;
     }
 
-    /* ===== UI en vivo ===== */
+    // ===== UI en vivo =====
     let currentLive=[];           // [{id,order,name,startMS}]
     let overlayRowHitboxes=[];
 
@@ -233,9 +267,16 @@
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
     $('runningList').addEventListener('click',(e)=>{
-      if(mode!=='finish') return;
       const item = e.target.closest('.runner');
-      if(item?.dataset.id){ selectedId=item.dataset.id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId); }
+      if(!item) return;
+
+      if(mode==='finish'){ // seleccionar llegada
+        selectedId=item.dataset.id;
+        $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId);
+      }else{               // SALIDA -> abrir GO/BACK
+        const p = participants.find(x=>x.id===item.dataset.id && x.startTS && !x.stopTS);
+        if (p) showDecision(p);
+      }
     });
 
     onSnapshot(partsCol, async ()=>{
@@ -245,17 +286,15 @@
         name: (p.name||'').toUpperCase(),
         startMS: tsToMillis(p.startTS)
       }));
-        if (mode === 'finish') {
-    const run = runningSorted();                 // ya ordenados por más antiguo primero
-    const earliest = run[0]?.id || null;         // el que debería llegar primero
-    if (!selectedId || !run.some(p => p.id === selectedId)) {
-      selectedId = earliest;                     // marca verde por defecto
-    }
-  }
+      if (mode === 'finish') {
+        const run = runningSorted();
+        const earliest = run[0]?.id || null;
+        if (!selectedId || !run.some(p => p.id === selectedId)) selectedId = earliest;
+      }
       ensureStatus();
     });
 
-    /* ===== Cámara + Detección ===== */
+    // ===== Cámara + Detección =====
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
@@ -271,10 +310,7 @@
       return {w,h,dpr};
     }
 
-    const uiToPercent = (ui)=>{
-      const v = Math.max(0, Math.min(100, Number(ui)||50));
-      if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-    };
+    const uiToPercent = (ui)=>{ const v=Math.max(0,Math.min(100,Number(ui)||50)); return v<=50? 5+(v/50)*(20-5) : 20+((v-50)/50)*(60-20); };
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel(); sens.oninput = updateSensLabel;
 
@@ -297,14 +333,12 @@
           alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
           return;
         }
-        video.setAttribute('playsinline','true');
-        video.muted=true;
-        video.srcObject=stream;
+        video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
         await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
         await video.play().catch(()=>{});
-        btn.textContent='CÁMARA ACTIVADA';
-        btn.disabled=true;
+        btn.textContent='CÁMARA ACTIVADA'; btn.disabled=true;
 
+        // retardo 2s para estabilizar
         detectionEnabled = false;
         armingEndsAt = performance.now() + ARMING_DELAY_MS;
         $('hudStatus').textContent = 'Calibrando… 2.0s';
@@ -409,7 +443,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ===== Overlay: texto blanco puro, diseño de tu captura ===== */
+    // ===== Overlay (estilo blanco + selección en META) =====
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
       if(!rows.length) return;
@@ -464,7 +498,7 @@
           octx.restore();
         }
 
-        // Badge
+        // badge #
         const badgeR = rowH*0.36;
         const badgeCx = leftPad + badgeR + 4;
         const badgeCy = y + rowH/2;
@@ -514,6 +548,36 @@
       ctx.arcTo(x,   y,   x+w, y,   rr);
       ctx.closePath();
     }
+
+    // ===== GO/BACK (solo SALIDA) =====
+    const decision = document.getElementById('decision');
+    const decisionWho = document.getElementById('decisionWho');
+    const btnBack = document.getElementById('btnBack');
+    const btnGo   = document.getElementById('btnGo');
+    let selectedP = null;
+
+    function showDecision(p){
+      if (mode !== 'start') return;
+      selectedP = p;
+      decisionWho.textContent = `#${p.order ?? '—'}  ${String(p.name||'').toUpperCase()}`;
+      decision.style.display = 'block';
+    }
+    function hideDecision(){
+      decision.style.display = 'none';
+      selectedP = null;
+    }
+    btnGo.addEventListener('click', ()=> hideDecision());
+    btnBack.addEventListener('click', async ()=>{
+      try{
+        if(!selectedP?.ref) return hideDecision();
+        // Devolver a salida: limpiar marcas
+        await updateDoc(selectedP.ref, { startTS: deleteField(), stopTS: deleteField() });
+        $('lastAction').textContent = `BACK → devuelto a salida: ${(selectedP.name||'').toUpperCase()}`;
+      }catch(e){
+        alert('No se pudo devolver a salida: ' + (e?.message||e));
+      }finally{ hideDecision(); }
+    });
+    overlay.addEventListener('click', ()=> hideDecision());
   </script>
 </body>
 </html>
