@@ -142,7 +142,7 @@
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
+      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc, deleteField
     } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
     const firebaseConfig = {
@@ -207,13 +207,26 @@
       return p;
     }
 
-    // Revertir salida (BACK): deja al corredor en parrilla
+    // BACK: devuelve el corredor a parrilla (borra campos en lugar de poner null)
     async function revertStart(id){
-      const p = participants.find(x=>x.id===id);
-      if(!p) return;
-      await updateDoc(p.ref, { startTS: null, stopTS: null });
-      goBackId = null;
-      $('lastAction').textContent='BACK aplicado';
+      try{
+        // Optimistic: quitarlo de la lista local ya
+        const idx = participants.findIndex(x=>x.id===id);
+        if(idx>=0){
+          participants[idx].startTS = undefined;
+          participants[idx].stopTS  = undefined;
+        }
+        await updateDoc(doc(partsCol, id), {
+          startTS: deleteField(),
+          stopTS:  deleteField()
+        });
+        goBackId = null;
+        $('lastAction').textContent='BACK aplicado';
+        await reload(); // forzar coherencia inmediata
+      }catch(e){
+        goBackId = null;
+        alert('No se pudo aplicar BACK: ' + (e.message||e));
+      }
     }
 
     /* ===== UI en vivo ===== */
@@ -253,7 +266,7 @@
       if(mode==='finish'){
         selectedId=id;
         $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId);
-      }else{ // start -> abre GO/BACK para ese crono
+      }else{ // start -> abre/cierra GO/BACK para ese crono
         goBackId = (goBackId===id ? null : id);
       }
     });
@@ -273,7 +286,6 @@
           selectedId = earliest;
         }
       } else {
-        // Si el que tenía GO/BACK ya no está corriendo, cierra el panel
         if(goBackId && !currentLive.some(r=>r.id===goBackId)) goBackId=null;
       }
 
@@ -325,7 +337,7 @@
       }catch(err){ alert('Error cámara: '+(err?.message||err)); }
     };
 
-    // Detector
+    // Detector (idéntico a la versión previa estable)
     const COOLDOWN_START_MS  = 2400;
     const COOLDOWN_FINISH_MS = 1800;
     const EMA_ALPHA          = 0.35;
@@ -363,7 +375,6 @@
         selectedId = hit.id;
         $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
       }else{
-        // Si ya está abierto GO/BACK para esa fila, cerrar; si no, abrir
         goBackId = (goBackId===hit.id ? null : hit.id);
       }
     });
@@ -449,10 +460,10 @@
 
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.4;        // separación amplia (≈ +140%)
+      const gap  = gapBase * 2.4;
       const leftPad = Math.floor(w*0.065);
       const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.20); // baja un poco para no chocar con “Siguiente”
+      const topPad = Math.floor(h*0.20);
       const rowH = base*1.45;
       const radius = rowH/1.9;
 
@@ -473,7 +484,6 @@
 
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
 
-        // Pastilla gris suave con borde sutil
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
@@ -486,7 +496,6 @@
         octx.stroke();
         octx.restore();
 
-        // Contorno verde en META para seleccionado
         if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -496,7 +505,6 @@
           octx.restore();
         }
 
-        // Badge #
         const badgeR = rowH*0.36;
         const badgeCx = leftPad + badgeR + 4;
         const badgeCy = y + rowH/2;
@@ -518,7 +526,6 @@
         octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
         octx.restore();
 
-        // Nombre
         const nameX = leftPad + badgeR*2 + 24;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='left';
@@ -526,26 +533,20 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (nText, nameX, y + rowH/2);
 
-        // Tiempo
         octx.textAlign='right';
         octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
-        // Zona clicable del row
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
-        // Si estamos en SALIDA y este row está “abierto” → dibujar BACK/GO encima
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
-          // BACK (izquierda)
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
-          // GO (derecha)
           roundRect(octx, mid+1, pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
 
-          // Textos estilizados
           octx.textAlign='center'; octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)'; octx.lineWidth = Math.max(3, Math.floor(base*0.22));
           const ty = y + rowH/2;
@@ -555,7 +556,6 @@
           octx.strokeText('GO',   pillX + pillW*0.75, ty);
           octx.fillText  ('GO',   pillX + pillW*0.75, ty);
 
-          // Guardamos hitboxes de HALFs para click
           overlayRowHitboxes.push({ id:`${r.id}::BACK`, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
           overlayRowHitboxes.push({ id:`${r.id}::GO`,   x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
@@ -564,15 +564,15 @@
       }
     }
 
-    // Click en BACK / GO (cuando hay panel abierto)
+    // BACK / GO en overlay
     overlay.addEventListener('click', async (e)=>{
-      if(mode!=='start') return; // BACK/GO solo en salida
+      if(mode!=='start') return;
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
       const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!hit) return;
       const id = String(hit.id);
-      if(!id.includes('::')) return; // no es mitad
+      if(!id.includes('::')) return;
       const [rowId, action] = id.split('::');
       if(action==='BACK'){ await revertStart(rowId); }
       else if(action==='GO'){ goBackId=null; $('lastAction').textContent='GO'; }
