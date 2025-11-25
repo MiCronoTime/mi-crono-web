@@ -10,6 +10,7 @@
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
+      --danger:#ff6b6b; --go:#38d66b;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -57,6 +58,16 @@
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
+
+    /* Botonera BACK/GO en lista */
+    .inline-actions{display:flex;gap:8px;margin:8px 0 2px 50px}
+    .chip{
+      display:inline-flex;align-items:center;justify-content:center;
+      padding:8px 14px;border-radius:12px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;cursor:pointer;
+      box-shadow:0 2px 10px rgba(0,0,0,.25); user-select:none;
+    }
+    .chip.back{background:var(--danger);color:#fff}
+    .chip.go{background:var(--go);color:#041b0f}
   </style>
 </head>
 <body class="wrap">
@@ -206,16 +217,19 @@
       return p;
     }
 
-    // BACK: devuelve a parrilla (borra campos, no los pone a null)
+    // BACK: devuelve a parrilla (borra campos) y evita auto-restart por movimiento
     async function revertStart(id){
       try{
-        const idx = participants.findIndex(x=>x.id===id);
-        if(idx>=0){ participants[idx].startTS = undefined; participants[idx].stopTS  = undefined; }
         await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
         goBackId = null;
+        selectedId = null;
         $('lastAction').textContent='BACK aplicado';
+        // Evita que el detector re-dispare de inmediato por tu mano
+        armed = false; armAfter(COOLDOWN_START_MS);
         await reload();
-      }catch(e){ goBackId = null; alert('No se pudo aplicar BACK: '+(e.message||e)); }
+      }catch(e){
+        alert('No se pudo aplicar BACK: '+(e.message||e));
+      }
     }
 
     /* ===== UI en vivo ===== */
@@ -234,25 +248,37 @@
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
       if(!currentLive.length){ list.innerHTML='—'; return; }
-      list.innerHTML = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
-        .map(p=>{
-          const sel = (mode==='finish' && selectedId===p.id) ? ' selected' : '';
-          return `<div class="runner${sel}" data-id="${p.id}">
-            <div class="badge">#${p.order}</div>
-            <div class="rname">${p.name}</div>
-            <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
-          </div>`;
-        }).join('');
+
+      const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+      list.innerHTML = rows.map(p=>{
+        const sel = (mode==='finish' && selectedId===p.id) ? ' selected' : '';
+        const showActions = (mode==='start' && goBackId===p.id);
+        return `<div class="runner${sel}" data-id="${p.id}">
+          <div class="badge">#${p.order}</div>
+          <div class="rname">${p.name}</div>
+          <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
+        </div>
+        ${showActions?`<div class="inline-actions" data-actions="${p.id}">
+            <div class="chip back" data-action="back" data-id="${p.id}">BACK</div>
+            <div class="chip go" data-action="go" data-id="${p.id}">GO</div>
+          </div>`:''}`;
+      }).join('');
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Click en lista EN CURSO (abre GO/BACK en start, selecciona en finish)
-    $('runningList').addEventListener('click',(e)=>{
-      const item = e.target.closest('.runner');
-      if(!item?.dataset.id) return;
-      const id = item.dataset.id;
+    // Click en lista EN CURSO (abre GO/BACK en start, selecciona en finish, maneja chips)
+    $('runningList').addEventListener('click', async (e)=>{
+      const chip = e.target.closest('.chip');
+      if (chip && mode==='start') {
+        const id = chip.dataset.id;
+        if (chip.dataset.action === 'back') { await revertStart(id); return; }
+        if (chip.dataset.action === 'go')   { goBackId = null; renderListNow(); return; }
+      }
+      const row = e.target.closest('.runner');
+      if(!row?.dataset.id) return;
+      const id = row.dataset.id;
       if(mode==='finish'){ selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id); }
-      else{ goBackId = (goBackId===id ? null : id); }
+      else{ goBackId = (goBackId===id ? null : id); renderListNow(); }
     });
 
     onSnapshot(partsCol, async ()=>{
@@ -343,7 +369,7 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
-    /* ======= CLICK ÚNICO sobre overlay (corrige BACK) ======= */
+    /* Click en overlay: selección META y GO/BACK SALIDA */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
@@ -354,17 +380,14 @@
       const baseId = idStr.split('::')[0];
 
       if(mode==='finish'){
-        // Selección manual de llegada
         selectedId = baseId;
         $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===baseId)?.name || baseId);
         return;
       }
 
-      // SALIDA: si tocamos un botón BACK/GO actuamos; si tocamos la fila, toggle panel
       if(idStr.endsWith('::BACK')){ await revertStart(baseId); return; }
       if(idStr.endsWith('::GO'))  { goBackId=null; $('lastAction').textContent='GO'; return; }
 
-      // Tocado el bloque del crono → abrir/cerrar GO/BACK para ese corredor
       goBackId = (goBackId===baseId ? null : baseId);
     });
 
@@ -517,7 +540,7 @@
         // hitbox de la fila
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
-        // BACK/GO cuando corresponde
+        // BACK/GO cuando corresponde (SALIDA)
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
