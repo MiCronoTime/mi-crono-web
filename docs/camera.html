@@ -9,7 +9,6 @@
     :root{
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
-      --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -21,11 +20,14 @@
       color:var(--text);
     }
     a{color:var(--accent);text-decoration:none}
+    a:hover{color:var(--accent-2)}
     .wrap{max-width:1000px;margin:0 auto;padding:16px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
     .tag{opacity:.9}
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+
+    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -37,26 +39,48 @@
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
+    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
+    canvas.overlay{position:absolute;inset:0;pointer-events:none}
 
-    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
-    .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
+    /* HUD superior (solo estado/siguiente) */
+    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:14px;padding:10px 14px;font-weight:700;backdrop-filter:blur(4px)}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#2b3240;color:#e8ecf1}
 
+    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
     .list{margin-top:12px}
-    .runner{
-      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
-    }
-    .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
+    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer}
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
-    .muted{color:var(--muted)}
+    .muted{color:var(--muted)} .ok{color:#7cffb6;font-weight:700} .err{color:#ff758d;font-weight:700}
+
+    /* Banda de decisión GO/BACK (solo SALIDA) */
+    .decision {
+      position:absolute; left:16px; right:16px; top:18%;
+      display:none; z-index:30; border-radius:18px; overflow:hidden;
+      box-shadow:0 12px 28px rgba(0,0,0,.35);
+      border:1px solid rgba(0,0,0,.25);
+    }
+    .decision .wrap2{ display:flex; }
+    .decision .half{
+      flex:1; display:flex; align-items:center; justify-content:center;
+      padding:14px 10px; font-weight:900; font-size:22px; letter-spacing:.02em;
+      color:#fff; user-select:none; cursor:pointer;
+    }
+    .decision .left { background:#e84242; }
+    .decision .right{ background:#28c24a; }
+    .decision .half:active{ filter:brightness(.95); }
+    .decision .labelTop{
+      position:absolute; top:-12px; left:16px; right:16px; text-align:center;
+      background:rgba(15,18,23,.85); color:#e8ecf1; font-weight:800;
+      font-size:13px; padding:6px 10px; border-radius:999px; backdrop-filter:blur(4px);
+      border:1px solid rgba(255,255,255,.08);
+    }
   </style>
 </head>
 <body class="wrap">
@@ -67,7 +91,7 @@
 
   <main class="grid one">
     <section class="card warn" id="noCodeBox" style="display:none">
-      <b>Falta el código de evento.</b> Vuelve a <a href="singletrack_index.html">Inicio</a> y crea/únete a un evento.
+      <b>Falta el código de evento.</b> Vuelve a <a href="index.html">Inicio</a> y crea/únete a un evento.
     </section>
 
     <section class="card">
@@ -85,12 +109,21 @@
           <span id="hudStatus">Listo</span>
           • <span id="hudNext" class="pill">Siguiente: —</span>
         </div>
+
+        <!-- GO/BACK (solo SALIDA) -->
+        <div id="decision" class="decision" role="dialog" aria-hidden="true">
+          <div class="labelTop" id="decisionWho">—</div>
+          <div class="wrap2">
+            <div class="half left"  id="btnBack">BACK</div>
+            <div class="half right" id="btnGo">GO</div>
+          </div>
+        </div>
       </div>
 
       <div class="sub">
-        <label>Sensibilidad detector (franja roja) <span id="sensValTxt" class="muted">(20%)</span></label>
-        <input id="sens" type="range" min="0" max="100" value="50"/>
-        <small class="muted">Mueve el control hacia la derecha para aumentar la sensibilidad.</small>
+        <label>Sensibilidad detector (franja roja)</label>
+        <input id="sens" type="range" min="1" max="100" value="50"/>
+        <small class="muted">Mueve el control hacia la derecha para más sensibilidad.</small>
       </div>
 
       <div class="sub list">
@@ -107,412 +140,320 @@
     </section>
   </main>
 
-  <footer style="margin-top:10px"><a class="muted" href="singletrack_index.html">⇦ Volver a Inicio</a></footer>
+  <footer style="margin-top:10px"><a class="muted" href="index.html">⇦ Volver a Inicio</a></footer>
 
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
-
-    /* ===== Utilidades ===== */
+    // ---------- Utils ----------
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
     const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
-    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
+    const getParam=(k)=> new URL(location.href).searchParams.get(k);
+    const code=(getParam('code')||'').toUpperCase();
+    const mode=(getParam('mode')||'start'); // start|finish
 
-    await ensureAuthInit();
-    await requireAuth('index.html');
-
-    /* ===== Parámetros ===== */
-    const p = new URL(location.href).searchParams;
-    const code = (p.get('code')||'').toUpperCase();
-    const mode = (p.get('mode')||'start'); // start|finish
-
-    $('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
-    $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
-    $('evState').textContent = code || '—';
-    $('evState').className   = code ? 'ok' : 'err';
-    $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
-    if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
-
-    /* ===== Firebase ===== */
-    const { initializeApp, getApps, getApp } =
-      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
-    const {
-      getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
-    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-      authDomain: "mi-crono-time-888b7.firebaseapp.com",
-      projectId: "mi-crono-time-888b7",
-      storageBucket: "mi-crono-time-888b7.appspot.com",
-      messagingSenderId: "379025900327",
-      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-    };
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
-    $('fbState').textContent='OK'; $('fbState').className='ok';
-
-    const { uid } = currentCtx();
-    const eventRef = doc(db,'users',uid,'events',code);
-    const partsCol = collection(eventRef,'participants');
-    const syncCol  = collection(eventRef,'sync');
-
-    const s=await getDoc(eventRef);
-    if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
-
-    /* ===== Reloj sync ===== */
-    let serverOffsetMS = 0;
-    try{
-      const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
-      const pingSnap = await getDoc(pingRef);
-      const serverNowMs = tsToMillis(pingSnap.data().serverNow);
-      serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
-      await deleteDoc(pingRef);
-    }catch(_){ serverOffsetMS=0; }
-
-    /* ===== Participantes ===== */
-    let participants=[];
-    async function reload(){
-      const snap=await getDocs(query(partsCol, orderBy('order','asc')));
-      participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
-    }
-    const nextToStart = ()=> participants.find(p=>!p.startTS);
-    const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
-      .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
-
-    async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
-      await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-
-    let selectedId = null; // META: seleccionado manualmente
-    async function stopSelectedOrEarliest(){
-      await reload();
-      let p = null;
-      if (selectedId) {
-        p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
-      }
-      if (!p) {
-        const run = runningSorted();
-        p = run[0] || null;
-      }
-      if (!p) return null;
-      await updateDoc(p.ref, { stopTS: serverTimestamp() });
-      selectedId = null;
-      return p;
-    }
-
-    /* ===== UI en vivo ===== */
-    let currentLive=[];           // [{id,order,name,startMS}]
-    let overlayRowHitboxes=[];
-
-    function ensureStatus(){
-      const nxt = nextToStart();
-      $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
-      const hasStart = participants.some(p=>p.startTS);
-      const hasStop  = participants.some(p=>p.stopTS);
-      $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
-    }
-
-    function renderListNow(){
-      const nowSync = Date.now() + serverOffsetMS;
-      const list = $('runningList');
-      if(!currentLive.length){ list.innerHTML='—'; return; }
-      list.innerHTML = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
-        .map(p=>{
-          const sel = (mode==='finish' && selectedId===p.id) ? ' selected' : '';
-          return `<div class="runner${sel}" data-id="${p.id}">
-            <div class="badge">#${p.order}</div>
-            <div class="rname">${p.name}</div>
-            <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
-          </div>`;
-        }).join('');
-    }
-    (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
-
-    $('runningList').addEventListener('click',(e)=>{
-      if(mode!=='finish') return;
-      const item = e.target.closest('.runner');
-      if(item?.dataset.id){ selectedId=item.dataset.id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId); }
-    });
-
-    onSnapshot(partsCol, async ()=>{
-      await reload();
-      currentLive = runningSorted().map(p=>({
-        id:p.id, order: p.order||0,
-        name: (p.name||'').toUpperCase(),
-        startMS: tsToMillis(p.startTS)
-      }));
-        if (mode === 'finish') {
-    const run = runningSorted();                 // ya ordenados por más antiguo primero
-    const earliest = run[0]?.id || null;         // el que debería llegar primero
-    if (!selectedId || !run.some(p => p.id === selectedId)) {
-      selectedId = earliest;                     // marca verde por defecto
-    }
-  }
-      ensureStatus();
-    });
-
-    /* ===== Cámara + Detección ===== */
-    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
+    $('title').textContent = 'Mi Crono — CÁMARA';
+    document.getElementById('title').textContent = `MODO ${mode==='start'?'SALIDA':'META'}`;
+    const tag=$('tag'), fbState=$('fbState'), evState=$('evState'), lastAction=$('lastAction');
+    const btnEnable=$('btnEnableCam'), btnResult=$('btnResult');
+    const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
-    function fitCanvas(){
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const w = Math.floor(stage.clientWidth);
-      const h = Math.floor(stage.clientHeight);
-      overlay.width  = Math.max(1, Math.floor(w * dpr));
-      overlay.height = Math.max(1, Math.floor(h * dpr));
-      overlay.style.width  = w+'px';
-      overlay.style.height = h+'px';
-      octx.setTransform(dpr,0,0,dpr,0,0);
-      return {w,h,dpr};
-    }
+    tag.textContent=`Evento ${code||'—'}`;
+    if(!code){ $('noCodeBox').style.display=''; evState.textContent='SIN CÓDIGO'; evState.className='err'; }
+    else { evState.textContent=code; evState.className='ok'; }
+    btnResult.onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
 
-    const uiToPercent = (ui)=>{
-      const v = Math.max(0, Math.min(100, Number(ui)||50));
-      if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-    };
-    const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
-    updateSensLabel(); sens.oninput = updateSensLabel;
+    // ---------- Reloj sincronizado con servidor ----------
+    let serverOffsetMS = 0; // ahora = Date.now() + serverOffsetMS
+    const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
-    const btnEnable = $('btnEnableCam');
-    btnEnable.onclick = async function (e) {
-      const btn = e.currentTarget;
+    // ---------- Firebase ----------
+    try{
+      const { initializeApp, getApp, getApps } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+      const {
+        getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+        serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteField
+      } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+        authDomain: "mi-crono-time-888b7.firebaseapp.com",
+        projectId: "mi-crono-time-888b7",
+        storageBucket: "mi-crono-time-888b7.appspot.com",
+        messagingSenderId: "379025900327",
+        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+      };
+      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+      const db  = getFirestore(app);
+      window.__firebaseReady=true; fbState.textContent='OK'; fbState.className='ok';
+
+      // refs
+      const eventRef = doc(db,'events',code);
+      const partsCol = collection(eventRef,'participants');
+      const syncCol  = collection(eventRef,'sync');
+
+      // Crea evento si no existe
+      const s=await getDoc(eventRef);
+      if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
+
+      // Offset con servidor (1 ping)
       try{
-        if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-        const tries=[
-          {video:{facingMode:{ideal:'environment'}},audio:false},
-          {video:{facingMode:'environment'},audio:false},
-          {video:true,audio:false}
-        ];
-        let stream=null,lastErr=null;
-        for(const c of tries){
-          try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }
-          catch(err){ lastErr=err; }
-        }
-        if(!stream){
-          alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
-          return;
-        }
-        video.setAttribute('playsinline','true');
-        video.muted=true;
-        video.srcObject=stream;
-        await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
-        await video.play().catch(()=>{});
-        btn.textContent='CÁMARA ACTIVADA';
-        btn.disabled=true;
+        const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
+        const pingSnap = await getDoc(pingRef);
+        const serverNowMs = tsToMillis(pingSnap.data().serverNow);
+        serverOffsetMS = (serverNowMs ?? Date.now()) - Date.now();
+      }catch(_){ serverOffsetMS=0; }
 
-        detectionEnabled = false;
-        armingEndsAt = performance.now() + ARMING_DELAY_MS;
-        $('hudStatus').textContent = 'Calibrando… 2.0s';
+      // Estado participantes
+      let participants=[];
+      async function reload(){ const snap=await getDocs(query(partsCol, orderBy('order','asc')));
+        participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() })); }
+      const nextToStart = ()=> participants.find(p=>!p.startTS);
+      const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+        .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+
+      // Acciones (serverTimestamp)
+      async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
+        await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
+      async function stopEarliest(){ await reload(); const run=runningSorted(); const p=run[0]; if(!p) return null;
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
+
+      // Suscripción -> cronos en vivo (ambas pantallas)
+      let currentLive=[];
+      onSnapshot(partsCol, async ()=>{
+        await reload();
+        const run = runningSorted().map(p=>({
+          id: p.id,
+          order: p.order||0,
+          name: (p.name||'').toUpperCase(),
+          startMS: tsToMillis(p.startTS)
+        }));
+        currentLive = run;
+
+        const nxt = nextToStart();
+        document.getElementById('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+
+        const hasStart = participants.some(p=>p.startTS);
+        const hasStop  = participants.some(p=>p.stopTS);
+        tag.textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
+
+        renderList(currentLive);
+      });
+
+      // ===== Cámara + detección =====
+      btnEnable.onclick = async ()=>{
+        try{
+          if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
+          const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
+          let stream=null,lastErr=null;
+          for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(e){ lastErr=e; } }
+          if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
+          video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+          await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); }); await video.play();
+          btnEnable.textContent='CÁMARA ACTIVADA'; btnEnable.disabled=true;
+          // retardo de 2s para estabilizar
+          setTimeout(()=> requestAnimationFrame(loop), 2000);
+        }catch(e){ alert('Error cámara: '+(e?.message||e)); }
+      };
+
+      // === Detector por diferencia, con "refractario" por modo ===
+      const COOLDOWN_START_MS  = 3000; // 3 s tras SALIDA
+      const COOLDOWN_FINISH_MS = 1500; // 1.5 s tras META
+      let prev=null, armed=true, cooldownTimer=null;
+
+      const armAfter = (ms)=>{
+        clearTimeout(cooldownTimer);
+        cooldownTimer = setTimeout(()=>{ armed=true; }, ms);
+      };
+
+      const trigger = async ()=>{
+        if(!armed) return;
+        armed=false;
+        armAfter(mode==='start' ? COOLDOWN_START_MS : COOLDOWN_FINISH_MS);
+
+        if(mode==='start'){
+          const p=await startNext();
+          if(p){ lastAction.textContent='Inicio: '+(p.name||p.id); }
+        }else{
+          const p=await stopEarliest();
+          if(p){ lastAction.textContent='Fin: '+(p.name||p.id); }
+        }
+      };
+
+      function loop(){
+        const w=overlay.width=stage.clientWidth, h=overlay.height=stage.clientHeight;
+
+        // Franjas rojas
+        const roiWidth=Math.round(w*0.08), cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
+        octx.clearRect(0,0,w,h);
+        octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
+        octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+
+        // Cronos sobreimpresos
+        drawOverlayTimes(w,h,currentLive);
+
+        // Detector por diferencia
+        const vw=video.videoWidth, vh=video.videoHeight;
+        if(vw && vh){
+          const scaleX = vw / stage.clientWidth;
+          const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
+          const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
+          const tmp=document.createElement('canvas'); tmp.width=vw; tmp.height=vh;
+          const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,0,0,vw,vh);
+          const frame=tctx.getImageData(sx,0,sw,vh);
+
+          if(prev && prev.width===sw && prev.height===vh){
+            const sensV=Number(sens.value);
+            const thr=20+Math.round((100-sensV)*1.2);
+            const pct=0.04+(100-sensV)*0.0006;
+            let diff=0,total=0;
+            for(let i=0;i<frame.data.length;i+=16){
+              const d = Math.abs(frame.data[i]-prev.data[i]) + Math.abs(frame.data[i+1]-prev.data[i+1]) + Math.abs(frame.data[i+2]-prev.data[i+2]);
+              if(d>thr) diff++; total++;
+            }
+            if((diff/Math.max(1,total))>pct) trigger();
+          }
+          prev=frame;
+        }
         requestAnimationFrame(loop);
-      }catch(err){ alert('Error cámara: '+(err?.message||err)); }
-    };
-
-    const COOLDOWN_START_MS  = 2400;
-    const COOLDOWN_FINISH_MS = 1800;
-    const EMA_ALPHA          = 0.35;
-    const MIN_PIXELS         = 28;
-    const HOLD_MS            = 140;
-    const ARMING_DELAY_MS    = 2000;
-    let prevFrame=null;
-    let armed=true, cooldownTimer=null;
-    let detectionEnabled=false, armingEndsAt=0;
-    let actEma = 0, above=false, aboveSince = 0;
-
-    function thresholdsFromSens(effPercent){
-      const frac = effPercent/100;
-      const up = 0.095 - frac*0.055;
-      const down = up * 0.6;
-      return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
-    }
-    const armAfter = (ms)=>{ clearTimeout(cooldownTimer); cooldownTimer = setTimeout(()=>{ armed=true; }, ms); };
-
-    async function trigger(){
-      if(!armed || !detectionEnabled) return;
-      armed=false; above=false; aboveSince=0;
-      if (mode==='start') { await startNext(); armAfter(COOLDOWN_START_MS); $('lastAction').textContent='Inicio marcado'; }
-      else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
-    }
-
-    overlay.addEventListener('click', (e)=>{
-      if(mode!=='finish') return;
-      const rect = overlay.getBoundingClientRect();
-      const x = e.clientX - rect.left, y = e.clientY - rect.top;
-      const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
-      if(hit){
-        selectedId = hit.id;
-        $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
-      }
-    });
-
-    function loop(){
-      const {w,h} = fitCanvas();
-
-      const nowPerf = performance.now();
-      if(!detectionEnabled){
-        const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
-        if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
-        else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
       }
 
-      // ROI
-      const roiWidth=Math.max(12, Math.round(w*0.08));
-      const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
-      octx.clearRect(0,0,w,h);
-      octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-      octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
+      function drawOverlayTimes(w,h,rows){
+        if(!rows.length) return;
+        const nowSync = Date.now() + serverOffsetMS;
 
-      drawOverlayTimes(w,h,currentLive);
+        // Orden: más reciente ARRIBA
+        const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-      // Detector
-      const vw=video.videoWidth, vh=video.videoHeight;
-      if(vw && vh){
-        const scaleX = vw / stage.clientWidth;
-        const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
-        const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
-        const sy=0, sh=vh;
-        const dw = Math.max(50, Math.floor(sw * 0.35));
-        const dh = Math.max(50, Math.floor(sh * 0.35));
-        const temp = document.createElement('canvas'); temp.width=dw; temp.height=dh;
-        const tctx = temp.getContext('2d', { willReadFrequently:true });
-        tctx.drawImage(video, sx, sy, sw, sh, 0, 0, dw, dh);
-        const frame = tctx.getImageData(0,0,dw,dh);
+        const baseSize = Math.max(18, Math.floor(h*0.026));
+        const gap = Math.max(5, Math.floor(h*0.024));   // más separación
+        const leftPad = Math.floor(w*0.06);
+        const rightPad= Math.floor(w*0.06);
+        const topPad = Math.floor(h*0.16); // baja un poco para no chocar con “Siguiente”
+        const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/(baseSize+gap)));
 
-        if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-          const eff = uiToPercent(sens.value);
-          const thrPix = 18 + Math.round((100 - eff) * 0.6);
-          let diffPix = 0, total=0;
-          for(let i=0;i<frame.data.length;i+=4){
-            const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
-                      Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
-                      Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
-            if(d > thrPix) diffPix++; total++;
-          }
-          if(diffPix < MIN_PIXELS){ diffPix = 0; }
-          const activity = diffPix / Math.max(1,total);
-          actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
-          const { up, down } = thresholdsFromSens(eff);
+        octx.textBaseline = 'top';
+        octx.lineJoin = 'round';
+        octx.lineCap  = 'round';
 
-          if(!above){ if(actEma >= up){ above = true; aboveSince = nowPerf; } }
-          else{
-            if(actEma <= down){ above = false; aboveSince = 0; }
-            else if(detectionEnabled && (nowPerf - aboveSince) >= HOLD_MS){ trigger(); }
-          }
-        }
-        prevFrame = frame;
-      }
+        let y = topPad;
+        for(let i=0;i<maxRows;i++){
+          const r = sorted[i];
+          const elapsed = nowSync - (r.startMS||nowSync);
+          const tText = fmt(elapsed);
+          const nText = r.name || '—';
 
-      requestAnimationFrame(loop);
-    }
+          // Píldoras translúcidas estilo tarjeta
+          const pillH = baseSize*1.6;
+          const pillRadius = Math.floor(pillH*0.4);
+          const leftW  = octx.measureText(`#${r.order}  ${nText}`).width + leftPad*0.2 + pillH*0.9;
+          const rightW = octx.measureText(tText).width + rightPad*0.2 + pillH*0.4;
 
-    /* ===== Overlay: texto blanco puro, diseño de tu captura ===== */
-    function drawOverlayTimes(w,h,rows){
-      overlayRowHitboxes = [];
-      if(!rows.length) return;
-      const nowSync = Date.now() + serverOffsetMS;
+          // Fondo gris translúcido
+          octx.fillStyle = 'rgba(30,34,42,0.55)';
+          roundRect(octx, leftPad*0.5, y-6, Math.max(160,leftW), pillH, pillRadius); octx.fill();
+          roundRect(octx, w - rightPad - Math.max(160,rightW), y-6, Math.max(160,rightW), pillH, pillRadius); octx.fill();
 
-      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+          // Borde verde si es META y “seleccionado” (se pinta desde app META; aquí siempre blanco)
+          // Texto blanco con contorno suave
+          octx.font = `900 ${baseSize}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+          octx.strokeStyle = 'rgba(0,0,0,.45)';
+          octx.lineWidth   = Math.max(2, Math.floor(baseSize*0.13));
+          octx.fillStyle   = '#ffffff';
 
-      const base = Math.max(18, Math.floor(h*0.026));
-      const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.2;
-      const leftPad = Math.floor(w*0.065);
-      const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.18);
-      const rowH = base*1.45;
-      const radius = rowH/1.9;
+          // #orden
+          const badgeW = Math.max(pillH*0.7, octx.measureText(`#${r.order}`).width + 14);
+          octx.fillStyle = 'rgba(120,130,150,.35)';
+          roundRect(octx, leftPad*0.5 + 8, y-6 + (pillH-badgeW*0.7)/2, badgeW, badgeW*0.7, badgeW*0.35); octx.fill();
+          // número
+          octx.fillStyle = '#dfe7ff';
+          octx.textAlign='left';
+          octx.fillText(`#${r.order}`, leftPad*0.5 + 16, y);
 
-      octx.globalAlpha = 1;
-      octx.textBaseline='middle';
-      octx.fillStyle = '#FFFFFF';
-      octx.strokeStyle = 'rgba(0,0,0,.9)';
-      octx.lineWidth = Math.max(3, Math.floor(base*0.2));
+          // Nombre
+          octx.fillStyle = '#ffffff';
+          octx.strokeText(nText, leftPad*0.5 + 16 + badgeW + 8, y);
+          octx.fillText  (nText, leftPad*0.5 + 16 + badgeW + 8, y);
 
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
-      let y = topPad;
+          // Tiempo (derecha)
+          octx.textAlign='right';
+          octx.strokeText(tText, w - rightPad - 14, y);
+          octx.fillText  (tText, w - rightPad - 14, y);
 
-      for(let i=0;i<maxRows;i++){
-        const r = sorted[i];
-        const elapsed = nowSync - (r.startMS||nowSync);
-        const tText = fmt(elapsed);
-        const nText = r.name || '—';
-
-        const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
-
-        const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
-        grad.addColorStop(0, 'rgba(45,50,60,.42)');
-        grad.addColorStop(1, 'rgba(30,34,42,.42)');
-        roundRect(octx, pillX, pillY, pillW, pillH, radius);
-        octx.fillStyle = grad; octx.fill();
-        octx.save();
-        octx.lineWidth = 2;
-        octx.strokeStyle = 'rgba(255,255,255,.12)';
-        roundRect(octx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5);
-        octx.stroke();
-        octx.restore();
-
-        if (mode==='finish' && selectedId===r.id){
-          octx.save();
-          octx.lineWidth = Math.max(4, Math.floor(base*0.20));
-          octx.strokeStyle = 'rgba(127,255,182,.95)';
-          roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
-          octx.stroke();
-          octx.restore();
+          y += baseSize + gap;
         }
 
-        // Badge
-        const badgeR = rowH*0.36;
-        const badgeCx = leftPad + badgeR + 4;
-        const badgeCy = y + rowH/2;
-        octx.save();
-        octx.beginPath();
-        octx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2);
-        octx.closePath();
-        octx.fillStyle = 'rgba(180,186,198,.34)';
-        octx.fill();
-        octx.lineWidth = 2;
-        octx.strokeStyle = 'rgba(0,0,0,.35)';
-        octx.stroke();
-        octx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        octx.textAlign='center';
-        octx.strokeStyle='rgba(0,0,0,.9)';
-        octx.lineWidth=Math.max(3, Math.floor(base*0.2));
-        octx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
-        octx.fillStyle='#FFFFFF';
-        octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
-        octx.restore();
-
-        const nameX = leftPad + badgeR*2 + 24;
-        octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        octx.textAlign='left';
-        octx.strokeText(nText, nameX, y + rowH/2);
-        octx.fillStyle='#FFFFFF';
-        octx.fillText  (nText, nameX, y + rowH/2);
-
-        octx.textAlign='right';
-        octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
-        octx.fillStyle='#FFFFFF';
-        octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
-
-        overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
-
-        y += (rowH+10) + gap;
+        function roundRect(ctx, x,y,w,h,r){
+          ctx.beginPath();
+          ctx.moveTo(x+r,y);
+          ctx.arcTo(x+w,y,x+w,y+h,r);
+          ctx.arcTo(x+w,y+h,x,y+h,r);
+          ctx.arcTo(x,y+h,x,y,r);
+          ctx.arcTo(x,y,x+w,y,r);
+          ctx.closePath();
+        }
       }
-    }
 
-    function roundRect(ctx,x,y,w,h,r){
-      const rr = Math.min(r, h/2, w/2);
-      ctx.beginPath();
-      ctx.moveTo(x+rr, y);
-      ctx.arcTo(x+w, y,   x+w, y+h, rr);
-      ctx.arcTo(x+w, y+h, x,   y+h, rr);
-      ctx.arcTo(x,   y+h, x,   y,   rr);
-      ctx.arcTo(x,   y,   x+w, y,   rr);
-      ctx.closePath();
+      // ----- Lista “En curso” (clicable para GO/BACK en SALIDA) -----
+      function renderList(run){
+        const nowSync = Date.now() + serverOffsetMS;
+        const list = $('runningList');
+        if(!run.length){ list.innerHTML='—'; return; }
+        list.innerHTML = run.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+          .map(p=>{
+            return `<div class="runner" data-id="${p.id}">
+                      <div class="badge">#${p.order}</div>
+                      <div class="rname">${p.name}</div>
+                      <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
+                    </div>`;
+          }).join('');
+
+        if (mode === 'start'){ // solo SALIDA
+          list.querySelectorAll('.runner').forEach(el=>{
+            el.addEventListener('click', ()=>{
+              const id = el.getAttribute('data-id');
+              const p  = participants.find(x=>x.id===id);
+              if (p) showDecision(p);
+            });
+          });
+        }
+      }
+
+      // ====== GO / BACK (solo MODO SALIDA) ======
+      const decision = document.getElementById('decision');
+      const decisionWho = document.getElementById('decisionWho');
+      const btnBack = document.getElementById('btnBack');
+      const btnGo   = document.getElementById('btnGo');
+      let selectedP = null;
+
+      function showDecision(p){
+        if (mode !== 'start') return;
+        selectedP = p;
+        decisionWho.textContent = `#${p.order ?? '—'}  ${String(p.name||'').toUpperCase()}`;
+        decision.style.display = 'block';
+      }
+      function hideDecision(){
+        decision.style.display = 'none';
+        selectedP = null;
+      }
+      btnGo.addEventListener('click', ()=> hideDecision());
+      btnBack.addEventListener('click', async ()=>{
+        try{
+          if(!selectedP?.ref) return hideDecision();
+          await updateDoc(selectedP.ref, { startTS: deleteField(), stopTS: deleteField() });
+          lastAction.textContent = `BACK → devuelto a salida: ${(selectedP.name||'').toUpperCase()}`;
+        }catch(e){
+          alert('No se pudo devolver a salida: ' + (e?.message||e));
+        }finally{ hideDecision(); }
+      });
+      overlay.addEventListener('click', ()=> hideDecision()); // tocar fuera cierra
+
+    }catch(e){
+      window.__firebaseReady=false; fbState.textContent='ERROR'; fbState.className='err';
+      alert('Firebase error: '+(e.message||e));
     }
   </script>
 </body>
