@@ -10,7 +10,6 @@
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
-      --go:#38d66b; --back:#e54848;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -207,31 +206,21 @@
       return p;
     }
 
-    // BACK: devuelve el corredor a parrilla (borra campos en lugar de poner null)
+    // BACK: devuelve a parrilla (borra campos, no los pone a null)
     async function revertStart(id){
       try{
-        // Optimistic: quitarlo de la lista local ya
         const idx = participants.findIndex(x=>x.id===id);
-        if(idx>=0){
-          participants[idx].startTS = undefined;
-          participants[idx].stopTS  = undefined;
-        }
-        await updateDoc(doc(partsCol, id), {
-          startTS: deleteField(),
-          stopTS:  deleteField()
-        });
+        if(idx>=0){ participants[idx].startTS = undefined; participants[idx].stopTS  = undefined; }
+        await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
         goBackId = null;
         $('lastAction').textContent='BACK aplicado';
-        await reload(); // forzar coherencia inmediata
-      }catch(e){
-        goBackId = null;
-        alert('No se pudo aplicar BACK: ' + (e.message||e));
-      }
+        await reload();
+      }catch(e){ goBackId = null; alert('No se pudo aplicar BACK: '+(e.message||e)); }
     }
 
     /* ===== UI en vivo ===== */
     let currentLive=[];           // [{id,order,name,startMS}]
-    let overlayRowHitboxes=[];    // para tocar sobreimpresos
+    let overlayRowHitboxes=[];    // hitboxes para filas y BACK/GO
 
     function ensureStatus(){
       const nxt = nextToStart();
@@ -257,18 +246,13 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Click en lista EN CURSO:
+    // Click en lista EN CURSO (abre GO/BACK en start, selecciona en finish)
     $('runningList').addEventListener('click',(e)=>{
       const item = e.target.closest('.runner');
       if(!item?.dataset.id) return;
       const id = item.dataset.id;
-
-      if(mode==='finish'){
-        selectedId=id;
-        $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId);
-      }else{ // start -> abre/cierra GO/BACK para ese crono
-        goBackId = (goBackId===id ? null : id);
-      }
+      if(mode==='finish'){ selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id); }
+      else{ goBackId = (goBackId===id ? null : id); }
     });
 
     onSnapshot(partsCol, async ()=>{
@@ -282,13 +266,10 @@
       if (mode === 'finish') {
         const run = runningSorted();
         const earliest = run[0]?.id || null;
-        if (!selectedId || !run.some(p => p.id === selectedId)) {
-          selectedId = earliest;
-        }
+        if (!selectedId || !run.some(p => p.id === selectedId)) selectedId = earliest;
       } else {
         if(goBackId && !currentLive.some(r=>r.id===goBackId)) goBackId=null;
       }
-
       ensureStatus();
     });
 
@@ -331,19 +312,17 @@
         btn.textContent='CÁMARA ACTIVADA'; btn.disabled=true;
 
         detectionEnabled = false;
-        armingEndsAt = performance.now() + ARMING_DELAY_MS;
+        armingEndsAt = performance.now() + 2000;
         $('hudStatus').textContent = 'Calibrando… 2.0s';
         requestAnimationFrame(loop);
       }catch(err){ alert('Error cámara: '+(err?.message||err)); }
     };
 
-    // Detector (idéntico a la versión previa estable)
     const COOLDOWN_START_MS  = 2400;
     const COOLDOWN_FINISH_MS = 1800;
     const EMA_ALPHA          = 0.35;
     const MIN_PIXELS         = 28;
     const HOLD_MS            = 140;
-    const ARMING_DELAY_MS    = 2000;
     let prevFrame=null;
     let armed=true, cooldownTimer=null;
     let detectionEnabled=false, armingEndsAt=0;
@@ -364,19 +343,29 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
-    // Click sobreimpreso (selección META o GO/BACK en SALIDA)
-    overlay.addEventListener('click', (e)=>{
+    /* ======= CLICK ÚNICO sobre overlay (corrige BACK) ======= */
+    overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
       const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!hit) return;
 
+      const idStr = String(hit.id);
+      const baseId = idStr.split('::')[0];
+
       if(mode==='finish'){
-        selectedId = hit.id;
-        $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
-      }else{
-        goBackId = (goBackId===hit.id ? null : hit.id);
+        // Selección manual de llegada
+        selectedId = baseId;
+        $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===baseId)?.name || baseId);
+        return;
       }
+
+      // SALIDA: si tocamos un botón BACK/GO actuamos; si tocamos la fila, toggle panel
+      if(idStr.endsWith('::BACK')){ await revertStart(baseId); return; }
+      if(idStr.endsWith('::GO'))  { goBackId=null; $('lastAction').textContent='GO'; return; }
+
+      // Tocado el bloque del crono → abrir/cerrar GO/BACK para ese corredor
+      goBackId = (goBackId===baseId ? null : baseId);
     });
 
     function loop(){
@@ -439,7 +428,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ===== Dibujo sobreimpreso ===== */
+    /* ===== Overlay: diseño de cronos + GO/BACK ===== */
     function roundRect(ctx,x,y,w,h,r){
       const rr = Math.min(r, h/2, w/2);
       ctx.beginPath();
@@ -505,56 +494,43 @@
           octx.restore();
         }
 
+        // badge #
         const badgeR = rowH*0.36;
         const badgeCx = leftPad + badgeR + 4;
         const badgeCy = y + rowH/2;
         octx.save();
-        octx.beginPath();
-        octx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2);
-        octx.closePath();
-        octx.fillStyle = 'rgba(180,186,198,.34)';
-        octx.fill();
-        octx.lineWidth = 2;
-        octx.strokeStyle = 'rgba(0,0,0,.35)';
-        octx.stroke();
+        octx.beginPath(); octx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2); octx.closePath();
+        octx.fillStyle = 'rgba(180,186,198,.34)'; octx.fill();
+        octx.lineWidth = 2; octx.strokeStyle = 'rgba(0,0,0,.35)'; octx.stroke();
         octx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='center';
-        octx.strokeStyle='rgba(0,0,0,.9)';
-        octx.lineWidth=Math.max(3, Math.floor(base*0.2));
+        octx.strokeStyle='rgba(0,0,0,.9)'; octx.lineWidth=Math.max(3, Math.floor(base*0.2));
         octx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
-        octx.fillStyle='#FFFFFF';
-        octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
+        octx.fillStyle='#FFFFFF'; octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
         octx.restore();
 
         const nameX = leftPad + badgeR*2 + 24;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        octx.textAlign='left';
-        octx.strokeText(nText, nameX, y + rowH/2);
-        octx.fillStyle='#FFFFFF';
-        octx.fillText  (nText, nameX, y + rowH/2);
+        octx.textAlign='left';  octx.strokeText(nText, nameX, y + rowH/2); octx.fillStyle='#FFFFFF'; octx.fillText(nText, nameX, y + rowH/2);
+        octx.textAlign='right'; octx.strokeText(tText, w - rightPad - 18, y + rowH/2); octx.fillStyle='#FFFFFF'; octx.fillText(tText, w - rightPad - 18, y + rowH/2);
 
-        octx.textAlign='right';
-        octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
-        octx.fillStyle='#FFFFFF';
-        octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
-
+        // hitbox de la fila
         overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
+        // BACK/GO cuando corresponde
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
-          roundRect(octx, mid+1, pillY+2, pillW/2-3, pillH-4, radius-3);
+          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
 
           octx.textAlign='center'; octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)'; octx.lineWidth = Math.max(3, Math.floor(base*0.22));
           const ty = y + rowH/2;
           octx.font = `900 ${Math.floor(base*1.05)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('BACK', pillX + pillW/4, ty);
-          octx.fillText  ('BACK', pillX + pillW/4, ty);
-          octx.strokeText('GO',   pillX + pillW*0.75, ty);
-          octx.fillText  ('GO',   pillX + pillW*0.75, ty);
+          octx.strokeText('BACK', pillX + pillW/4,  ty); octx.fillText('BACK', pillX + pillW/4,  ty);
+          octx.strokeText('GO',   pillX + pillW*0.75,ty); octx.fillText('GO',   pillX + pillW*0.75,ty);
 
           overlayRowHitboxes.push({ id:`${r.id}::BACK`, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
           overlayRowHitboxes.push({ id:`${r.id}::GO`,   x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
@@ -563,21 +539,6 @@
         y += (rowH+10) + gap;
       }
     }
-
-    // BACK / GO en overlay
-    overlay.addEventListener('click', async (e)=>{
-      if(mode!=='start') return;
-      const rect = overlay.getBoundingClientRect();
-      const x = e.clientX - rect.left, y = e.clientY - rect.top;
-      const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
-      if(!hit) return;
-      const id = String(hit.id);
-      if(!id.includes('::')) return;
-      const [rowId, action] = id.split('::');
-      if(action==='BACK'){ await revertStart(rowId); }
-      else if(action==='GO'){ goBackId=null; $('lastAction').textContent='GO'; }
-    });
-
   </script>
 </body>
 </html>
