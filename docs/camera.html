@@ -27,6 +27,8 @@
     .tag{opacity:.9}
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+
+    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -38,40 +40,43 @@
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
+    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
+    /* HUD */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
 
+    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
-    .list{margin-top:12px}
 
+    /* Lista EN CURSO */
+    .list{margin-top:12px}
     .runner{
-      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;position:relative;overflow:hidden;
+      position:relative; overflow:hidden;
+      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+      padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
     }
+    .runner > *{position:relative; z-index:1;}
     .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
-    .badge{font-weight:800;color:#cfe1ff;opacity:.9}
-    /* Nombre con dorsal alineado en columnas */
+    .badge{font-weight:800;color:#cfe1ff;opacity:.9; z-index:0;}
     .rname{
       display:grid;
-      grid-template-columns: 64px 1fr;  /* 64px para dorsal, resto para nombre */
-      gap:10px;
-      align-items:center;
-      font-weight:800;
-      text-transform:uppercase;
+      grid-template-columns: 56px 1fr;  /* dorsal más pegado a la izquierda */
+      gap:8px; align-items:center;
+      font-weight:800; text-transform:uppercase;
     }
     .rname .bib{opacity:.95; font-weight:900; text-align:right;}
     .rname .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
-    /* BACK/GO dentro de la fila EN CURSO */
-    .runner-actions{position:absolute;inset:0;display:flex}
+    /* BACK / CONTINUE en la fila EN CURSO por encima de todo */
+    .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
       letter-spacing:.02em; color:#fff;
@@ -133,7 +138,7 @@
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    /* ===== Utilidades ===== */
+    /* ===== Utils ===== */
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -208,8 +213,8 @@
     async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
-    let selectedId = null; // META: seleccionado manualmente
-    let goBackId   = null; // SALIDA: fila/overlay con RESTART/CONTINUE visible
+    let selectedId = null; // META
+    let goBackId   = null; // SALIDA
 
     async function stopSelectedOrEarliest(){
       await reload();
@@ -274,6 +279,7 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
+    // Clicks en lista EN CURSO
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       if (act && mode==='start') {
@@ -382,14 +388,14 @@
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-      // 1) Botones primero
+      // primero botones
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
         const baseId = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
       }
-      // 2) Fila
+      // luego fila
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
 
@@ -461,7 +467,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ===== Overlay: helpers + cronos ===== */
+    /* ===== Overlay helpers + cronos ===== */
     function roundRect(ctx,x,y,w,h,r){
       const rr = Math.min(r, h/2, w/2);
       ctx.beginPath();
@@ -501,8 +507,6 @@
       octx.globalAlpha = 1;
       octx.textBaseline='middle';
       octx.fillStyle = '#FFFFFF';
-      octx.strokeStyle = 'rgba(0,0,0,.9)';
-      octx.lineWidth = Math.max(3, Math.floor(base*0.2));
 
       const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
@@ -531,7 +535,7 @@
         octx.stroke();
         octx.restore();
 
-        // contorno verde de seleccionado en META
+        // Seleccionado en META
         if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -541,23 +545,22 @@
           octx.restore();
         }
 
-        // (ELIMINADO badge #)
-
-        // texto nombre (con dorsal) a la izquierda
+        // Nombre (sin contorno -> adiós “mancha”)
         const nameX = leftPad + 8;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         octx.textAlign='left';
-        octx.strokeText(nText, nameX, y + rowH/2);
         octx.fillStyle='#FFFFFF';
-        octx.fillText  (nText, nameX, y + rowH/2);
+        octx.fillText(nText, nameX, y + rowH/2);
 
-        // tiempo a la derecha
+        // Tiempo (con contorno suave)
         octx.textAlign='right';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(2, Math.floor(base*0.16));
         octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
-        // botones RESTART/CONTINUE en overlay si procede
+        // Botones RESTART/CONTINUE
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
@@ -583,7 +586,7 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        // hitbox de la fila
+        // Hitbox fila
         overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
         y += (rowH+10) + gap;
