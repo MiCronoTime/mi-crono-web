@@ -11,12 +11,31 @@
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
     .titleTop{display:flex;align-items:center;gap:12px;font-size:32px;font-weight:900;letter-spacing:.02em;margin:6px 0 10px 0;text-transform:uppercase}
     .connected{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:10px;color:var(--muted);max-width:560px}
+
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
     .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
     .h2{font-size:24px;font-weight:900;text-transform:uppercase;margin:0 0 12px 0}
     label{display:block;margin:10px 0 6px 0;font-weight:800}
     input,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
-    textarea{min-height:170px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height:1.5}
+
+    /* Cabecera tabla fake */
+    .colsHead{display:grid;grid-template-columns:140px 1fr;gap:6px;margin:8px 0}
+    .chip{background:#0f1217;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-weight:900;color:#cfe1ff;text-transform:uppercase}
+
+    /* Textarea con look de dos columnas */
+    textarea#evList{
+      min-height:190px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height:1.65;
+      /* raya vertical a 140px para simular la separación de columnas */
+      background:
+        linear-gradient(to right, transparent 0, transparent 138px, rgba(255,255,255,.08) 138px, rgba(255,255,255,.08) 140px, transparent 140px) no-repeat,
+        #0f1217;
+      background-size: 100% 100%;
+      tab-size: 12; /* que el tab encaje más o menos con la columna */
+      white-space: pre;
+    }
+
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
@@ -24,9 +43,15 @@
     .rowBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
     .muted{color:var(--muted)}
     .caps{text-transform:uppercase}
-    .colsHead{display:grid;grid-template-columns:140px 1fr;gap:6px;margin:8px 0}
-    .chip{background:#0f1217;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-weight:900;color:#cfe1ff;text-transform:uppercase}
     @media (max-width:860px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
+
+    /* Modal selector de eventos */
+    .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal{width:min(92vw,560px);max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.5);padding:14px}
+    .modal h3{margin:4px 0 10px 0;font-size:20px;text-transform:uppercase}
+    .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
+    .evItem:hover{background:#111720}
+    .smallMuted{font-size:12px;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -46,8 +71,10 @@
           <div class="chip">Dorsal</div>
           <div class="chip">Nombre</div>
         </div>
-        <textarea id="evList" placeholder="101   CORREDOR 1&#10;102   CORREDOR 2&#10;103   CORREDOR 3"></textarea>
-        <div class="muted" style="margin-top:6px">El dorsal es opcional. Puedes escribir solo el nombre o “DORSAL &nbsp;&nbsp; NOMBRE”.</div>
+        <textarea id="evList" placeholder="101    CORREDOR 1&#10;102    CORREDOR 2&#10;103    CORREDOR 3"></textarea>
+        <div class="muted" style="margin-top:6px">
+          El dorsal es opcional. Puedes escribir <b>solo el nombre</b> o bien <b>DORSAL + TAB/espacios + NOMBRE</b>.
+        </div>
 
         <div class="rowBtns">
           <button id="btnLoadList" class="btn">Cargar lista</button>
@@ -87,6 +114,17 @@
     </section>
   </div>
 
+  <!-- MODAL: seleccionar evento para cargar lista -->
+  <div id="pickMask" class="modalMask" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="modal">
+      <h3 id="pickTitle">Selecciona un evento</h3>
+      <div id="pickList"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+        <button id="pickCancel" class="btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
@@ -109,8 +147,21 @@
     const goFinish = document.getElementById('goFinish');
     const goResult = document.getElementById('goResult');
 
+    // Modal
+    const pickMask  = document.getElementById('pickMask');
+    const pickList  = document.getElementById('pickList');
+    const pickCancel= document.getElementById('pickCancel');
+
     // Mayúsculas “suaves”
-    const toUC = (s)=> (s||'').normalize('NFC').trim().toUpperCase();
+    const toUC = (s)=> (s||'').normalize('NFC').toUpperCase();
+    evCode.addEventListener('input', ()=>{ evCode.value = toUC(evCode.value); });
+    joinCode.addEventListener('input', ()=>{ joinCode.value = toUC(joinCode.value); });
+    evList.addEventListener('input', ()=>{
+      // Convierte el bloque a mayúsculas pero respeta tabs/espacios
+      const pos = evList.selectionStart;
+      evList.value = toUC(evList.value);
+      evList.selectionStart = evList.selectionEnd = pos;
+    });
 
     // Firebase
     const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
@@ -139,25 +190,24 @@
       (raw||'').split(/\r?\n/).forEach((line,i)=>{
         const s = line.trim();
         if(!s) return;
-        // DORSAL [espacios o tab] NOMBRE  |  o solo NOMBRE
-        const m = s.match(/^(\d{1,6})[\s,;:-]+(.+)$/); // dorsal hasta 6 dígitos
+        // DORSAL [sep] NOMBRE | o solo NOMBRE
+        const m = s.match(/^(\d{1,6})[\s,;:-]+(.+)$/);
         let dorsal=null, name=s;
         if(m){ dorsal=m[1]; name=m[2]; }
-        out.push({ order:i+1, name:toUC(name), ...(dorsal?{dorsal:toUC(dorsal)}:{}) });
+        out.push({ order:i+1, name:toUC(name.trim()), ...(dorsal?{dorsal:toUC(dorsal)}:{}) });
       });
       return out;
     }
 
     // Guardar evento (resetea participantes)
     btnSave.addEventListener('click', async ()=>{
-      const code = toUC(evCode.value);
+      const code = toUC(evCode.value.trim());
       if(!code){ alert('Pon un CÓDIGO de evento'); return; }
       const list = parseParticipants(evList.value);
       if(!list.length){ alert('Añade al menos un participante'); return; }
 
       try{
-        // crea/actualiza cabecera evento
-        await setDoc(eventRef(code), { code, updatedAt: serverTimestamp() }, { merge:true });
+        await setDoc(eventRef(code), { code, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge:true });
 
         // borrar participantes existentes
         const snap = await getDocs(partsCol(code));
@@ -179,15 +229,34 @@
       }
     });
 
-    // CARGAR LISTA desde otro evento
+    // Selector de eventos (modal)
     btnLoadList.addEventListener('click', async ()=>{
-      const src = toUC(prompt('Código del evento del que copiar la lista de participantes:', 'TEST1')||'');
-      if(!src) return;
+      // Carga lista de eventos del usuario
+      pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
+      pickMask.style.display = 'flex';
       try{
-        const eRef = eventRef(src);
-        const ok = await getDoc(eRef);
-        if(!ok.exists()){ alert('Ese evento no existe'); return; }
-        const snap = await getDocs(query(partsCol(src), orderBy('order','asc')));
+        const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
+        if(evsSnap.empty){ pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>'; return; }
+        pickList.innerHTML = '';
+        evsSnap.forEach(docu=>{
+          const d = docu.data()||{};
+          const when = d.updatedAt?.toDate ? d.updatedAt.toDate() : (d.updatedAt? new Date(d.updatedAt.seconds*1000): null);
+          const nice = when ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when) : '—';
+          const div = document.createElement('div');
+          div.className = 'evItem';
+          div.innerHTML = `<div><b>${d.code||docu.id}</b><div class="smallMuted">${nice}</div></div><div class="smallMuted">Seleccionar</div>`;
+          div.addEventListener('click', ()=> pickLoad(docu.id));
+          pickList.appendChild(div);
+        });
+      }catch(e){
+        pickList.innerHTML = `<div class="smallMuted">Error: ${e.message||e}</div>`;
+      }
+    });
+    pickCancel.addEventListener('click', ()=>{ pickMask.style.display='none'; });
+
+    async function pickLoad(codeSel){
+      try{
+        const snap = await getDocs(query(partsCol(codeSel), orderBy('order','asc')));
         if(snap.empty){ alert('Ese evento no tiene participantes'); return; }
         const lines = [];
         snap.forEach(d=>{
@@ -197,12 +266,13 @@
           lines.push(dorsal ? `${dorsal}\t${name}` : name);
         });
         evList.value = lines.join('\n');
-        alert('Lista copiada. Ahora cambia el CÓDIGO (si quieres) y pulsa GUARDAR EVENTO.');
+        pickMask.style.display='none';
+        alert(`Lista cargada desde ${codeSel}. Cambia el CÓDIGO y pulsa GUARDAR EVENTO para crear uno nuevo.`);
       }catch(e){ alert('No se pudo cargar la lista: '+(e.message||e)); }
-    });
+    }
 
     // Ir a SALIDA / META / RESULTADOS usando joinCode
-    const codeFromJoin = ()=> toUC(joinCode.value);
+    const codeFromJoin = ()=> toUC(joinCode.value.trim());
     goStart.onclick  = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=start&code=${encodeURIComponent(c)}`; };
     goFinish.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=finish&code=${encodeURIComponent(c)}`; };
     goResult.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
@@ -211,11 +281,8 @@
     btnReset.addEventListener('click', async ()=>{
       if(!confirm('Esto borrará TODOS tus eventos y participantes. ¿Seguro?')) return;
       try{
-        // lista eventos del usuario
-        const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
         const evsSnap = await getDocs(collection(db,'users',uid,'events'));
         for(const evDoc of evsSnap.docs){
-          // borra participantes del evento
           const ps = await getDocs(collection(evDoc.ref,'participants'));
           const b1 = writeBatch(db); ps.forEach(x=>b1.delete(x.ref)); await b1.commit();
           await deleteDoc(evDoc.ref);
@@ -223,10 +290,6 @@
         alert('Limpieza completada');
       }catch(e){ alert('Error al resetear: '+(e.message||e)); }
     });
-
-    // UX: mayúsculas en inputs código
-    evCode.addEventListener('input', ()=>{ evCode.value = evCode.value.toUpperCase(); });
-    joinCode.addEventListener('input', ()=>{ joinCode.value = joinCode.value.toUpperCase(); });
   </script>
 </body>
 </html>
