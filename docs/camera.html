@@ -10,7 +10,6 @@
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
-      --danger:#e44848; --go:#38d66b;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -51,22 +50,13 @@
     .list{margin-top:12px}
     .runner{
       display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;position:relative;overflow:hidden;
+      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
     }
     .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{font-weight:800;text-transform:uppercase}
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
-
-    /* BACK/GO dentro de la fila EN CURSO */
-    .runner-actions{position:absolute;inset:0;display:flex}
-    .runner-actions .half{
-      flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
-      letter-spacing:.02em; color:#fff;
-    }
-    .runner-actions .half.back{ background:var(--danger); }
-    .runner-actions .half.go{ background:var(--go); color:#052013; }
   </style>
 </head>
 <body class="wrap">
@@ -151,7 +141,7 @@
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc, deleteField
+      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
     } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
     const firebaseConfig = {
@@ -198,8 +188,6 @@
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
     let selectedId = null; // META: seleccionado manualmente
-    let goBackId   = null; // SALIDA: fila/overlay con RESTART/CONTINUE visible
-
     async function stopSelectedOrEarliest(){
       await reload();
       let p = null;
@@ -216,19 +204,9 @@
       return p;
     }
 
-    async function revertStart(id){
-      try{
-        await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
-        goBackId = null; selectedId = null;
-        $('lastAction').textContent='RESTART aplicado';
-        armed = false; armAfter(COOLDOWN_START_MS); // evita autodisparo
-        await reload();
-      }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
-    }
-
     /* ===== UI en vivo ===== */
-    let currentLive=[];           // [{id,order,name,startMS}]
-    let overlayRowHitboxes=[];    // hitboxes (prioridad: botones > filas)
+    let currentLive=[];           // [{id,order,name,dorsal,startMS}]
+    let overlayRowHitboxes=[];
 
     function ensureStatus(){
       const nxt = nextToStart();
@@ -238,49 +216,40 @@
       $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
     }
 
+    function displayName(p){
+      // dorsal (si existe) + nombre en mayúsculas
+      return (p.dorsal ? `${p.dorsal} ` : '') + (p.name||'').toUpperCase();
+    }
+
     function renderListNow(){
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
       if(!currentLive.length){ list.innerHTML='—'; return; }
-
-      const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-      list.innerHTML = rows.map(p=>{
-        const sel = (mode==='finish' && selectedId===p.id) ? ' selected' : '';
-        const showActions = (mode==='start' && goBackId===p.id);
-        return `<div class="runner${sel}" data-id="${p.id}">
-          ${showActions?`
-            <div class="runner-actions">
-              <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
-              <div class="half go"   data-action="go"   data-id="${p.id}">CONTINUE</div>
-            </div>`:''}
-          <div class="badge">#${p.order}</div>
-          <div class="rname">${p.name}</div>
-          <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
-        </div>`;
-      }).join('');
+      list.innerHTML = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse()
+        .map(p=>{
+          const sel = (mode==='finish' && selectedId===p.id) ? ' selected' : '';
+          return `<div class="runner${sel}" data-id="${p.id}">
+            <div class="badge">#${p.order}</div>
+            <div class="rname">${displayName(p)}</div>
+            <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
+          </div>`;
+        }).join('');
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Click en lista EN CURSO
-    $('runningList').addEventListener('click', async (e)=>{
-      const act = e.target.closest('[data-action]');
-      if (act && mode==='start') {
-        const id = act.dataset.id;
-        if (act.dataset.action === 'back') { await revertStart(id); return; }
-        if (act.dataset.action === 'go')   { goBackId=null; renderListNow(); return; }
-      }
-      const row = e.target.closest('.runner');
-      if(!row?.dataset.id) return;
-      const id = row.dataset.id;
-      if(mode==='finish'){ selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id); }
-      else{ goBackId = (goBackId===id ? null : id); renderListNow(); }
+    $('runningList').addEventListener('click',(e)=>{
+      if(mode!=='finish') return;
+      const item = e.target.closest('.runner');
+      if(item?.dataset.id){ selectedId=item.dataset.id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===selectedId)?.name||selectedId); }
     });
 
     onSnapshot(partsCol, async ()=>{
       await reload();
       currentLive = runningSorted().map(p=>({
-        id:p.id, order: p.order||0,
+        id:p.id,
+        order: p.order||0,
         name: (p.name||'').toUpperCase(),
+        dorsal: (p.dorsal||'').toString().trim(),   // <-- dorsal incorporado
         startMS: tsToMillis(p.startTS)
       }));
 
@@ -288,8 +257,6 @@
         const run = runningSorted();
         const earliest = run[0]?.id || null;
         if (!selectedId || !run.some(p => p.id === selectedId)) selectedId = earliest;
-      } else {
-        if(goBackId && !currentLive.some(r=>r.id===goBackId)) goBackId=null;
       }
       ensureStatus();
     });
@@ -310,7 +277,7 @@
       return {w,h,dpr};
     }
 
-    const uiToPercent = (ui)=>{ const v = Math.max(0, Math.min(100, Number(ui)||50)); return v<=50 ? 5+(v/50)*(20-5) : 20+((v-50)/50)*(60-20); };
+    const uiToPercent = (ui)=>{ const v=Math.max(0,Math.min(100,Number(ui)||50)); return v<=50? 5+(v/50)*(20-5) : 20+((v-50)/50)*(60-20); };
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel(); sens.oninput = updateSensLabel;
 
@@ -325,15 +292,24 @@
           {video:true,audio:false}
         ];
         let stream=null,lastErr=null;
-        for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(err){ lastErr=err; } }
-        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
-        video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
+        for(const c of tries){
+          try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; }
+          catch(err){ lastErr=err; }
+        }
+        if(!stream){
+          alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message));
+          return;
+        }
+        video.setAttribute('playsinline','true');
+        video.muted=true;
+        video.srcObject=stream;
         await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
         await video.play().catch(()=>{});
-        btn.textContent='CÁMARA ACTIVADA'; btn.disabled=true;
+        btn.textContent='CÁMARA ACTIVADA';
+        btn.disabled=true;
 
         detectionEnabled = false;
-        armingEndsAt = performance.now() + 2000;
+        armingEndsAt = performance.now() + ARMING_DELAY_MS;
         $('hudStatus').textContent = 'Calibrando… 2.0s';
         requestAnimationFrame(loop);
       }catch(err){ alert('Error cámara: '+(err?.message||err)); }
@@ -344,6 +320,7 @@
     const EMA_ALPHA          = 0.35;
     const MIN_PIXELS         = 28;
     const HOLD_MS            = 140;
+    const ARMING_DELAY_MS    = 2000;
     let prevFrame=null;
     let armed=true, cooldownTimer=null;
     let detectionEnabled=false, armingEndsAt=0;
@@ -364,27 +341,14 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
-    /* Click en overlay (prioridad: botones > fila) */
-    overlay.addEventListener('click', async (e)=>{
+    overlay.addEventListener('click', (e)=>{
+      if(mode!=='finish') return;
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
-
-      // 1) Botones primero
-      const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
-      if(btn){
-        const baseId = btn.baseId;
-        if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
-        if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-      }
-      // 2) Fila
-      const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
-      if(!row) return;
-
-      if(mode==='finish'){
-        selectedId = row.baseId;
+      const hit = overlayRowHitboxes.find(h => x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
+      if(hit){
+        selectedId = hit.id;
         $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
-      }else{
-        goBackId = (goBackId===row.baseId ? null : row.baseId);
       }
     });
 
@@ -448,27 +412,7 @@
       requestAnimationFrame(loop);
     }
 
-    /* ===== Overlay: helpers ===== */
-    function roundRect(ctx,x,y,w,h,r){
-      const rr = Math.min(r, h/2, w/2);
-      ctx.beginPath();
-      ctx.moveTo(x+rr, y);
-      ctx.arcTo(x+w, y,   x+w, y+h, rr);
-      ctx.arcTo(x+w, y+h, x,   y+h, rr);
-      ctx.arcTo(x,   y+h, x,   y,   rr);
-      ctx.arcTo(x,   y,   x+w, y,   rr);
-      ctx.closePath();
-    }
-    function fitText(ctx, text, maxW, basePx){
-      let size = Math.floor(basePx);
-      ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-      while(size>12 && ctx.measureText(text).width > maxW){
-        size -= 1;
-        ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-      }
-      return size;
-    }
-
+    /* ===== Overlay: texto blanco, con dorsal + nombre ===== */
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
       if(!rows.length) return;
@@ -478,10 +422,10 @@
 
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.4;
+      const gap  = gapBase * 2.2;           // separación generosa
       const leftPad = Math.floor(w*0.065);
       const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.20);
+      const topPad = Math.floor(h*0.18);    // dejar espacio al HUD
       const rowH = base*1.45;
       const radius = rowH/1.9;
 
@@ -498,22 +442,17 @@
         const r = sorted[i];
         const elapsed = nowSync - (r.startMS||nowSync);
         const tText = fmt(elapsed);
-        const nText = r.name || '—';
+        const nText = (r.dorsal ? `${r.dorsal} ` : '') + (r.name || '—'); // <-- dorsal + nombre
 
+        // pill
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
-
-        // base pill
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
         octx.fillStyle = grad; octx.fill();
-        octx.save();
-        octx.lineWidth = 2;
-        octx.strokeStyle = 'rgba(255,255,255,.12)';
-        roundRect(octx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5);
-        octx.stroke();
-        octx.restore();
+        octx.save(); octx.lineWidth = 2; octx.strokeStyle = 'rgba(255,255,255,.12)';
+        roundRect(octx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5); octx.stroke(); octx.restore();
 
         if (mode==='finish' && selectedId===r.id){
           octx.save();
@@ -539,49 +478,35 @@
         octx.fillStyle='#FFFFFF'; octx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
         octx.restore();
 
+        // nombre (con dorsal)
         const nameX = leftPad + badgeR*2 + 24;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        octx.textAlign='left';  octx.strokeText(nText, nameX, y + rowH/2); octx.fillStyle='#FFFFFF'; octx.fillText(nText, nameX, y + rowH/2);
-        octx.textAlign='right'; octx.strokeText(tText, w - rightPad - 18, y + rowH/2); octx.fillStyle='#FFFFFF'; octx.fillText(tText, w - rightPad - 18, y + rowH/2);
+        octx.textAlign='left';
+        octx.strokeText(nText, nameX, y + rowH/2);
+        octx.fillStyle='#FFFFFF';
+        octx.fillText  (nText, nameX, y + rowH/2);
 
-        // --- HITBOXES + Botones en overlay ---
-        if(mode==='start' && goBackId===r.id){
-          const mid = pillX + pillW/2;
-          // Botón RESTART
-          roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
-          // Botón CONTINUE
-          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
+        // tiempo
+        octx.textAlign='right';
+        octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
+        octx.fillStyle='#FFFFFF';
+        octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
-          // Texto ajustado a ancho disponible
-          octx.textAlign='center'; octx.fillStyle='#fff';
-          octx.strokeStyle='rgba(0,0,0,.55)';
-          const ty = y + rowH/2;
-          const pad = 20;
-          const halfW = pillW/2 - 3 - pad*2;
-
-          // RESTART
-          let fs = fitText(octx, 'RESTART', halfW, base*1.05);
-          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
-          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('RESTART', pillX + pillW/4,  ty); octx.fillText('RESTART', pillX + pillW/4,  ty);
-
-          // CONTINUE
-          fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
-          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
-          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('CONTINUE', pillX + pillW*0.75,ty); octx.fillText('CONTINUE', pillX + pillW*0.75,ty);
-
-          // hitboxes primero (prioridad)
-          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
-          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
-        }
-        // fila (después de botones)
-        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
+        overlayRowHitboxes.push({ id:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
         y += (rowH+10) + gap;
       }
+    }
+
+    function roundRect(ctx,x,y,w,h,r){
+      const rr = Math.min(r, h/2, w/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y,   x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x,   y+h, rr);
+      ctx.arcTo(x,   y+h, x,   y,   rr);
+      ctx.arcTo(x,   y,   x+w, y,   rr);
+      ctx.closePath();
     }
   </script>
 </body>
