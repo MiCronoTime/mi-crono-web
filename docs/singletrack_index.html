@@ -6,8 +6,15 @@
   <title>SINGLETRACK — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    :root{ --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c; }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);color:var(--text)}
+    :root{
+      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
+      --row:#0f1217; --row2:#111720; --headGrad1:#202633; --headGrad2:#181e29;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
+                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);
+      color:var(--text)}
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
     .titleTop{display:flex;align-items:center;gap:12px;font-size:32px;font-weight:900;letter-spacing:.02em;margin:6px 0 10px 0;text-transform:uppercase}
     .connected{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:10px;color:var(--muted);max-width:560px}
@@ -16,34 +23,37 @@
     .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
     .h2{font-size:24px;font-weight:900;text-transform:uppercase;margin:0 0 12px 0}
     label{display:block;margin:10px 0 6px 0;font-weight:800}
-    input,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
-
-    /* Cabecera tabla fake */
-    .colsHead{display:grid;grid-template-columns:140px 1fr;gap:6px;margin:8px 0}
-    .chip{background:#0f1217;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-weight:900;color:#cfe1ff;text-transform:uppercase}
-
-    /* Textarea con look de dos columnas */
-    textarea#evList{
-      min-height:190px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      line-height:1.65;
-      /* raya vertical a 140px para simular la separación de columnas */
-      background:
-        linear-gradient(to right, transparent 0, transparent 138px, rgba(255,255,255,.08) 138px, rgba(255,255,255,.08) 140px, transparent 140px) no-repeat,
-        #0f1217;
-      background-size: 100% 100%;
-      tab-size: 12; /* que el tab encaje más o menos con la columna */
-      white-space: pre;
-    }
-
+    input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
+    .muted{color:var(--muted)}
     .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#111}
     .rowBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-    .muted{color:var(--muted)}
-    .caps{text-transform:uppercase}
-    @media (max-width:860px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
+
+    /* Tabla editable */
+    .tableWrap{border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    table.editor{width:100%;border-collapse:separate;border-spacing:0;background:var(--row)}
+    thead th{
+      text-align:left;padding:12px 14px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;
+      background:linear-gradient(180deg,var(--headGrad1),var(--headGrad2)); color:#cfe1ff; border-bottom:1px solid var(--border)
+    }
+    thead th:first-child{width:150px}
+    tbody tr:nth-child(odd){background:var(--row)}
+    tbody tr:nth-child(even){background:var(--row2)}
+    td{padding:0;border-bottom:1px solid #1a222e}
+    td:last-child{border-left:1px solid #1a222e}
+    .cell{
+      width:100%;height:46px;display:flex;align-items:center
+    }
+    .cell input{
+      width:100%;height:46px;border:0;outline:none;background:transparent;color:var(--text);padding:0 14px;
+      font-weight:800
+    }
+    .cell input.name{ text-transform:uppercase }
+    .cell input::placeholder{color:#6f7a8a}
+    .rowControls{display:flex;gap:6px;margin-top:8px}
+    .mini{padding:8px 10px;border-radius:10px;font-size:12px}
 
     /* Modal selector de eventos */
     .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
@@ -52,6 +62,7 @@
     .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
     .evItem:hover{background:#111720}
     .smallMuted{font-size:12px;color:var(--muted)}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
   </style>
 </head>
 <body>
@@ -63,21 +74,23 @@
       <!-- CREAR -->
       <section class="panel">
         <div class="h2">Crear evento</div>
-        <label class="caps">Código del evento</label>
+        <label>Código del evento</label>
         <input id="evCode" type="text" placeholder="P.EJ. TEST1" autocomplete="off"/>
 
-        <label class="caps" style="margin-top:12px">Participantes (uno por línea, en orden de salida)</label>
-        <div class="colsHead">
-          <div class="chip">Dorsal</div>
-          <div class="chip">Nombre</div>
+        <label style="margin-top:12px">Participantes (uno por línea, en orden de salida)</label>
+        <div class="tableWrap">
+          <table class="editor" id="tbl">
+            <thead>
+              <tr><th>Dorsal</th><th>Nombre</th></tr>
+            </thead>
+            <tbody id="tbody">
+              <!-- filas dinámicas -->
+            </tbody>
+          </table>
         </div>
-        <textarea id="evList" placeholder="101    CORREDOR 1&#10;102    CORREDOR 2&#10;103    CORREDOR 3"></textarea>
-        <div class="muted" style="margin-top:6px">
-          El dorsal es opcional. Puedes escribir <b>solo el nombre</b> o bien <b>DORSAL + TAB/espacios + NOMBRE</b>.
-        </div>
-
         <div class="rowBtns">
-          <button id="btnLoadList" class="btn">Cargar lista</button>
+          <button id="btnAddRow" class="btn mini">+ Añadir fila</button>
+          <button id="btnLoadList" class="btn mini">Cargar lista</button>
           <button id="btnSave" class="btn primary">Guardar evento</button>
         </div>
 
@@ -89,7 +102,7 @@
       <!-- UNIRSE -->
       <section class="panel">
         <div class="h2">Unirse a un evento</div>
-        <label class="caps">Código</label>
+        <label>Código</label>
         <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
 
         <div class="rowBtns">
@@ -136,34 +149,74 @@
     who.textContent = `Conectado: ${email}`;
 
     const evCode   = document.getElementById('evCode');
-    const evList   = document.getElementById('evList');
     const joinCode = document.getElementById('joinCode');
 
+    const btnAddRow   = document.getElementById('btnAddRow');
     const btnSave     = document.getElementById('btnSave');
     const btnLoadList = document.getElementById('btnLoadList');
     const btnReset    = document.getElementById('btnReset');
-
-    const goStart  = document.getElementById('goStart');
-    const goFinish = document.getElementById('goFinish');
-    const goResult = document.getElementById('goResult');
+    const tbody       = document.getElementById('tbody');
 
     // Modal
-    const pickMask  = document.getElementById('pickMask');
-    const pickList  = document.getElementById('pickList');
-    const pickCancel= document.getElementById('pickCancel');
+    const pickMask   = document.getElementById('pickMask');
+    const pickList   = document.getElementById('pickList');
+    const pickCancel = document.getElementById('pickCancel');
 
-    // Mayúsculas “suaves”
+    // Mayúsculas suaves para códigos
     const toUC = (s)=> (s||'').normalize('NFC').toUpperCase();
-    evCode.addEventListener('input', ()=>{ evCode.value = toUC(evCode.value); });
-    joinCode.addEventListener('input', ()=>{ joinCode.value = toUC(joinCode.value); });
-    evList.addEventListener('input', ()=>{
-      // Convierte el bloque a mayúsculas pero respeta tabs/espacios
-      const pos = evList.selectionStart;
-      evList.value = toUC(evList.value);
-      evList.selectionStart = evList.selectionEnd = pos;
-    });
+    evCode.addEventListener('input', ()=> evCode.value = toUC(evCode.value) );
+    joinCode.addEventListener('input', ()=> joinCode.value = toUC(joinCode.value) );
 
-    // Firebase
+    // === Tabla dinámica DORSAL | NOMBRE ===
+    function addRow(dorsal='', name=''){
+      const tr = document.createElement('tr');
+
+      const td1 = document.createElement('td');
+      const td2 = document.createElement('td');
+
+      const c1 = document.createElement('div'); c1.className='cell';
+      const c2 = document.createElement('div'); c2.className='cell';
+
+      const iD = document.createElement('input');
+      iD.type='text'; iD.inputMode='numeric'; iD.placeholder='—'; iD.value=dorsal;
+      iD.addEventListener('input', ()=>{
+        // solo dígitos y hasta 6
+        iD.value = iD.value.replace(/\D+/g,'').slice(0,6);
+      });
+
+      const iN = document.createElement('input');
+      iN.type='text'; iN.className='name'; iN.placeholder='CORREDOR';
+      iN.value = (name||'').toUpperCase();
+      iN.addEventListener('input', ()=> iN.value = iN.value.toUpperCase() );
+
+      c1.appendChild(iD); c2.appendChild(iN);
+      td1.appendChild(c1); td2.appendChild(c2);
+
+      tr.appendChild(td1); tr.appendChild(td2);
+      tbody.appendChild(tr);
+      return tr;
+    }
+
+    function rowsData(){
+      const out=[];
+      [...tbody.querySelectorAll('tr')].forEach((tr,idx)=>{
+        const [iD,iN] = tr.querySelectorAll('input');
+        const name = (iN.value||'').trim().toUpperCase();
+        const dorsal = (iD.value||'').trim();
+        if(!name) return; // ignora filas vacías
+        const obj = { order: out.length+1, name };
+        if(dorsal) obj.dorsal = dorsal;
+        out.push(obj);
+      });
+      return out;
+    }
+
+    btnAddRow.addEventListener('click', ()=> addRow() );
+
+    // Arranca con 3 filas vacías
+    addRow(); addRow(); addRow();
+
+    // === Firebase ===
     const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, collection, getDoc, setDoc, serverTimestamp, writeBatch,
@@ -180,70 +233,52 @@
     });
     const db = getFirestore(app);
 
-    // Helpers de path
     const eventRef = (code)=> doc(db,'users',uid,'events',toUC(code));
     const partsCol = (code)=> collection(eventRef(code),'participants');
 
-    // Parsear textarea -> [{order,name,dorsal?}]
-    function parseParticipants(raw){
-      const out=[];
-      (raw||'').split(/\r?\n/).forEach((line,i)=>{
-        const s = line.trim();
-        if(!s) return;
-        // DORSAL [sep] NOMBRE | o solo NOMBRE
-        const m = s.match(/^(\d{1,6})[\s,;:-]+(.+)$/);
-        let dorsal=null, name=s;
-        if(m){ dorsal=m[1]; name=m[2]; }
-        out.push({ order:i+1, name:toUC(name.trim()), ...(dorsal?{dorsal:toUC(dorsal)}:{}) });
-      });
-      return out;
-    }
-
-    // Guardar evento (resetea participantes)
+    // Guardar evento
     btnSave.addEventListener('click', async ()=>{
       const code = toUC(evCode.value.trim());
       if(!code){ alert('Pon un CÓDIGO de evento'); return; }
-      const list = parseParticipants(evList.value);
+      const list = rowsData();
       if(!list.length){ alert('Añade al menos un participante'); return; }
 
       try{
         await setDoc(eventRef(code), { code, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge:true });
 
-        // borrar participantes existentes
+        // eliminar participantes existentes
         const snap = await getDocs(partsCol(code));
-        const batchDel = writeBatch(db);
-        snap.forEach(d => batchDel.delete(d.ref));
-        await batchDel.commit();
+        const bDel = writeBatch(db);
+        snap.forEach(d=> bDel.delete(d.ref));
+        await bDel.commit();
 
         // insertar nuevos
-        const batch = writeBatch(db);
+        const b = writeBatch(db);
         list.forEach(p=>{
           const ref = doc(partsCol(code));
-          batch.set(ref, p);
+          b.set(ref, p);
         });
-        await batch.commit();
+        await b.commit();
 
         alert('Evento guardado');
-      }catch(e){
-        alert('Error guardando: '+(e.message||e));
-      }
+      }catch(e){ alert('Error guardando: '+(e.message||e)); }
     });
 
-    // Selector de eventos (modal)
+    // Modal: Cargar lista desde otro evento
     btnLoadList.addEventListener('click', async ()=>{
-      // Carga lista de eventos del usuario
       pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
       pickMask.style.display = 'flex';
       try{
         const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
         if(evsSnap.empty){ pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>'; return; }
-        pickList.innerHTML = '';
+        pickList.innerHTML='';
         evsSnap.forEach(docu=>{
           const d = docu.data()||{};
-          const when = d.updatedAt?.toDate ? d.updatedAt.toDate() : (d.updatedAt? new Date(d.updatedAt.seconds*1000): null);
+          const when = d.updatedAt?.toDate ? d.updatedAt.toDate() :
+                       (d.updatedAt? new Date(d.updatedAt.seconds*1000) : null);
           const nice = when ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when) : '—';
-          const div = document.createElement('div');
-          div.className = 'evItem';
+          const div=document.createElement('div');
+          div.className='evItem';
           div.innerHTML = `<div><b>${d.code||docu.id}</b><div class="smallMuted">${nice}</div></div><div class="smallMuted">Seleccionar</div>`;
           div.addEventListener('click', ()=> pickLoad(docu.id));
           pickList.appendChild(div);
@@ -252,33 +287,35 @@
         pickList.innerHTML = `<div class="smallMuted">Error: ${e.message||e}</div>`;
       }
     });
-    pickCancel.addEventListener('click', ()=>{ pickMask.style.display='none'; });
+    pickCancel.addEventListener('click', ()=> pickMask.style.display='none' );
 
     async function pickLoad(codeSel){
       try{
         const snap = await getDocs(query(partsCol(codeSel), orderBy('order','asc')));
         if(snap.empty){ alert('Ese evento no tiene participantes'); return; }
-        const lines = [];
+        // limpia tabla y vuelca
+        tbody.innerHTML='';
         snap.forEach(d=>{
           const p = d.data();
-          const name = toUC(p.name||'');
-          const dorsal = p.dorsal ? String(p.dorsal) : '';
-          lines.push(dorsal ? `${dorsal}\t${name}` : name);
+          addRow(p.dorsal||'', (p.name||'').toUpperCase());
         });
-        evList.value = lines.join('\n');
+        // añade una fila extra vacía por si acaso
+        addRow();
         pickMask.style.display='none';
         alert(`Lista cargada desde ${codeSel}. Cambia el CÓDIGO y pulsa GUARDAR EVENTO para crear uno nuevo.`);
-      }catch(e){ alert('No se pudo cargar la lista: '+(e.message||e)); }
+      }catch(e){
+        alert('No se pudo cargar la lista: '+(e.message||e));
+      }
     }
 
-    // Ir a SALIDA / META / RESULTADOS usando joinCode
+    // Navegación SALIDA / META / RESULTADOS
     const codeFromJoin = ()=> toUC(joinCode.value.trim());
-    goStart.onclick  = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=start&code=${encodeURIComponent(c)}`; };
-    goFinish.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=finish&code=${encodeURIComponent(c)}`; };
-    goResult.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
+    document.getElementById('goStart').onclick  = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=start&code=${encodeURIComponent(c)}`; };
+    document.getElementById('goFinish').onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=finish&code=${encodeURIComponent(c)}`; };
+    document.getElementById('goResult').onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
 
-    // Reset de todos mis eventos
-    btnReset.addEventListener('click', async ()=>{
+    // Reset total
+    document.getElementById('btnReset').addEventListener('click', async ()=>{
       if(!confirm('Esto borrará TODOS tus eventos y participantes. ¿Seguro?')) return;
       try{
         const evsSnap = await getDocs(collection(db,'users',uid,'events'));
