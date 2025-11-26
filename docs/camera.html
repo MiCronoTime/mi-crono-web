@@ -49,26 +49,34 @@
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
 
-    /* Panel inferior */
+    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
-    .list{margin-top:12px}
 
-    /* EN CURSO filas */
+    /* Lista EN CURSO */
+    .list{margin-top:12px}
     .runner{
-      display:grid;grid-template-columns: 88px 1fr auto; /* dorsal | nombre | tiempo */
-      align-items:center;gap:10px;
-      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;position:relative;overflow:hidden;
+      position:relative; overflow:hidden;
+      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+      padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
     }
+    .runner > *{position:relative; z-index:1;}
     .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
-    .r-bib{font-weight:900; text-align:right; padding-right:8px; min-width:88px;}
-    .rname{font-weight:800;text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-    .rtime{font-weight:900;letter-spacing:.4px; text-align:right; min-width:96px}
+    .badge{font-weight:800;color:#cfe1ff;opacity:.9; z-index:0;}
+    .rname{
+      display:grid;
+      grid-template-columns: 56px 1fr;  /* dorsal más pegado a la izquierda */
+      gap:8px; align-items:center;
+      font-weight:800; text-transform:uppercase;
+    }
+    .rname .bib{opacity:.95; font-weight:900; text-align:right;}
+    .rname .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
-    /* BACK/CONTINUE dentro de EN CURSO */
-    .runner-actions{position:absolute;inset:0;display:flex}
+    /* BACK / CONTINUE en la fila EN CURSO por encima de todo */
+    .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
       letter-spacing:.02em; color:#fff;
@@ -130,7 +138,7 @@
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    /* ===== Utilidades ===== */
+    /* ===== Utils ===== */
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -138,38 +146,6 @@
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
       return `${two(m)}:${two(s)}.${three(ms3)}`; };
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
-
-    function ellipsize(ctx, text, maxW){
-      if (ctx.measureText(text).width <= maxW) return text;
-      const ell = '…';
-      const ellW = ctx.measureText(ell).width;
-      let lo = 0, hi = text.length;
-      while (lo < hi){
-        const mid = (lo + hi + 1) >> 1;
-        const sub = text.slice(0, mid);
-        if (ctx.measureText(sub).width + ellW <= maxW) lo = mid; else hi = mid - 1;
-      }
-      return text.slice(0, lo) + ell;
-    }
-    function roundRect(ctx,x,y,w,h,r){
-      const rr = Math.min(r, h/2, w/2);
-      ctx.beginPath();
-      ctx.moveTo(x+rr, y);
-      ctx.arcTo(x+w, y,   x+w, y+h, rr);
-      ctx.arcTo(x+w, y+h, x,   y+h, rr);
-      ctx.arcTo(x,   y+h, x,   y,   rr);
-      ctx.arcTo(x,   y,   x+w, y,   rr);
-      ctx.closePath();
-    }
-    function fitText(ctx, text, maxW, basePx){
-      let size = Math.floor(basePx);
-      ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-      while(size>12 && ctx.measureText(text).width > maxW){
-        size -= 1;
-        ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-      }
-      return size;
-    }
 
     await ensureAuthInit();
     await requireAuth('index.html');
@@ -231,26 +207,20 @@
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
     const nextToStart = ()=> participants.find(p=>!p.startTS);
-    const runningSorted = ()=> participants
-      .filter(p=>p.startTS && !p.stopTS)
+    const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
       .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
     async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
-    let selectedId = null; // META: seleccionado manualmente
-    let goBackId   = null; // SALIDA: fila/overlay con RESTART/CONTINUE visible
+    let selectedId = null; // META
+    let goBackId   = null; // SALIDA
 
     async function stopSelectedOrEarliest(){
       await reload();
       let p = null;
-      if (selectedId) {
-        p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
-      }
-      if (!p) {
-        const run = runningSorted();
-        p = run[0] || null;
-      }
+      if (selectedId) p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
+      if (!p){ const run = runningSorted(); p = run[0] || null; }
       if (!p) return null;
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
       selectedId = null;
@@ -262,18 +232,24 @@
         await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
         goBackId = null; selectedId = null;
         $('lastAction').textContent='RESTART aplicado';
-        armed = false; armAfter(COOLDOWN_START_MS); // evita autodisparo
+        armed = false; armAfter(COOLDOWN_START_MS);
         await reload();
       }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
     }
 
     /* ===== UI en vivo ===== */
-    let currentLive=[];           // [{id,order,dorsal,name,startMS}]
-    let overlayRowHitboxes=[];    // hitboxes (prioridad: botones > filas)
+    let currentLive=[];           // [{id,order,name,dorsal,startMS}]
+    let overlayRowHitboxes=[];
+
+    const displayName = (p)=>{
+      const bib = (p.dorsal??'').toString().trim();
+      const nm  = (p.name||'').toUpperCase();
+      return { bib, nm, full: (bib? bib+' ' : '') + nm };
+    };
 
     function ensureStatus(){
       const nxt = nextToStart();
-      $('hudNext').textContent = 'Siguiente: ' + (nxt ? ((nxt.dorsal?`#${nxt.dorsal} `:'') + (nxt.name||'—')).toUpperCase() : '—');
+      $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
       const hasStart = participants.some(p=>p.startTS);
       const hasStop  = participants.some(p=>p.stopTS);
       $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
@@ -288,22 +264,22 @@
       list.innerHTML = rows.map(p=>{
         const sel = (mode==='finish' && selectedId===p.id) ? ' selected' : '';
         const showActions = (mode==='start' && goBackId===p.id);
-        const bibTxt = (p.dorsal||'').toString();
+        const { bib, nm } = displayName(p);
         return `<div class="runner${sel}" data-id="${p.id}">
           ${showActions?`
             <div class="runner-actions">
               <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
               <div class="half go"   data-action="go"   data-id="${p.id}">CONTINUE</div>
             </div>`:''}
-          <div class="r-bib">${bibTxt ? bibTxt : ''}</div>
-          <div class="rname">${p.name}</div>
+          <div class="badge">#${p.order}</div>
+          <div class="rname"><span class="bib">${bib||''}</span><span class="nm">${nm}</span></div>
           <div class="rtime">${fmt(nowSync-(p.startMS||nowSync))}</div>
         </div>`;
       }).join('');
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Click en lista EN CURSO
+    // Clicks en lista EN CURSO
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       if (act && mode==='start') {
@@ -322,8 +298,8 @@
       await reload();
       currentLive = runningSorted().map(p=>({
         id:p.id, order: p.order||0,
-        dorsal: (p.dorsal ?? '').toString().trim(),
-        name: ((p.name||'').toUpperCase()),
+        name: (p.name||'').toUpperCase(),
+        dorsal: (p.dorsal||'').toString().trim(),
         startMS: tsToMillis(p.startTS)
       }));
 
@@ -412,14 +388,14 @@
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-      // 1) Botones primero
+      // primero botones
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
         const baseId = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
       }
-      // 2) Fila
+      // luego fila
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
 
@@ -491,7 +467,27 @@
       requestAnimationFrame(loop);
     }
 
-    /* ===== Overlay (cronos sobreimpresos con columnas DORSAL | NOMBRE … TIEMPO) ===== */
+    /* ===== Overlay helpers + cronos ===== */
+    function roundRect(ctx,x,y,w,h,r){
+      const rr = Math.min(r, h/2, w/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y,   x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x,   y+h, rr);
+      ctx.arcTo(x,   y+h, x,   y,   rr);
+      ctx.arcTo(x,   y,   x+w, y,   rr);
+      ctx.closePath();
+    }
+    function fitText(ctx, text, maxW, basePx){
+      let size = Math.floor(basePx);
+      ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      while(size>12 && ctx.measureText(text).width > maxW){
+        size -= 1;
+        ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      }
+      return size;
+    }
+
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
       if(!rows.length) return;
@@ -511,8 +507,6 @@
       octx.globalAlpha = 1;
       octx.textBaseline='middle';
       octx.fillStyle = '#FFFFFF';
-      octx.strokeStyle = 'rgba(0,0,0,.55)';
-      octx.lineWidth = Math.max(2, Math.floor(base*0.16));
 
       const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
@@ -521,12 +515,14 @@
         const r = sorted[i];
         const elapsed = nowSync - (r.startMS||nowSync);
         const tText = fmt(elapsed);
+
+        // dorsal + nombre
         const bib = (r.dorsal||'').toString().trim();
-        const nm  = (r.name||'—').toUpperCase();
+        const nText = (bib ? bib+' ' : '') + (r.name || '—');
 
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
 
-        // fondo pill sin sombras raras
+        // base pill
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
@@ -539,7 +535,7 @@
         octx.stroke();
         octx.restore();
 
-        // Selección verde en META
+        // Seleccionado en META
         if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -549,28 +545,20 @@
           octx.restore();
         }
 
-        // Reservar TIEMPO a la derecha
+        // Nombre (sin contorno -> adiós “mancha”)
+        const nameX = leftPad + 8;
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        octx.textAlign='right';
-        const timeX = w - rightPad - 18;
-        octx.strokeText(tText, timeX, y + rowH/2);
-        octx.fillText  (tText, timeX, y + rowH/2);
-        const timeW = octx.measureText(tText).width;
-
-        // Área de texto izquierda
-        const nameAreaX = leftPad + 8;
-        const nameAreaW = pillW - (nameAreaX - pillX) - timeW - 36;
-        const bibW  = Math.max(56, Math.floor(rowH*1.9)); // ancho fijo dorsal
-        const nameW = Math.max(40, nameAreaW - bibW - 12);
-
-        // DORSAL alineado a la derecha de su columna
-        octx.textAlign='right';
-        octx.fillText(bib, nameAreaX + bibW, y + rowH/2);
-
-        // NOMBRE elíptico
         octx.textAlign='left';
-        const nameText = ellipsize(octx, nm, nameW);
-        octx.fillText(nameText, nameAreaX + bibW + 12, y + rowH/2);
+        octx.fillStyle='#FFFFFF';
+        octx.fillText(nText, nameX, y + rowH/2);
+
+        // Tiempo (con contorno suave)
+        octx.textAlign='right';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = Math.max(2, Math.floor(base*0.16));
+        octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
+        octx.fillStyle='#FFFFFF';
+        octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
 
         // Botones RESTART/CONTINUE
         if(mode==='start' && goBackId===r.id){
@@ -581,6 +569,7 @@
           octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
 
           octx.textAlign='center'; octx.fillStyle='#fff';
+          octx.strokeStyle='rgba(0,0,0,.55)';
           const ty = y + rowH/2, pad = 20, halfW = pillW/2 - 3 - pad*2;
 
           let fs = fitText(octx, 'RESTART', halfW, base*1.05);
