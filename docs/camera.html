@@ -66,7 +66,7 @@
     .badge{font-weight:800;color:#cfe1ff;opacity:.9; z-index:0;}
     .rname{
       display:grid;
-      grid-template-columns: 56px 1fr;  /* dorsal más pegado a la izquierda */
+      grid-template-columns: 56px 1fr;
       gap:8px; align-items:center;
       font-weight:800; text-transform:uppercase;
     }
@@ -75,7 +75,7 @@
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
-    /* BACK / CONTINUE en la fila EN CURSO por encima de todo */
+    /* BACK / CONTINUE encima */
     .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
@@ -383,19 +383,17 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
-    /* Click en overlay (prioridad: botones > fila) */
+    /* Hit-testing overlay (botones > fila) */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-      // primero botones
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
         const baseId = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
       }
-      // luego fila
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
 
@@ -487,6 +485,19 @@
       }
       return size;
     }
+    /* Truncado con “…” manteniendo fuente actual del ctx */
+    function elideText(ctx, text, maxW){
+      if(ctx.measureText(text).width <= maxW) return text;
+      const ell = '…';
+      const ellW = ctx.measureText(ell).width;
+      let lo=0, hi=text.length; // búsqueda binaria
+      while(lo<hi){
+        const mid = Math.floor((lo+hi+1)/2);
+        const s = text.slice(0, mid);
+        if(ctx.measureText(s).width + ellW <= maxW) lo=mid; else hi=mid-1;
+      }
+      return text.slice(0, lo) + ell;
+    }
 
     function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
@@ -516,13 +527,12 @@
         const elapsed = nowSync - (r.startMS||nowSync);
         const tText = fmt(elapsed);
 
-        // dorsal + nombre
+        // Textos
         const bib = (r.dorsal||'').toString().trim();
-        const nText = (bib ? bib+' ' : '') + (r.name || '—');
+        const fullName = (bib ? bib+' ' : '') + (r.name || '—');
 
+        // Pastilla base
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
-
-        // base pill
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
@@ -535,7 +545,7 @@
         octx.stroke();
         octx.restore();
 
-        // Seleccionado en META
+        // Borde verde en META seleccionado
         if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -545,22 +555,36 @@
           octx.restore();
         }
 
-        // Nombre (sin contorno -> adiós “mancha”)
+        // Preparar tipografías
         const nameX = leftPad + 8;
+        const nameY = y + rowH/2;
+        const timeX = w - rightPad - 18;
+
+        // Medir crono para reservar espacio al nombre
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+        const timeStrokeW = Math.max(2, Math.floor(base*0.16));
+        const timeW = Math.max(
+          octx.measureText(tText).width + timeStrokeW*2,
+          80
+        );
+        const minGap = 18; // hueco mínimo entre nombre y tiempo
+        const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeW);
+
+        // Nombre elidido (sin contorno -> sin “mancha”)
+        const nameText = elideText(octx, fullName, maxNameW);
         octx.textAlign='left';
         octx.fillStyle='#FFFFFF';
-        octx.fillText(nText, nameX, y + rowH/2);
+        octx.fillText(nameText, nameX, nameY);
 
-        // Tiempo (con contorno suave)
+        // Tiempo con contorno suave
         octx.textAlign='right';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
-        octx.lineWidth = Math.max(2, Math.floor(base*0.16));
-        octx.strokeText(tText, w - rightPad - 18, y + rowH/2);
+        octx.lineWidth = timeStrokeW;
+        octx.strokeText(tText, timeX, nameY);
         octx.fillStyle='#FFFFFF';
-        octx.fillText  (tText, w - rightPad - 18, y + rowH/2);
+        octx.fillText  (tText, timeX, nameY);
 
-        // Botones RESTART/CONTINUE
+        // Botones RESTART/CONTINUE en overlay si está seleccionado en SALIDA
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
@@ -570,7 +594,7 @@
 
           octx.textAlign='center'; octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
-          const ty = y + rowH/2, pad = 20, halfW = pillW/2 - 3 - pad*2;
+          const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
 
           let fs = fitText(octx, 'RESTART', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
@@ -580,7 +604,7 @@
           fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('CONTINUE', pillX + pillW*0.75,ty); octx.fillText('CONTINUE', pillX + pillW*0.75,ty);
+          octx.strokeText('CONTINUE', mid + pillW/4, ty); octx.fillText('CONTINUE', mid + pillW/4, ty);
 
           overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
