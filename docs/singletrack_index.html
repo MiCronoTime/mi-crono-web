@@ -6,215 +6,227 @@
   <title>SINGLETRACK — Inicio</title>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    :root{
-      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9;
-      --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
-    }
-    body{
-      margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                 var(--bg);
-      color:var(--text)
-    }
+    :root{ --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c; }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);color:var(--text)}
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-    .title{font-size:32px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-    .userbar{margin-top:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:inline-block}
-
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
-    h2{margin:0 0 12px 0;text-transform:uppercase;letter-spacing:.04em;font-size:24px}
-    label{display:block;margin:10px 0 6px 0;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-    input,textarea{
-      width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);font-size:15px
-    }
-    textarea{min-height:140px;resize:vertical}
-    small.muted{color:var(--muted)}
-    .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;
-      border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text);
-      font-weight:900;text-transform:uppercase;letter-spacing:.03em;cursor:pointer
-    }
+    .titleTop{display:flex;align-items:center;gap:12px;font-size:32px;font-weight:900;letter-spacing:.02em;margin:6px 0 10px 0;text-transform:uppercase}
+    .connected{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:10px;color:var(--muted);max-width:560px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .h2{font-size:24px;font-weight:900;text-transform:uppercase;margin:0 0 12px 0}
+    label{display:block;margin:10px 0 6px 0;font-weight:800}
+    input,textarea{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
+    textarea{min-height:170px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height:1.5}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
-    .btn.ghost{background:#0f1217;border-color:var(--border)}
-    .btn.danger{background:#611b26;border-color:#8a2b3a}
-    .rowbtns{display:flex;gap:10px;flex-wrap:wrap}
-    .tools{margin-top:16px}
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#111}
+    .rowBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
     .muted{color:var(--muted)}
-    .ok{color:#7cffb6;font-weight:800}
-    .err{color:#ff7b8c;font-weight:800}
-    @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+    .caps{text-transform:uppercase}
+    .colsHead{display:grid;grid-template-columns:140px 1fr;gap:6px;margin:8px 0}
+    .chip{background:#0f1217;border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-weight:900;color:#cfe1ff;text-transform:uppercase}
+    @media (max-width:860px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="header">
-      <div class="title">SINGLETRACK</div>
-    </div>
-    <div id="userBar" class="userbar" style="display:none">Conectado: —</div>
+    <div class="titleTop">⏱️ SINGLETRACK</div>
+    <div id="who" class="connected">Conectado: —</div>
 
-    <div class="grid" style="margin-top:12px">
+    <div class="grid">
+      <!-- CREAR -->
       <section class="panel">
-        <h2>Crear evento</h2>
+        <div class="h2">Crear evento</div>
+        <label class="caps">Código del evento</label>
+        <input id="evCode" type="text" placeholder="P.EJ. TEST1" autocomplete="off"/>
 
-        <label>Código del evento</label>
-        <input id="eventCode" placeholder="P.EJ. TEST1" oninput="this.value=this.value.toUpperCase()"/>
+        <label class="caps" style="margin-top:12px">Participantes (uno por línea, en orden de salida)</label>
+        <div class="colsHead">
+          <div class="chip">Dorsal</div>
+          <div class="chip">Nombre</div>
+        </div>
+        <textarea id="evList" placeholder="101   CORREDOR 1&#10;102   CORREDOR 2&#10;103   CORREDOR 3"></textarea>
+        <div class="muted" style="margin-top:6px">El dorsal es opcional. Puedes escribir solo el nombre o “DORSAL &nbsp;&nbsp; NOMBRE”.</div>
 
-        <label style="margin-top:10px">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="parts" placeholder="CORREDOR 1
-CORREDOR 2
-CORREDOR 3"></textarea>
-
-        <small class="muted" style="display:block;margin-top:10px">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
-        </small>
-
-        <div class="rowbtns" style="margin-top:14px">
+        <div class="rowBtns">
+          <button id="btnLoadList" class="btn">Cargar lista</button>
           <button id="btnSave" class="btn primary">Guardar evento</button>
         </div>
 
-        <div id="state" class="muted" style="margin-top:10px">—</div>
+        <div class="muted" style="margin-top:10px">
+          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
+        </div>
       </section>
 
+      <!-- UNIRSE -->
       <section class="panel">
-        <h2>Unirse a un evento</h2>
+        <div class="h2">Unirse a un evento</div>
+        <label class="caps">Código</label>
+        <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
 
-        <label>Código</label>
-        <input id="joinCode" placeholder="TEST1" oninput="this.value=this.value.toUpperCase()"/>
-
-        <div class="rowbtns" style="margin-top:14px">
-          <a id="goStart"  class="btn ghost">🏁&nbsp;Salida</a>
-          <a id="goFinish" class="btn ghost">🔺&nbsp;Meta</a>
-          <a id="goResult" class="btn ghost">🗂️&nbsp;Resultados</a>
+        <div class="rowBtns">
+          <a id="goStart"  class="btn">🏁 Salida</a>
+          <a id="goFinish" class="btn">⚠️ Meta</a>
+          <a id="goResult" class="btn">🧾 Resultados</a>
         </div>
 
-        <small class="muted" style="display:block;margin-top:12px">
+        <div class="muted" style="margin-top:10px">
           Abre <b>SALIDA</b> en la salida y <b>META</b> en la llegada. Ambos con el mismo <b>código</b>.
-        </small>
+        </div>
       </section>
     </div>
 
-    <section class="panel tools">
-      <h2>Herramientas</h2>
-      <p class="muted">
-        <b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de tu base de datos. Úsalo solo si quieres limpiar por completo.
-      </p>
-      <div class="rowbtns">
-        <button id="btnReset" class="btn danger">Reset eventos</button>
+    <!-- HERRAMIENTAS -->
+    <section class="panel" style="margin-top:16px">
+      <div class="h2">Herramientas</div>
+      <div class="muted" style="margin-bottom:10px">
+        <b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de tu base de datos. Úsalo solo si quieres limpiar por completo.
       </div>
+      <button id="btnReset" class="btn danger">Reset eventos</button>
     </section>
   </div>
 
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar, logout } from './js/auth.js';
-    import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
-    import {
-      getFirestore, doc, setDoc, collection, addDoc, getDocs, deleteDoc,
-      serverTimestamp
-    } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
+    import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    (async function init(){
-      // Login y barra de usuario
-      await ensureAuthInit();
-      await requireAuth('index.html');
-      mountUserBar('userBar');
+    await ensureAuthInit();
+    await requireAuth('index.html');
 
-      // Firebase
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+    const who = document.getElementById('who');
+    const { uid, email } = currentCtx();
+    who.textContent = `Conectado: ${email}`;
 
-      const { uid } = currentCtx();
-      const $=id=>document.getElementById(id);
+    const evCode   = document.getElementById('evCode');
+    const evList   = document.getElementById('evList');
+    const joinCode = document.getElementById('joinCode');
 
-      const codeEl   = $('eventCode');
-      const partsEl  = $('parts');
-      const joinCode = $('joinCode');
-      const stateEl  = $('state');
+    const btnSave     = document.getElementById('btnSave');
+    const btnLoadList = document.getElementById('btnLoadList');
+    const btnReset    = document.getElementById('btnReset');
 
-      function CODE(){ return (codeEl.value||'').trim().toUpperCase(); }
-      function JCODE(){ return (joinCode.value||'').trim().toUpperCase(); }
-      function PARTS(){
-        return (partsEl.value||'')
-          .split(/\r?\n/).map(s=>s.trim()).filter(Boolean)
-          .map(s=>s.toUpperCase());
+    const goStart  = document.getElementById('goStart');
+    const goFinish = document.getElementById('goFinish');
+    const goResult = document.getElementById('goResult');
+
+    // Mayúsculas “suaves”
+    const toUC = (s)=> (s||'').normalize('NFC').trim().toUpperCase();
+
+    // Firebase
+    const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const {
+      getFirestore, doc, collection, getDoc, setDoc, serverTimestamp, writeBatch,
+      getDocs, query, orderBy, deleteDoc
+    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+
+    const app = getApps().length ? getApp() : initializeApp({
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    });
+    const db = getFirestore(app);
+
+    // Helpers de path
+    const eventRef = (code)=> doc(db,'users',uid,'events',toUC(code));
+    const partsCol = (code)=> collection(eventRef(code),'participants');
+
+    // Parsear textarea -> [{order,name,dorsal?}]
+    function parseParticipants(raw){
+      const out=[];
+      (raw||'').split(/\r?\n/).forEach((line,i)=>{
+        const s = line.trim();
+        if(!s) return;
+        // DORSAL [espacios o tab] NOMBRE  |  o solo NOMBRE
+        const m = s.match(/^(\d{1,6})[\s,;:-]+(.+)$/); // dorsal hasta 6 dígitos
+        let dorsal=null, name=s;
+        if(m){ dorsal=m[1]; name=m[2]; }
+        out.push({ order:i+1, name:toUC(name), ...(dorsal?{dorsal:toUC(dorsal)}:{}) });
+      });
+      return out;
+    }
+
+    // Guardar evento (resetea participantes)
+    btnSave.addEventListener('click', async ()=>{
+      const code = toUC(evCode.value);
+      if(!code){ alert('Pon un CÓDIGO de evento'); return; }
+      const list = parseParticipants(evList.value);
+      if(!list.length){ alert('Añade al menos un participante'); return; }
+
+      try{
+        // crea/actualiza cabecera evento
+        await setDoc(eventRef(code), { code, updatedAt: serverTimestamp() }, { merge:true });
+
+        // borrar participantes existentes
+        const snap = await getDocs(partsCol(code));
+        const batchDel = writeBatch(db);
+        snap.forEach(d => batchDel.delete(d.ref));
+        await batchDel.commit();
+
+        // insertar nuevos
+        const batch = writeBatch(db);
+        list.forEach(p=>{
+          const ref = doc(partsCol(code));
+          batch.set(ref, p);
+        });
+        await batch.commit();
+
+        alert('Evento guardado');
+      }catch(e){
+        alert('Error guardando: '+(e.message||e));
       }
+    });
 
-      // Guardar evento (resetea el existente)
-      $('btnSave').onclick = async ()=>{
-        stateEl.textContent = 'Guardando…';
-        stateEl.className = 'muted';
-        try{
-          const code = CODE(); if(!code) throw new Error('Escribe un código de evento');
-          const eventRef = doc(db,'users',uid,'events',code);
-          await setDoc(eventRef,{ code, createdAt: serverTimestamp() },{ merge:true });
+    // CARGAR LISTA desde otro evento
+    btnLoadList.addEventListener('click', async ()=>{
+      const src = toUC(prompt('Código del evento del que copiar la lista de participantes:', 'TEST1')||'');
+      if(!src) return;
+      try{
+        const eRef = eventRef(src);
+        const ok = await getDoc(eRef);
+        if(!ok.exists()){ alert('Ese evento no existe'); return; }
+        const snap = await getDocs(query(partsCol(src), orderBy('order','asc')));
+        if(snap.empty){ alert('Ese evento no tiene participantes'); return; }
+        const lines = [];
+        snap.forEach(d=>{
+          const p = d.data();
+          const name = toUC(p.name||'');
+          const dorsal = p.dorsal ? String(p.dorsal) : '';
+          lines.push(dorsal ? `${dorsal}\t${name}` : name);
+        });
+        evList.value = lines.join('\n');
+        alert('Lista copiada. Ahora cambia el CÓDIGO (si quieres) y pulsa GUARDAR EVENTO.');
+      }catch(e){ alert('No se pudo cargar la lista: '+(e.message||e)); }
+    });
 
-          const list = PARTS();
-          if(list.length){
-            const partsCol = collection(eventRef,'participants');
-            // borrado rápido de participantes existentes
-            const prev = await getDocs(partsCol);
-            for(const d of prev.docs) await deleteDoc(d.ref);
-            // alta de nuevos
-            for(let i=0;i<list.length;i++){
-              await addDoc(partsCol,{
-                name:list[i], order:i+1, startTS:null, stopTS:null, createdAt: serverTimestamp()
-              });
-            }
-          }
-          stateEl.textContent = 'Evento guardado';
-          stateEl.className = 'ok';
-        }catch(e){
-          stateEl.textContent = 'Error: '+(e.message||e);
-          stateEl.className = 'err';
-          console.error(e);
+    // Ir a SALIDA / META / RESULTADOS usando joinCode
+    const codeFromJoin = ()=> toUC(joinCode.value);
+    goStart.onclick  = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=start&code=${encodeURIComponent(c)}`; };
+    goFinish.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=finish&code=${encodeURIComponent(c)}`; };
+    goResult.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
+
+    // Reset de todos mis eventos
+    btnReset.addEventListener('click', async ()=>{
+      if(!confirm('Esto borrará TODOS tus eventos y participantes. ¿Seguro?')) return;
+      try{
+        // lista eventos del usuario
+        const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+        const evsSnap = await getDocs(collection(db,'users',uid,'events'));
+        for(const evDoc of evsSnap.docs){
+          // borra participantes del evento
+          const ps = await getDocs(collection(evDoc.ref,'participants'));
+          const b1 = writeBatch(db); ps.forEach(x=>b1.delete(x.ref)); await b1.commit();
+          await deleteDoc(evDoc.ref);
         }
-      };
+        alert('Limpieza completada');
+      }catch(e){ alert('Error al resetear: '+(e.message||e)); }
+    });
 
-      // Navegación SALIDA / META / RESULTADOS
-      $('goStart').onclick  = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        location.href = `camera.html?code=${encodeURIComponent(c)}&mode=start`;
-      };
-      $('goFinish').onclick = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        location.href = `camera.html?code=${encodeURIComponent(c)}&mode=finish`;
-      };
-      $('goResult').onclick = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        location.href = `result.html?code=${encodeURIComponent(c)}`;
-      };
-
-      // Reset eventos del usuario
-      $('btnReset').onclick = async ()=>{
-        if(!confirm('¿Seguro que quieres BORRAR TODOS tus eventos y participantes?\nEsta acción no se puede deshacer.')) return;
-        stateEl.textContent='Borrando…'; stateEl.className='muted';
-        try{
-          const evs = await getDocs(collection(db,'users',uid,'events'));
-          for(const ev of evs.docs){
-            const partsSnap = await getDocs(collection(ev.ref,'participants'));
-            for(const p of partsSnap.docs) await deleteDoc(p.ref);
-            const syncSnap = await getDocs(collection(ev.ref,'sync'));
-            for(const s of syncSnap.docs) await deleteDoc(s.ref);
-            await deleteDoc(ev.ref);
-          }
-          stateEl.textContent='Reset completado'; stateEl.className='ok';
-        }catch(e){
-          stateEl.textContent='Error al resetear: '+(e.message||e); stateEl.className='err';
-          console.error(e);
-        }
-      };
-    })();
+    // UX: mayúsculas en inputs código
+    evCode.addEventListener('input', ()=>{ evCode.value = evCode.value.toUpperCase(); });
+    joinCode.addEventListener('input', ()=>{ joinCode.value = joinCode.value.toUpperCase(); });
   </script>
 </body>
 </html>
