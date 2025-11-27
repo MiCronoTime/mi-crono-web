@@ -65,17 +65,20 @@
 
     /* tabla resultados (tema oscuro en pantalla) */
     .scroll{overflow:auto;border:1px solid var(--b1);border-radius:12px}
-    table{width:100%; border-collapse:collapse; min-width:680px; background:#10151e}
+    table{width:100%; border-collapse:collapse; min-width:760px; background:#10151e}
     thead th{
       position:sticky; top:0; background:#0f131b; color:#cfe1ff; text-align:left;
       font-size:12px; letter-spacing:.06em; text-transform:uppercase; padding:10px; border-bottom:1px solid var(--b1);
+      user-select:none; cursor:pointer;
     }
+    thead th.nosort{ cursor:default }
     tbody td{padding:10px;border-bottom:1px solid var(--b2)}
     tbody tr:nth-child(odd){background:var(--b3)}
     .name{font-weight:900}
     .time{font-variant-numeric:tabular-nums; font-feature-settings: "tnum" 1; font-weight:900}
     .delta{color:#cfd6e3; font-variant-numeric:tabular-nums}
     .total{font-weight:900}
+    .bib{font-weight:900; text-align:right; width:64px; min-width:64px}
 
     /* tira de info */
     .info{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:#c7d2e4}
@@ -187,7 +190,6 @@
     const allCodes = evSnap.docs.map(d => d.id);
     const sel = $('selEvents');
     sel.innerHTML = allCodes.map(c => `<option value="${c}">${c}</option>`).join('');
-    // si viene con base, intenta apuntar a otro distinto por defecto
     if (baseCode) {
       const idx = allCodes.indexOf(baseCode);
       if (idx >= 0 && allCodes.length>1) sel.selectedIndex = (idx===0?1:0);
@@ -205,52 +207,155 @@
     $('btnRemove').onclick = ()=>{
       const code = (sel.value||'').toUpperCase();
       if (!code) return;
-      if (!selectedCodes.includes(code)) return; // nada que quitar
-      // no permitir dejar la lista vacía; si solo queda 1 y es el base, no quitar
+      if (!selectedCodes.includes(code)) return;
       if (selectedCodes.length===1 && selectedCodes[0]===baseCode) return;
-      // si se intenta quitar el base y hay más, permitimos (el base dejaría de estar incluido)
       const next = selectedCodes.filter(c => c !== code);
-      // si quedara vacío, reponemos el base si existe
       if (next.length===0 && baseCode) next.push(baseCode);
       selectedCodes.splice(0, selectedCodes.length, ...next);
       renderCombined();
     };
 
+    // ====== Ordenación interactiva ======
+    let sortKey = 'total';   // 'bib' | 'name' | 'delta' | 'total'
+    let sortDir = 'asc';     // 'asc' | 'desc'
+
+    function toggleSort(newKey){
+      if (sortKey === newKey){
+        sortDir = (sortDir==='asc' ? 'desc' : 'asc');
+      } else {
+        sortKey = newKey;
+        sortDir = 'asc';
+      }
+      renderTable(lastModel); // re-render con mismo modelo
+    }
+
     // ====== Botón PDF ======
-    $('btnPDF').onclick   = exportPDF;
+    $('btnPDF').onclick = exportPDF;
 
     // ====== Carga y combinación de resultados ======
+    let lastModel = { events: [], rows: [] };
     let lastTableModel = { head: [], body: [] };
 
     async function loadEventResults(code){
-      // Lee participantes de un evento → devuelve { nameUpper: msFinal|null }
+      // Devuelve array de { name, dorsal, ms }
       const partsCol = collection(doc(db,'users',uid,'events',code),'participants');
       const snap = await getDocs(query(partsCol, orderBy('order','asc')));
-      const out = {};
+      const out = [];
       snap.docs.forEach(d=>{
         const x = d.data();
         const start = tsToMillis(x.startTS), stop = tsToMillis(x.stopTS);
         const name = (x.name||'').toUpperCase();
         const ms = (start && stop) ? (stop - start) : null;
-        if (name) out[name] = ms;
+        const dorsal = (x.dorsal!=null && x.dorsal!=='') ? String(x.dorsal).trim() : '';
+        if (name) out.push({ name, dorsal, ms });
       });
       return out;
     }
 
-    function sumMs(values){
-      return values.reduce((acc,v)=> acc + (typeof v==='number' ? v : 0), 0);
+    function sumMs(values){ return values.reduce((acc,v)=> acc + (typeof v==='number' ? v : 0), 0); }
+
+    async function renderCombined(){
+      if (selectedCodes.length===0) return;
+
+      // Carga por evento
+      const perEvent = {};
+      for (const code of selectedCodes){
+        perEvent[code] = await loadEventResults(code); // array
+      }
+
+      // Conjunto de nombres
+      const names = new Set();
+      Object.values(perEvent).forEach(list=>{
+        list.forEach(it => names.add(it.name));
+      });
+
+      // dorsal preferente: tomarlo del PRIMER evento de selectedCodes que lo tenga (normalmente el base)
+      function pickDorsalFor(name){
+        for(const code of selectedCodes){
+          const found = perEvent[code].find(p=>p.name===name);
+          if(found && found.dorsal) return found.dorsal;
+        }
+        return '';
+      }
+
+      // Construir filas
+      const rows = [];
+      names.forEach(name=>{
+        const tiempos = {};
+        selectedCodes.forEach(code=>{
+          const found = perEvent[code].find(p=>p.name===name);
+          tiempos[code] = found ? found.ms : null;
+        });
+        const total = sumMs(Object.values(tiempos));
+        const bib = pickDorsalFor(name);
+        rows.push({ name, bib, tiempos, total, delta:null });
+      });
+
+      // Orden base por TOTAL asc
+      rows.sort((a,b)=> (a.total||Number.MAX_SAFE_INTEGER) - (b.total||Number.MAX_SAFE_INTEGER));
+
+      // Δ respecto al primero
+      const leader = rows.find(r=> typeof r.total==='number' );
+      const leaderMs = leader ? leader.total : null;
+      rows.forEach(r=>{
+        r.delta = (leaderMs!=null && typeof r.total==='number') ? (r.total - leaderMs) : null;
+      });
+
+      lastModel = { events: selectedCodes.slice(), rows };
+      renderTable(lastModel);
     }
 
     function renderTable(model){
       const thead = $('thead'), tbody=$('tbody');
-      // head = ["Participante", ...eventCodes..., "TOTAL", ""(delta)]
-      const head = ['Participante', ...model.events, 'TOTAL', ''];
+
+      // Cabecera: Dorsal | Participante | ...events... | TOTAL | (Δ sin título)
+      const headCells = [
+        { label:'Dorsal', key:'bib' },
+        { label:'Participante', key:'name' },
+        ...model.events.map(ev=>({ label: ev, key: null })),
+        { label:'TOTAL', key: null },
+        { label:'', key:'delta' } // clickable aunque sin texto
+      ];
+
       thead.innerHTML = `<tr>${
-        head.map((h,i)=> `<th${i===head.length-1?' style="width:90px"':''}>${i===head.length-1?'':h}</th>`).join('')
+        headCells.map((h,i)=>{
+          const cls = (h.key ? '' : 'nosort');
+          const attrs = h.key ? ` data-sort="${h.key}"` : '';
+          const title = h.key==='delta' ? 'Ordenar por diferencia' :
+                        h.key==='bib'   ? 'Ordenar por dorsal' :
+                        h.key==='name'  ? 'Ordenar por nombre' : '';
+          const wStyle = (i===0?' style="width:72px"':'');
+          return `<th${attrs} class="${cls}"${wStyle} title="${title}">${h.label}</th>`;
+        }).join('')
       }</tr>`;
 
-      tbody.innerHTML = model.rows.map(r=>{
+      // Ordenación según sortKey/sortDir
+      const rows = model.rows.slice();
+      const cmp = (a,b)=>{
+        const dir = (sortDir==='asc'? 1 : -1);
+        if (sortKey==='bib'){
+          const aval = a.bib===''? Number.POSITIVE_INFINITY : Number.isNaN(+a.bib)? a.bib : +a.bib;
+          const bval = b.bib===''? Number.POSITIVE_INFINITY : Number.isNaN(+b.bib)? b.bib : +b.bib;
+          if (typeof aval==='number' && typeof bval==='number') return (aval-bval)*dir;
+          return String(aval).localeCompare(String(bval),'es',{numeric:true,sensitivity:'base'})*dir;
+        }else if (sortKey==='name'){
+          return a.name.localeCompare(b.name,'es',{sensitivity:'base'})*dir;
+        }else if (sortKey==='delta'){
+          const av = (typeof a.delta==='number')? a.delta : Number.POSITIVE_INFINITY;
+          const bv = (typeof b.delta==='number')? b.delta : Number.POSITIVE_INFINITY;
+          if (av===bv) return 0; return (av<bv?-1:1)*dir;
+        }else{ // total (fallback)
+          const av = (typeof a.total==='number')? a.total : Number.POSITIVE_INFINITY;
+          const bv = (typeof b.total==='number')? b.total : Number.POSITIVE_INFINITY;
+          if (av===bv) return 0; return (av<bv?-1:1)*dir;
+        }
+      };
+      rows.sort(cmp);
+
+      // Cuerpo
+      tbody.innerHTML = rows.map(r=>{
         const cells = [
+          `<td class="bib">${r.bib||'—'}</td>`,
           `<td class="name">${r.name}</td>`,
           ...model.events.map(ev=>{
             const ms = r.tiempos[ev];
@@ -262,52 +367,28 @@
         return `<tr>${cells.join('')}</tr>`;
       }).join('');
 
+      // Eventos incluidos + modelo para PDF
       $('eventsJoined').textContent = 'Eventos incluidos: ' + (model.events.length? model.events.join(' + ') : '—');
-      lastTableModel = { head, body: model.rows.map(r=>[
-        r.name,
-        ...model.events.map(ev=> typeof r.tiempos[ev]==='number' ? fmt(r.tiempos[ev]) : '—' ),
-        fmt(r.total),
-        r.delta==null?'':('+'+fmt(r.delta))
-      ]) };
-    }
+      lastTableModel = {
+        head: ['Dorsal','Participante', ...model.events, 'TOTAL', ''],
+        body: rows.map(r=>[
+          r.bib||'',
+          r.name,
+          ...model.events.map(ev=> typeof r.tiempos[ev]==='number' ? fmt(r.tiempos[ev]) : '—' ),
+          fmt(r.total),
+          r.delta==null?'':('+'+fmt(r.delta))
+        ])
+      };
 
-    async function renderCombined(){
-      if (selectedCodes.length===0) return;
-
-      const perEvent = {};
-      for (const code of selectedCodes){
-        perEvent[code] = await loadEventResults(code);
-      }
-
-      const names = new Set();
-      Object.values(perEvent).forEach(map=>{
-        Object.keys(map).forEach(n => names.add(n));
+      // Listeners de ordenación
+      thead.querySelectorAll('th[data-sort]').forEach(th=>{
+        th.onclick = ()=> toggleSort(th.getAttribute('data-sort'));
       });
-
-      const rows = [];
-      names.forEach(name=>{
-        const tiempos = {};
-        selectedCodes.forEach(code=>{
-          tiempos[code] = perEvent[code][name] ?? null;
-        });
-        const total = sumMs(Object.values(tiempos));
-        rows.push({ name, tiempos, total, delta:null });
-      });
-
-      rows.sort((a,b)=> (a.total||Number.MAX_SAFE_INTEGER) - (b.total||Number.MAX_SAFE_INTEGER));
-
-      const leader = rows.find(r=> typeof r.total==='number' );
-      const leaderMs = leader ? leader.total : null;
-      rows.forEach(r=>{
-        r.delta = (leaderMs!=null && typeof r.total==='number') ? (r.total - leaderMs) : null;
-      });
-
-      renderTable({ events: selectedCodes.slice(), rows });
     }
 
     await renderCombined();
 
-    // ====== PDF (carga UMD y usa window.jspdf.jsPDF) ======
+    // ====== PDF (UMD) ======
     async function loadScript(src){
       return new Promise((resolve,reject)=>{
         const s=document.createElement('script');
@@ -349,7 +430,10 @@
           headStyles: { fillColor: [246,248,251], textColor: [0,0,0], lineWidth: 0.4, lineColor: [207,212,221] },
           bodyStyles: { fillColor: [255,255,255], textColor: [0,0,0], lineWidth: 0.25, lineColor: [230,234,241] },
           alternateRowStyles: { fillColor: [248,250,253] },
-          columnStyles: { 0: { cellWidth: 150 } },
+          columnStyles: {
+            0: { cellWidth: 60 },  // Dorsal
+            1: { cellWidth: 150 }  // Participante
+          },
           theme: 'grid',
           margin: { left: marginX, right: marginX }
         });
