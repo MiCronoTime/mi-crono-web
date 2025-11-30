@@ -11,6 +11,7 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
       --danger:#e44848; --go:#38d66b;
+      --hold:#ff9c3a; /* naranja para congelados en META */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -75,7 +76,7 @@
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
-    /* BACK / CONTINUE encima */
+    /* BACK / CONTINUE encima (SALIDA) */
     .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
@@ -213,20 +214,50 @@
     async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
-    let selectedId = null; // META
-    let goBackId   = null; // SALIDA
+    let selectedId = null; // META: seleccionado manualmente
+    let goBackId   = null; // SALIDA: RESTART/CONTINUE visible
+
+    // === META: congelados (sin timeout, esperan decisión) ===
+    // items: {id, order, name, dorsal, startMS, frozenMs, showActions}
+    let frozenFinishes = [];
 
     async function stopSelectedOrEarliest(){
       await reload();
       let p = null;
-      if (selectedId) p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
-      if (!p){ const run = runningSorted(); p = run[0] || null; }
+      if (selectedId) {
+        p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
+      }
+      if (!p) {
+        const run = runningSorted();
+        p = run[0] || null;
+      }
       if (!p) return null;
+
+      // 1) Marcar llegada en BD (stopTS = ahora)
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
+
+      // 2) Congelar visual con el tiempo de cruce (calculado contra reloj sync)
+      if (mode==='finish'){
+        const startMS = tsToMillis(p.startTS);
+        const nowSync = Date.now() + serverOffsetMS;
+        const frozenMs = Math.max(0, (nowSync - (startMS||nowSync)));
+        frozenFinishes.unshift({
+          id: p.id,
+          order: p.order||0,
+          name: (p.name||'').toUpperCase(),
+          dorsal: (p.dorsal||'').toString().trim(),
+          startMS,
+          frozenMs,
+          showActions: false
+        });
+      }
+
       selectedId = null;
+      $('lastAction').textContent='Fin marcado';
       return p;
     }
 
+    // SALIDA: vuelve a parrilla
     async function revertStart(id){
       try{
         await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
@@ -237,9 +268,25 @@
       }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
     }
 
+    // META: STAY -> seguir en pista (borrar stopTS)
+    async function revertStop(id){
+      try{
+        await updateDoc(doc(partsCol, id), { stopTS: deleteField() });
+        frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
+        $('lastAction').textContent='STAY (stop revertido)';
+        await reload();
+      }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
+    }
+
+    // META: FINISH -> confirmar (ya estaba en BD), sólo cierra visual
+    function confirmFinishLocal(id){
+      frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
+      $('lastAction').textContent='FINISH confirmado';
+    }
+
     /* ===== UI en vivo ===== */
     let currentLive=[];           // [{id,order,name,dorsal,startMS}]
-    let overlayRowHitboxes=[];
+    let overlayRowHitboxes=[];    // hitboxes overlay
 
     const displayName = (p)=>{
       const bib = (p.dorsal??'').toString().trim();
@@ -279,7 +326,7 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Clicks en lista EN CURSO
+    // Clicks en lista EN CURSO (SALIDA)
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       if (act && mode==='start') {
@@ -388,14 +435,26 @@
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
+      // Botones (SALIDA o META)
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
-        const baseId = btn.baseId;
-        if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
+        const id = btn.baseId;
+        if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
+        if(btn.btn==='STAY'){ await revertStop(id); return; }
+        if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
+
+      // Fila
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
+
+      if(row.frozen && mode==='finish'){
+        // Toggle STAY/FINISH
+        const f = frozenFinishes.find(f=>f.id===row.baseId);
+        if(f) f.showActions = !f.showActions;
+        return;
+      }
 
       if(mode==='finish'){
         selectedId = row.baseId;
@@ -422,7 +481,7 @@
       octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
       octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-      drawOverlayTimes(w,h,currentLive);
+      drawOverlayTimes(w,h,currentLive, frozenFinishes);
 
       // Detector
       const vw=video.videoWidth, vh=video.videoHeight;
@@ -485,12 +544,11 @@
       }
       return size;
     }
-    /* Truncado con “…” manteniendo fuente actual del ctx */
     function elideText(ctx, text, maxW){
       if(ctx.measureText(text).width <= maxW) return text;
       const ell = '…';
       const ellW = ctx.measureText(ell).width;
-      let lo=0, hi=text.length; // búsqueda binaria
+      let lo=0, hi=text.length;
       while(lo<hi){
         const mid = Math.floor((lo+hi+1)/2);
         const s = text.slice(0, mid);
@@ -499,12 +557,15 @@
       return text.slice(0, lo) + ell;
     }
 
-    function drawOverlayTimes(w,h,rows){
+    function drawOverlayTimes(w,h,rowsRunning, rowsFrozen){
       overlayRowHitboxes = [];
-      if(!rows.length) return;
       const nowSync = Date.now() + serverOffsetMS;
 
-      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+      // Orden: congelados arriba (más recientes primero), luego en curso
+      const frozen = (rowsFrozen||[]).slice();
+      const running = (rowsRunning||[]).slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+
+      if(!frozen.length && !running.length) return;
 
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
@@ -519,19 +580,16 @@
       octx.textBaseline='middle';
       octx.fillStyle = '#FFFFFF';
 
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
+      const all = [...frozen.map(f=>({...f, frozen:true})), ...running.map(r=>({...r, frozen:false}))];
+      const maxRows = Math.min(all.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
 
       for(let i=0;i<maxRows;i++){
-        const r = sorted[i];
-        const elapsed = nowSync - (r.startMS||nowSync);
+        const r = all[i];
+        const elapsed = r.frozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
         const tText = fmt(elapsed);
+        const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
 
-        // Textos
-        const bib = (r.dorsal||'').toString().trim();
-        const fullName = (bib ? bib+' ' : '') + (r.name || '—');
-
-        // Pastilla base
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
@@ -545,8 +603,18 @@
         octx.stroke();
         octx.restore();
 
-        // Borde verde en META seleccionado
-        if (mode==='finish' && selectedId===r.id){
+        // Borde naranja si está congelado en META (tu paso 2)
+        if (r.frozen && mode==='finish'){
+          octx.save();
+          octx.lineWidth = Math.max(4, Math.floor(base*0.20));
+          octx.strokeStyle = 'rgba(255,156,58,.95)'; /* --hold */
+          roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
+          octx.stroke();
+          octx.restore();
+        }
+
+        // Borde verde si seleccionado (sólo los que siguen corriendo)
+        if (!r.frozen && mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
           octx.strokeStyle = 'rgba(127,255,182,.95)';
@@ -555,28 +623,22 @@
           octx.restore();
         }
 
-        // Preparar tipografías
+        // Disposición nombre/tiempo (con elid)
         const nameX = leftPad + 8;
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
 
-        // Medir crono para reservar espacio al nombre
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         const timeStrokeW = Math.max(2, Math.floor(base*0.16));
-        const timeW = Math.max(
-          octx.measureText(tText).width + timeStrokeW*2,
-          80
-        );
-        const minGap = 18; // hueco mínimo entre nombre y tiempo
+        const timeW = Math.max(octx.measureText(tText).width + timeStrokeW*2, 80);
+        const minGap = 18;
         const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeW);
 
-        // Nombre elidido (sin contorno -> sin “mancha”)
-        const nameText = elideText(octx, fullName, maxNameW);
+        const nameText = elideText(octx, nameFull, maxNameW);
         octx.textAlign='left';
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
-        // Tiempo con contorno suave
         octx.textAlign='right';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
         octx.lineWidth = timeStrokeW;
@@ -584,34 +646,38 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        // Botones RESTART/CONTINUE en overlay si está seleccionado en SALIDA
-        if(mode==='start' && goBackId===r.id){
+        // Botones en overlay:
+        // SALIDA: RESTART/CONTINUE (controlado por goBackId en lista)
+        // META: si r.frozen && r.showActions => STAY / FINISH
+        if (r.frozen && r.showActions && mode==='finish'){
           const mid = pillX + pillW/2;
+          // STAY (verde)
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
-          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
+          // FINISH (rojo)
+          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
 
           octx.textAlign='center'; octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
           const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
 
-          let fs = fitText(octx, 'RESTART', halfW, base*1.05);
+          let fs = fitText(octx, 'STAY', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('RESTART', pillX + pillW/4,  ty); octx.fillText('RESTART', pillX + pillW/4,  ty);
+          octx.strokeText('STAY', pillX + pillW/4,  ty); octx.fillText('STAY', pillX + pillW/4,  ty);
 
-          fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
+          fs = fitText(octx, 'FINISH', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('CONTINUE', mid + pillW/4, ty); octx.fillText('CONTINUE', mid + pillW/4, ty);
+          octx.strokeText('FINISH', mid + pillW/4, ty); octx.fillText('FINISH', mid + pillW/4, ty);
 
-          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
-          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        // Hitbox fila
-        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
+        // hitbox de fila (marca si es congelado para toggle)
+        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen });
 
         y += (rowH+10) + gap;
       }
