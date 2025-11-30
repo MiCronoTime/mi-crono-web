@@ -213,52 +213,17 @@
     async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
 
-    let selectedId = null; // META: seleccionado manualmente
-    let goBackId   = null; // SALIDA: RESTART/CONTINUE visible
-
-    // === NUEVO: cola de llegadas “congeladas” en META (6s para decidir) ===
-    const FROZEN_MS = 6000;
-    /** items: {id, order, name, dorsal, startMS, frozenMs, expiresAt, showActions} */
-    let frozenFinishes = [];
+    let selectedId = null; // META
+    let goBackId   = null; // SALIDA
 
     async function stopSelectedOrEarliest(){
       await reload();
       let p = null;
-      if (selectedId) {
-        p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
-      }
-      if (!p) {
-        const run = runningSorted();
-        p = run[0] || null;
-      }
+      if (selectedId) p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
+      if (!p){ const run = runningSorted(); p = run[0] || null; }
       if (!p) return null;
-
-      // Marcar stop en Firestore
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
-
-      // Calcular crono congelado con reloj sync
-      const startMS = tsToMillis(p.startTS);
-      const nowSync = Date.now() + serverOffsetMS;
-      const frozenMs = Math.max(0, (nowSync - (startMS||nowSync)));
-
-      // Añadir a la lista de congelados (sólo en META)
-      if (mode==='finish'){
-        const nameUp = (p.name||'').toUpperCase();
-        const dorsal = (p.dorsal||'').toString().trim();
-        frozenFinishes.unshift({
-          id: p.id,
-          order: p.order||0,
-          name: nameUp,
-          dorsal,
-          startMS,
-          frozenMs,
-          expiresAt: Date.now() + FROZEN_MS,
-          showActions: false
-        });
-      }
-
       selectedId = null;
-      $('lastAction').textContent='Fin marcado';
       return p;
     }
 
@@ -272,26 +237,9 @@
       }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
     }
 
-    // Revertir STOP (volver a pista dentro de los 6s)
-    async function revertStop(id){
-      try{
-        await updateDoc(doc(partsCol, id), { stopTS: deleteField() });
-        // sacar de la lista congelada
-        frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
-        $('lastAction').textContent='RUN (stop revertido)';
-        await reload();
-      }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
-    }
-
-    // Confirmar llegada manual antes de los 6s
-    function confirmFinishLocal(id){
-      frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
-      $('lastAction').textContent='FINISH confirmado';
-    }
-
     /* ===== UI en vivo ===== */
     let currentLive=[];           // [{id,order,name,dorsal,startMS}]
-    let overlayRowHitboxes=[];    // hitboxes overlay (prioridad botones)
+    let overlayRowHitboxes=[];
 
     const displayName = (p)=>{
       const bib = (p.dorsal??'').toString().trim();
@@ -440,25 +388,14 @@
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-      // 1) Botones de SALIDA (RESTART/CONTINUE) o META (RUN/FINISH) en congelados
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
-        const id = btn.baseId;
-        if(btn.btn==='RESTART'){ await revertStart(id); return; }
+        const baseId = btn.baseId;
+        if(btn.btn==='RESTART'){ await revertStart(baseId); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='RUN'){ await revertStop(id); return; }
-        if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
-
-      // 2) Filas
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
-
-      if(row.frozen){ // toggle de acciones RUN/FINISH en META
-        const f = frozenFinishes.find(f=>f.id===row.baseId);
-        if(f) f.showActions = !f.showActions;
-        return;
-      }
 
       if(mode==='finish'){
         selectedId = row.baseId;
@@ -470,14 +407,6 @@
 
     function loop(){
       const {w,h} = fitCanvas();
-
-      // Limpiar expirados de congelados (confirmación automática a los 6s)
-      const now = Date.now();
-      const before = frozenFinishes.length;
-      frozenFinishes = frozenFinishes.filter(f => now < f.expiresAt);
-      if (mode==='finish' && before !== frozenFinishes.length){
-        // simplemente desaparecen (FINISH ya estaba en Firestore)
-      }
 
       const nowPerf = performance.now();
       if(!detectionEnabled){
@@ -493,7 +422,7 @@
       octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
       octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-      drawOverlayTimes(w,h,currentLive, frozenFinishes);
+      drawOverlayTimes(w,h,currentLive);
 
       // Detector
       const vw=video.videoWidth, vh=video.videoHeight;
@@ -519,7 +448,7 @@
                       Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
             if(d > thrPix) diffPix++; total++;
           }
-          if(diffPix < 28){ diffPix = 0; }
+          if(diffPix < MIN_PIXELS){ diffPix = 0; }
           const activity = diffPix / Math.max(1,total);
           actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
           const { up, down } = thresholdsFromSens(eff);
@@ -556,11 +485,12 @@
       }
       return size;
     }
+    /* Truncado con “…” manteniendo fuente actual del ctx */
     function elideText(ctx, text, maxW){
       if(ctx.measureText(text).width <= maxW) return text;
       const ell = '…';
       const ellW = ctx.measureText(ell).width;
-      let lo=0, hi=text.length;
+      let lo=0, hi=text.length; // búsqueda binaria
       while(lo<hi){
         const mid = Math.floor((lo+hi+1)/2);
         const s = text.slice(0, mid);
@@ -569,15 +499,12 @@
       return text.slice(0, lo) + ell;
     }
 
-    function drawOverlayTimes(w,h,rowsRunning, rowsFrozen){
+    function drawOverlayTimes(w,h,rows){
       overlayRowHitboxes = [];
+      if(!rows.length) return;
       const nowSync = Date.now() + serverOffsetMS;
 
-      // Orden: primero congelados (más recientes primero), luego en curso (como antes)
-      const frozen = (rowsFrozen||[]).slice(); // ya van con frozenMs fijo
-      const running = (rowsRunning||[]).slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-
-      if(!frozen.length && !running.length) return;
+      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
@@ -592,16 +519,19 @@
       octx.textBaseline='middle';
       octx.fillStyle = '#FFFFFF';
 
-      const all = [...frozen.map(f=>({...f, frozen:true})), ...running.map(r=>({...r, frozen:false}))];
-      const maxRows = Math.min(all.length, Math.floor((h-topPad)/((rowH+10)+gap)));
+      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
 
       for(let i=0;i<maxRows;i++){
-        const r = all[i];
-        const elapsed = r.frozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
+        const r = sorted[i];
+        const elapsed = nowSync - (r.startMS||nowSync);
         const tText = fmt(elapsed);
-        const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
 
+        // Textos
+        const bib = (r.dorsal||'').toString().trim();
+        const fullName = (bib ? bib+' ' : '') + (r.name || '—');
+
+        // Pastilla base
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
@@ -615,8 +545,8 @@
         octx.stroke();
         octx.restore();
 
-        // Borde verde si está seleccionado en META (solo para los que siguen en pista)
-        if (!r.frozen && mode==='finish' && selectedId===r.id){
+        // Borde verde en META seleccionado
+        if (mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
           octx.strokeStyle = 'rgba(127,255,182,.95)';
@@ -625,22 +555,28 @@
           octx.restore();
         }
 
-        // Disposición nombre/tiempo
+        // Preparar tipografías
         const nameX = leftPad + 8;
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
 
+        // Medir crono para reservar espacio al nombre
         octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
         const timeStrokeW = Math.max(2, Math.floor(base*0.16));
-        const timeW = Math.max(octx.measureText(tText).width + timeStrokeW*2, 80);
-        const minGap = 18;
+        const timeW = Math.max(
+          octx.measureText(tText).width + timeStrokeW*2,
+          80
+        );
+        const minGap = 18; // hueco mínimo entre nombre y tiempo
         const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeW);
 
-        const nameText = elideText(octx, nameFull, maxNameW);
+        // Nombre elidido (sin contorno -> sin “mancha”)
+        const nameText = elideText(octx, fullName, maxNameW);
         octx.textAlign='left';
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
+        // Tiempo con contorno suave
         octx.textAlign='right';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
         octx.lineWidth = timeStrokeW;
@@ -648,45 +584,37 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        // Botones en overlay:
-        // - En SALIDA: RESTART/CONTINUE (ya implementado arriba con goBackId)
-        // - En META (NUEVO): si r.frozen && r.showActions => RUN / FINISH
-        if (r.frozen && r.showActions && mode==='finish'){
+        // Botones RESTART/CONTINUE en overlay si está seleccionado en SALIDA
+        if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
-          // RUN
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
-          // FINISH
-          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
+          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
 
           octx.textAlign='center'; octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
           const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
 
-          let fs = fitText(octx, 'RUN', halfW, base*1.05);
+          let fs = fitText(octx, 'RESTART', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('RUN', pillX + pillW/4,  ty); octx.fillText('RUN', pillX + pillW/4,  ty);
+          octx.strokeText('RESTART', pillX + pillW/4,  ty); octx.fillText('RESTART', pillX + pillW/4,  ty);
 
-          fs = fitText(octx, 'FINISH', halfW, base*1.05);
+          fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('FINISH', mid + pillW/4, ty); octx.fillText('FINISH', mid + pillW/4, ty);
+          octx.strokeText('CONTINUE', mid + pillW/4, ty); octx.fillText('CONTINUE', mid + pillW/4, ty);
 
-          overlayRowHitboxes.push({ kind:'btn', btn:'RUN',    baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
-          overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        // hitbox de fila (marca si pertenece a congelados para toggle)
-        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen });
+        // Hitbox fila
+        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH });
 
         y += (rowH+10) + gap;
       }
-
-      // Limpiar “showActions” en congelados que ya expiraron (por si acaso)
-      const now2 = Date.now();
-      frozenFinishes.forEach(f=>{ if (now2 >= f.expiresAt) f.showActions=false; });
     }
   </script>
 </body>
