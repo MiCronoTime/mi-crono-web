@@ -43,25 +43,29 @@
     tbody tr:nth-child(even){background:var(--row2)}
     td{padding:0;border-bottom:1px solid #1a222e}
     td:last-child{border-left:1px solid #1a222e}
-    .cell{
-      width:100%;height:46px;display:flex;align-items:center
-    }
+    .cell{ width:100%;height:46px;display:flex;align-items:center }
     .cell input{
-      width:100%;height:46px;border:0;outline:none;background:transparent;color:var(--text);padding:0 14px;
-      font-weight:800
+      width:100%;height:46px;border:0;outline:none;background:transparent;color:var(--text);padding:0 14px;font-weight:800
     }
     .cell input.name{ text-transform:uppercase }
     .cell input::placeholder{color:#6f7a8a}
     .rowControls{display:flex;gap:6px;margin-top:8px}
     .mini{padding:8px 10px;border-radius:10px;font-size:12px}
 
-    /* Modal selector de eventos */
+    /* Modal selector de eventos (cargar lista) */
     .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
     .modal{width:min(92vw,560px);max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.5);padding:14px}
     .modal h3{margin:4px 0 10px 0;font-size:20px;text-transform:uppercase}
     .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
     .evItem:hover{background:#111720}
     .smallMuted{font-size:12px;color:var(--muted)}
+
+    /* Dropdown de eventos (Unirse a un evento) */
+    .drop{margin-top:6px;border:1px solid var(--border);background:#0f1217;border-radius:12px;display:none;max-height:220px;overflow:auto}
+    .drop .opt{padding:10px 12px;border-bottom:1px solid #1a222e;cursor:pointer}
+    .drop .opt:last-child{border-bottom:0}
+    .drop .opt:hover{background:#111720}
+
     @media (max-width:900px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
   </style>
 </head>
@@ -83,9 +87,7 @@
             <thead>
               <tr><th>Dorsal</th><th>Nombre</th></tr>
             </thead>
-            <tbody id="tbody">
-              <!-- filas dinámicas -->
-            </tbody>
+            <tbody id="tbody"></tbody>
           </table>
         </div>
         <div class="rowBtns">
@@ -104,6 +106,8 @@
         <div class="h2">Unirse a un evento</div>
         <label>Código</label>
         <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
+        <!-- Dropdown de eventos del usuario -->
+        <div id="joinDrop" class="drop" aria-label="Selecciona un evento"></div>
 
         <div class="rowBtns">
           <a id="goStart"  class="btn">🏁 Salida</a>
@@ -150,6 +154,7 @@
 
     const evCode   = document.getElementById('evCode');
     const joinCode = document.getElementById('joinCode');
+    const joinDrop = document.getElementById('joinDrop');
 
     const btnAddRow   = document.getElementById('btnAddRow');
     const btnSave     = document.getElementById('btnSave');
@@ -157,7 +162,7 @@
     const btnReset    = document.getElementById('btnReset');
     const tbody       = document.getElementById('tbody');
 
-    // Modal
+    // Modal (cargar lista)
     const pickMask   = document.getElementById('pickMask');
     const pickList   = document.getElementById('pickList');
     const pickCancel = document.getElementById('pickCancel');
@@ -165,7 +170,10 @@
     // Mayúsculas suaves para códigos
     const toUC = (s)=> (s||'').normalize('NFC').toUpperCase();
     evCode.addEventListener('input', ()=> evCode.value = toUC(evCode.value) );
-    joinCode.addEventListener('input', ()=> joinCode.value = toUC(joinCode.value) );
+    joinCode.addEventListener('input', ()=> {
+      joinCode.value = toUC(joinCode.value);
+      filterJoinDrop(joinCode.value);
+    });
 
     // === Tabla dinámica DORSAL | NOMBRE ===
     function addRow(dorsal='', name=''){
@@ -179,10 +187,7 @@
 
       const iD = document.createElement('input');
       iD.type='text'; iD.inputMode='numeric'; iD.placeholder='—'; iD.value=dorsal;
-      iD.addEventListener('input', ()=>{
-        // solo dígitos y hasta 6
-        iD.value = iD.value.replace(/\D+/g,'').slice(0,6);
-      });
+      iD.addEventListener('input', ()=>{ iD.value = iD.value.replace(/\D+/g,'').slice(0,6); });
 
       const iN = document.createElement('input');
       iN.type='text'; iN.className='name'; iN.placeholder='CORREDOR';
@@ -199,7 +204,7 @@
 
     function rowsData(){
       const out=[];
-      [...tbody.querySelectorAll('tr')].forEach((tr,idx)=>{
+      [...tbody.querySelectorAll('tr')].forEach((tr)=>{
         const [iD,iN] = tr.querySelectorAll('input');
         const name = (iN.value||'').trim().toUpperCase();
         const dorsal = (iD.value||'').trim();
@@ -212,9 +217,7 @@
     }
 
     btnAddRow.addEventListener('click', ()=> addRow() );
-
-    // Arranca con 3 filas vacías
-    addRow(); addRow(); addRow();
+    addRow(); addRow(); addRow(); // 3 filas de inicio
 
     // === Firebase ===
     const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
@@ -236,35 +239,46 @@
     const eventRef = (code)=> doc(db,'users',uid,'events',toUC(code));
     const partsCol = (code)=> collection(eventRef(code),'participants');
 
-    // Guardar evento
-    btnSave.addEventListener('click', async ()=>{
-      const code = toUC(evCode.value.trim());
-      if(!code){ alert('Pon un CÓDIGO de evento'); return; }
-      const list = rowsData();
-      if(!list.length){ alert('Añade al menos un participante'); return; }
-
-      try{
-        await setDoc(eventRef(code), { code, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge:true });
-
-        // eliminar participantes existentes
-        const snap = await getDocs(partsCol(code));
-        const bDel = writeBatch(db);
-        snap.forEach(d=> bDel.delete(d.ref));
-        await bDel.commit();
-
-        // insertar nuevos
-        const b = writeBatch(db);
-        list.forEach(p=>{
-          const ref = doc(partsCol(code));
-          b.set(ref, p);
-        });
-        await b.commit();
-
-        alert('Evento guardado');
-      }catch(e){ alert('Error guardando: '+(e.message||e)); }
+    // ====== LISTA DE EVENTOS DEL USUARIO (para dropdown y para cargar lista) ======
+    let cachedEvents = []; // [{id, code, updatedAt}]
+    async function fetchUserEvents(){
+      const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
+      cachedEvents = evsSnap.docs.map(d=>{
+        const data = d.data()||{};
+        return { id:d.id, code:(data.code||d.id), updatedAt:data.updatedAt||null };
+      });
+      renderJoinDrop(cachedEvents);
+    }
+    function renderJoinDrop(list){
+      if(!list.length){
+        joinDrop.innerHTML = `<div class="opt" style="opacity:.7;pointer-events:none">No tienes eventos aún</div>`;
+        return;
+      }
+      joinDrop.innerHTML = list.map(e=> `<div class="opt" data-code="${e.code}">${e.code}</div>`).join('');
+    }
+    function filterJoinDrop(text){
+      const t = toUC(text||'');
+      if(!t){ renderJoinDrop(cachedEvents); return; }
+      const filtered = cachedEvents.filter(e => e.code.includes(t));
+      renderJoinDrop(filtered);
+    }
+    // Mostrar/ocultar dropdown
+    function showJoinDrop(){ joinDrop.style.display='block'; filterJoinDrop(joinCode.value); }
+    function hideJoinDrop(){ joinDrop.style.display='none'; }
+    joinCode.addEventListener('focus', showJoinDrop);
+    joinCode.addEventListener('click', showJoinDrop);
+    document.addEventListener('click', (e)=>{
+      if(e.target===joinCode || joinDrop.contains(e.target)) return;
+      hideJoinDrop();
+    });
+    joinDrop.addEventListener('click', (e)=>{
+      const opt = e.target.closest('.opt');
+      if(!opt) return;
+      joinCode.value = toUC(opt.dataset.code||'');
+      hideJoinDrop();
     });
 
-    // Modal: Cargar lista desde otro evento
+    // Cargar lista (modal ya existente)
     btnLoadList.addEventListener('click', async ()=>{
       pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
       pickMask.style.display = 'flex';
@@ -299,14 +313,47 @@
           const p = d.data();
           addRow(p.dorsal||'', (p.name||'').toUpperCase());
         });
-        // añade una fila extra vacía por si acaso
-        addRow();
+        addRow(); // fila extra vacía
         pickMask.style.display='none';
         alert(`Lista cargada desde ${codeSel}. Cambia el CÓDIGO y pulsa GUARDAR EVENTO para crear uno nuevo.`);
       }catch(e){
         alert('No se pudo cargar la lista: '+(e.message||e));
       }
     }
+
+    // Guardar evento
+    btnSave.addEventListener('click', async ()=>{
+      const code = toUC(evCode.value.trim());
+      if(!code){ alert('Pon un CÓDIGO de evento'); return; }
+      const list = rowsData();
+      if(!list.length){ alert('Añade al menos un participante'); return; }
+
+      try{
+        // crea/actualiza evento
+        await setDoc(eventRef(code), { code, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge:true });
+
+        // eliminar participantes existentes
+        const snap = await getDocs(partsCol(code));
+        const bDel = writeBatch(db);
+        snap.forEach(d=> bDel.delete(d.ref));
+        await bDel.commit();
+
+        // insertar nuevos
+        const b = writeBatch(db);
+        list.forEach(p=>{
+          const ref = doc(partsCol(code));
+          b.set(ref, p);
+        });
+        await b.commit();
+
+        // >>> NUEVO: trasladar el código guardado a "Unirse a un evento"
+        joinCode.value = code;
+        showJoinDrop(); // refresca y deja visible lista (por si quiere cambiar)
+        alert('Evento guardado');
+        // refresca la caché para que aparezca en el desplegable
+        await fetchUserEvents();
+      }catch(e){ alert('Error guardando: '+(e.message||e)); }
+    });
 
     // Navegación SALIDA / META / RESULTADOS
     const codeFromJoin = ()=> toUC(joinCode.value.trim());
@@ -324,9 +371,13 @@
           const b1 = writeBatch(db); ps.forEach(x=>b1.delete(x.ref)); await b1.commit();
           await deleteDoc(evDoc.ref);
         }
+        await fetchUserEvents(); // refresca dropdown
         alert('Limpieza completada');
       }catch(e){ alert('Error al resetear: '+(e.message||e)); }
     });
+
+    // Cargar lista inicial para el dropdown "Unirse a un evento"
+    await fetchUserEvents();
   </script>
 </body>
 </html>
