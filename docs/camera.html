@@ -217,8 +217,8 @@
     let selectedId = null; // META (selección manual)
     let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
 
-    /* ===== META: congelados con auto-confirm a 5s ===== */
-    // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt}
+    /* ===== META: congelados con posición fija + auto-confirm 8s ===== */
+    // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
     let frozenFinishes = [];
 
     async function stopSelectedOrEarliest(){
@@ -228,15 +228,19 @@
       if (!p){ const run = runningSorted(); p = run[0] || null; }
       if (!p) return null;
 
+      // Antes de escribir stopTS, calculamos la posición actual en la lista visual (desc por start)
+      const displayRows = runningSorted().slice().sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
+      const idx = Math.max(0, displayRows.findIndex(x=>x.id===p.id)); // 0 si no encuentra por seguridad
+
       // Marca llegada en BD
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
 
-      // Congela visual (META)
+      // Congela visual en esa posición
       if (mode==='finish'){
         const startMS = tsToMillis(p.startTS);
         const nowSync = Date.now() + serverOffsetMS;
         const frozenMs = Math.max(0, (nowSync - (startMS||nowSync)));
-        frozenFinishes.unshift({
+        frozenFinishes.push({
           id: p.id,
           order: p.order||0,
           name: (p.name||'').toUpperCase(),
@@ -244,7 +248,8 @@
           startMS,
           frozenMs,
           showActions: false,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          pos: idx
         });
       }
 
@@ -462,14 +467,10 @@
     function loop(){
       const {w,h} = fitCanvas();
 
-      // Auto-confirm META: elimina congelados >5s
+      // Auto-confirm META: elimina congelados >8s (antes 5s)
       const nowMs = Date.now();
       if (mode==='finish' && frozenFinishes.length){
-        const before = frozenFinishes.length;
-        frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < 5000);
-        if (frozenFinishes.length !== before){
-          // se han cerrado solos; no hay acción de BD que hacer (ya estaba stopTS)
-        }
+        frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < 8000);
       }
 
       const nowPerf = performance.now();
@@ -566,10 +567,20 @@
       overlayRowHitboxes = [];
       const nowSync = Date.now() + serverOffsetMS;
 
-      const frozen = (rowsFrozen||[]).slice(); // ya ordenado por unshift (recientes primero)
-      const running = (rowsRunning||[]).slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+      // Base: running (orden visual = más recientes arriba)
+      const running = (rowsRunning||[])
+        .slice()
+        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
 
-      if(!frozen.length && !running.length) return;
+      // Insertar congelados en su posición guardada (pos)
+      const frozen = (rowsFrozen||[]).slice().sort((a,b)=> a.pos - b.pos);
+      const merged = running.slice();
+      for(const f of frozen){
+        const pos = Math.max(0, Math.min(f.pos, merged.length));
+        merged.splice(pos, 0, { ...f, frozen:true });
+      }
+
+      if(!merged.length) return;
 
       const base = Math.max(18, Math.floor(h*0.026));
       const gapBase  = Math.max(5, Math.floor(h*0.011));
@@ -584,15 +595,11 @@
       octx.textBaseline='middle';
       octx.fillStyle = '#FFFFFF';
 
-      const all = [
-        ...frozen.map(f=>({...f, frozen:true})),
-        ...running.map(r=>({...r, frozen:false}))
-      ];
-      const maxRows = Math.min(all.length, Math.floor((h-topPad)/((rowH+10)+gap)));
+      const maxRows = Math.min(merged.length, Math.floor((h-topPad)/((rowH+10)+gap)));
       let y = topPad;
 
       for(let i=0;i<maxRows;i++){
-        const r = all[i];
+        const r = merged[i];
         const elapsed = r.frozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
         const tText = fmt(elapsed);
         const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
