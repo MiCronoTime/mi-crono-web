@@ -56,11 +56,29 @@
     .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
     .modal{width:min(92vw,560px);max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.5);padding:14px}
     .modal h3{margin:4px 0 10px 0;font-size:20px;text-transform:uppercase}
-    .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
-    .evItem:hover{background:#111720}
     .smallMuted{font-size:12px;color:var(--muted)}
 
-    /* Dropdown de eventos (Unirse a un evento) */
+    /* selector dentro del modal (tipo cronolap/result) */
+    .modal select{
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#0f1217;
+      color:var(--text);
+    }
+
+    /* Dropdown de eventos (Unirse a un evento) ahora es select */
+    select#joinCode{
+      width:100%;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#0f1217;
+      color:var(--text);
+    }
+
+    /* (antiguo .drop se queda sin usar, no afecta) */
     .drop{margin-top:6px;border:1px solid var(--border);background:#0f1217;border-radius:12px;display:none;max-height:220px;overflow:auto}
     .drop .opt{padding:10px 12px;border-bottom:1px solid #1a222e;cursor:pointer}
     .drop .opt:last-child{border-bottom:0}
@@ -105,9 +123,8 @@
       <section class="panel">
         <div class="h2">Unirse a un evento</div>
         <label>Código</label>
-        <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
-        <!-- Dropdown de eventos del usuario -->
-        <div id="joinDrop" class="drop" aria-label="Selecciona un evento"></div>
+        <!-- Antes input + drop, ahora solo un select tipo cronolap -->
+        <select id="joinCode"></select>
 
         <div class="rowBtns">
           <a id="goStart"  class="btn">🏁 Salida</a>
@@ -154,7 +171,6 @@
 
     const evCode   = document.getElementById('evCode');
     const joinCode = document.getElementById('joinCode');
-    const joinDrop = document.getElementById('joinDrop');
 
     const btnAddRow   = document.getElementById('btnAddRow');
     const btnSave     = document.getElementById('btnSave');
@@ -167,13 +183,9 @@
     const pickList   = document.getElementById('pickList');
     const pickCancel = document.getElementById('pickCancel');
 
-    // Mayúsculas suaves para códigos
+    // Mayúsculas suaves para códigos de creación
     const toUC = (s)=> (s||'').normalize('NFC').toUpperCase();
     evCode.addEventListener('input', ()=> evCode.value = toUC(evCode.value) );
-    joinCode.addEventListener('input', ()=> {
-      joinCode.value = toUC(joinCode.value);
-      filterJoinDrop(joinCode.value);
-    });
 
     // === Tabla dinámica DORSAL | NOMBRE ===
     function addRow(dorsal='', name=''){
@@ -239,68 +251,71 @@
     const eventRef = (code)=> doc(db,'users',uid,'events',toUC(code));
     const partsCol = (code)=> collection(eventRef(code),'participants');
 
-    // ====== LISTA DE EVENTOS DEL USUARIO (para dropdown y para cargar lista) ======
+    // ====== LISTA DE EVENTOS DEL USUARIO (para desplegable y cargar lista) ======
     let cachedEvents = []; // [{id, code, updatedAt}]
-    async function fetchUserEvents(){
-      const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
+
+    async function fetchUserEvents(selectedCode){
+      const evsSnap = await getDocs(
+        query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
+      );
       cachedEvents = evsSnap.docs.map(d=>{
         const data = d.data()||{};
         return { id:d.id, code:(data.code||d.id), updatedAt:data.updatedAt||null };
       });
-      renderJoinDrop(cachedEvents);
+      renderJoinSelect(selectedCode);
     }
-    function renderJoinDrop(list){
-      if(!list.length){
-        joinDrop.innerHTML = `<div class="opt" style="opacity:.7;pointer-events:none">No tienes eventos aún</div>`;
+
+    function renderJoinSelect(selectedCode){
+      if(!cachedEvents.length){
+        joinCode.innerHTML = '<option value="">Sin eventos aún</option>';
         return;
       }
-      joinDrop.innerHTML = list.map(e=> `<div class="opt" data-code="${e.code}">${e.code}</div>`).join('');
+      joinCode.innerHTML =
+        '<option value="">Seleccionar evento…</option>' +
+        cachedEvents.map(e=> `<option value="${e.code}">${e.code}</option>`).join('');
+      if(selectedCode){
+        joinCode.value = toUC(selectedCode);
+      }
     }
-    function filterJoinDrop(text){
-      const t = toUC(text||'');
-      if(!t){ renderJoinDrop(cachedEvents); return; }
-      const filtered = cachedEvents.filter(e => e.code.includes(t));
-      renderJoinDrop(filtered);
-    }
-    // Mostrar/ocultar dropdown
-    function showJoinDrop(){ joinDrop.style.display='block'; filterJoinDrop(joinCode.value); }
-    function hideJoinDrop(){ joinDrop.style.display='none'; }
-    joinCode.addEventListener('focus', showJoinDrop);
-    joinCode.addEventListener('click', showJoinDrop);
-    document.addEventListener('click', (e)=>{
-      if(e.target===joinCode || joinDrop.contains(e.target)) return;
-      hideJoinDrop();
-    });
-    joinDrop.addEventListener('click', (e)=>{
-      const opt = e.target.closest('.opt');
-      if(!opt) return;
-      joinCode.value = toUC(opt.dataset.code||'');
-      hideJoinDrop();
-    });
 
-    // Cargar lista (modal ya existente)
+    // Cargar lista (modal, ahora con select tipo cronolap)
     btnLoadList.addEventListener('click', async ()=>{
       pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
       pickMask.style.display = 'flex';
       try{
-        const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
-        if(evsSnap.empty){ pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>'; return; }
-        pickList.innerHTML='';
+        const evsSnap = await getDocs(
+          query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
+        );
+        if(evsSnap.empty){
+          pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>';
+          return;
+        }
+        const options = [];
         evsSnap.forEach(docu=>{
           const d = docu.data()||{};
-          const when = d.updatedAt?.toDate ? d.updatedAt.toDate() :
-                       (d.updatedAt? new Date(d.updatedAt.seconds*1000) : null);
-          const nice = when ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when) : '—';
-          const div=document.createElement('div');
-          div.className='evItem';
-          div.innerHTML = `<div><b>${d.code||docu.id}</b><div class="smallMuted">${nice}</div></div><div class="smallMuted">Seleccionar</div>`;
-          div.addEventListener('click', ()=> pickLoad(docu.id));
-          pickList.appendChild(div);
+          const code = d.code || docu.id;
+          options.push(`<option value="${code}">${code}</option>`);
+        });
+        pickList.innerHTML = `
+          <select id="pickSelect">
+            <option value="">Seleccionar evento…</option>
+            ${options.join('')}
+          </select>
+          <div class="smallMuted" style="margin-top:6px">
+            Elige un evento y se cargará la lista de participantes.
+          </div>
+        `;
+        const pickSelect = document.getElementById('pickSelect');
+        pickSelect.addEventListener('change', ()=>{
+          const val = pickSelect.value;
+          if(!val) return;
+          pickLoad(val);
         });
       }catch(e){
         pickList.innerHTML = `<div class="smallMuted">Error: ${e.message||e}</div>`;
       }
     });
+
     pickCancel.addEventListener('click', ()=> pickMask.style.display='none' );
 
     async function pickLoad(codeSel){
@@ -346,37 +361,45 @@
         });
         await b.commit();
 
-        // >>> NUEVO: trasladar el código guardado a "Unirse a un evento"
-        joinCode.value = code;
-        showJoinDrop(); // refresca y deja visible lista (por si quiere cambiar)
+        // refresca selector "Unirse a un evento" y deja seleccionado este código
+        await fetchUserEvents(code);
+
         alert('Evento guardado');
-        // refresca la caché para que aparezca en el desplegable
-        await fetchUserEvents();
       }catch(e){ alert('Error guardando: '+(e.message||e)); }
     });
 
     // Navegación SALIDA / META / RESULTADOS
-    const codeFromJoin = ()=> toUC(joinCode.value.trim());
-    document.getElementById('goStart').onclick  = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=start&code=${encodeURIComponent(c)}`; };
-    document.getElementById('goFinish').onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera.html?mode=finish&code=${encodeURIComponent(c)}`; };
-    document.getElementById('goResult').onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
+    const codeFromJoin = ()=> toUC(joinCode.value || '');
+
+    document.getElementById('goStart').onclick  = ()=>{
+      const c=codeFromJoin(); if(!c) return alert('Selecciona un evento');
+      location.href=`camera.html?mode=start&code=${encodeURIComponent(c)}`;
+    };
+    document.getElementById('goFinish').onclick = ()=>{
+      const c=codeFromJoin(); if(!c) return alert('Selecciona un evento');
+      location.href=`camera.html?mode=finish&code=${encodeURIComponent(c)}`;
+    };
+    document.getElementById('goResult').onclick = ()=>{
+      const c=codeFromJoin(); if(!c) return alert('Selecciona un evento');
+      location.href=`result.html?code=${encodeURIComponent(c)}`;
+    };
 
     // Reset total
     document.getElementById('btnReset').addEventListener('click', async ()=>{
       if(!confirm('Esto borrará TODOS tus eventos y participantes. ¿Seguro?')) return;
       try{
-        const evsSnap = await getDocs(collection(db,'users',uid,'events'));
+        const evsSnap = await getDocs(collection(doc(db,'users',uid),'events'));
         for(const evDoc of evsSnap.docs){
           const ps = await getDocs(collection(evDoc.ref,'participants'));
           const b1 = writeBatch(db); ps.forEach(x=>b1.delete(x.ref)); await b1.commit();
           await deleteDoc(evDoc.ref);
         }
-        await fetchUserEvents(); // refresca dropdown
+        await fetchUserEvents(); // refresca desplegable
         alert('Limpieza completada');
       }catch(e){ alert('Error al resetear: '+(e.message||e)); }
     });
 
-    // Cargar lista inicial para el dropdown "Unirse a un evento"
+    // Cargar lista inicial para el desplegable "Unirse a un evento"
     await fetchUserEvents();
   </script>
 </body>
