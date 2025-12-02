@@ -11,6 +11,7 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
       --danger:#e44848; --go:#38d66b; --orange:#ffae3a;
+      --hold:#ff9c3a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -39,7 +40,7 @@
 
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:none}
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
@@ -54,7 +55,9 @@
       display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
       padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
     }
+    .runner > *{position:relative; z-index:1;}
     .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
+    .runner.hold{ border-color:var(--hold); box-shadow:0 0 0 3px rgba(255,156,58,.35) inset; }
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
     .rname{
       display:grid; grid-template-columns: 56px 1fr; gap:8px; align-items:center;
@@ -72,6 +75,8 @@
     }
     .runner-actions .half.back{ background:var(--danger); }
     .runner-actions .half.go{ background:var(--go); color:#052013; }
+    .runner-actions .half.stay{ background:var(--go); color:#052013; }
+    .runner-actions .half.finish{ background:var(--danger); }
   </style>
 </head>
 <body class="wrap">
@@ -127,16 +132,16 @@
 
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
-    // Si este archivo está en otra carpeta (por ejemplo /v2/), puede que necesites:
-    // import { ensureAuthInit, requireAuth, currentCtx } from '/js/auth.js';
 
     /* ===== Utils ===== */
-    const $=(id)=>document.getElementById(id);
+    const $  = (id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
-    const fmt=(ms)=>{ ms=Math.max(0,Math.floor(ms||0));
+    const fmt=(ms)=>{
+      ms=Math.max(0,Math.floor(ms||0));
       const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000), ms3=ms%1000;
-      return `${two(m)}:${two(s)}.${three(ms3)}`; };
+      return `${two(m)}:${two(s)}.${three(ms3)}`;
+    };
     const tsToMillis=(ts)=> ts ? (ts.seconds*1000 + Math.floor((ts.nanoseconds||0)/1e6)) : null;
 
     await ensureAuthInit();
@@ -146,7 +151,7 @@
     const p = new URL(location.href).searchParams;
     const code = (p.get('code')||'').toUpperCase();
 
-    $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
+    $('tag').textContent     = code ? `Evento ${code}` : 'SIN CÓDIGO';
     $('evState').textContent = code || '—';
     $('evState').className   = code ? 'ok' : 'err';
     $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
@@ -190,47 +195,84 @@
       await deleteDoc(pingRef);
     }catch(_){ serverOffsetMS=0; }
 
-    /* ===== Participantes ===== */
+    /* ===== Participantes / estado CRONOLAP ===== */
     let participants=[];
     async function reload(){
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
     const nextToStart = ()=> participants.find(p=>!p.startTS);
-    const runningSorted = ()=> participants
-      .filter(p=>p.startTS && !p.stopTS)
-      .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+    const runningOnTrack = ()=> participants.filter(p=>p.startTS && !p.stopTS);
 
-    async function startNext(){
-      await reload();
-      const p = nextToStart();
-      if(!p) return null;
-      await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
-      return p;
-    }
-
-    async function stopCurrent(){
-      await reload();
-      const p = participants.find(x=>x.startTS && !x.stopTS);
-      if(!p) return null;
-      await updateDoc(p.ref,{ stopTS:serverTimestamp() });
-      return p;
-    }
-
-    /* ===== Estados interacción CRONOLAP ===== */
-    let phase = 'start';        // 'start' | 'finish'
-    let goBackId = null;        // SALIDA: corredor con overlay RESTART/CONTINUE
-    let selectedFinishId = null; // (reservado para futura lógica META)
-
-    const frozen = new Map();   // reservado para futuras congelaciones en META
-    const FREEZE_MS = 5000;
-
+    let phase = 'start'; // 'start' | 'finish'
     function setPhase(ph){
       phase=ph;
-      $('lapMode').textContent = ph==='start'?'SALIDA':'META';
+      $('lapMode').textContent = ph==='start' ? 'SALIDA' : 'META';
     }
 
-    /* ===== UI EN CURSO ===== */
+    /* ===== Congelados (META visual, ON TRACK/FINISH) ===== */
+    const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
+    const FINISH_FREEZE_MS = 9000;  // total 9s congelado
+    const BLINK_PERIOD_MS  = 150;
+
+    let currentLive = [];     // corredores realmente en pista [{id,order,name,dorsal,startMS}]
+    let frozenFinishes = [];  // [{id,order,name,dorsal,startMS,frozenMs,createdAt,showActions,pos,frozen:true}]
+    let goBackId = null;      // SALIDA: corredor con overlay RESTART/CONTINUE
+
+    function frozenVisualState(createdAt){
+      const elapsed = Date.now() - createdAt;
+      if (elapsed < FINISH_ORANGE_MS){
+        return { color:'orange', show:true };
+      }
+      if (elapsed < FINISH_FREEZE_MS){
+        const phaseIdx = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
+        return { color:'orange', show:(phaseIdx % 2) === 0 };
+      }
+      return { color:'none', show:false };
+    }
+
+    function createFrozenFromParticipant(p, pos=0){
+      const startMS = tsToMillis(p.startTS);
+      const nowSync = Date.now() + serverOffsetMS;
+      const frozenMs = Math.max(0, (nowSync - (startMS || nowSync)));
+      frozenFinishes.push({
+        id: p.id,
+        order: p.order || 0,
+        name: (p.name||'').toUpperCase(),
+        dorsal: (p.dorsal||'').toString().trim(),
+        startMS,
+        frozenMs,
+        createdAt: Date.now(),
+        showActions: false,
+        pos,
+        frozen: true
+      });
+    }
+
+    async function revertStart(id){
+      try{
+        await updateDoc(doc(partsCol,id),{ startTS: deleteField(), stopTS: deleteField() });
+        goBackId = null;
+        $('lastAction').textContent='RESTART aplicado';
+        await reload();
+      }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
+    }
+
+    async function revertStop(id){
+      try{
+        await updateDoc(doc(partsCol,id),{ stopTS: deleteField() });
+        frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
+        $('lastAction').textContent='ON TRACK (stop revertido)';
+        await reload();
+      }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
+    }
+
+    function confirmFinishLocal(id){
+      frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
+      $('lastAction').textContent='FINISH confirmado';
+    }
+
+    /* ===== UI en vivo ===== */
     function ensureStatus(){
       const nxt = nextToStart();
       $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
@@ -241,67 +283,95 @@
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
 
-      const live = runningSorted();
-      if(!live.length){ list.innerHTML='—'; return; }
+      const running = currentLive
+        .slice()
+        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
 
-      list.innerHTML = live.map(p=>{
-        const showStartActions = (phase==='start' && goBackId===p.id);
-        const bib = (p.dorsal||'').toString().trim();
-        const nm  = (p.name||'').toUpperCase();
-        return `<div class="runner" data-id="${p.id}">
-          ${showStartActions?`
+      const rows = [
+        ...frozenFinishes,
+        ...running
+      ];
+
+      if(!rows.length){
+        list.innerHTML='—';
+        return;
+      }
+
+      list.innerHTML = rows.map(r=>{
+        const isFrozen = !!r.frozen;
+        const bib = (r.dorsal||'').toString().trim();
+        const nm  = (r.name||'').toUpperCase();
+        const elapsed = isFrozen
+          ? r.frozenMs
+          : (nowSync - (r.startMS||nowSync));
+        const baseCls = 'runner' + (isFrozen ? ' hold' : '');
+        const actionsStart  = (!isFrozen && phase==='start' && goBackId===r.id);
+        const actionsFinish = (isFrozen && r.showActions);
+
+        return `<div class="${baseCls}" data-id="${r.id}">
+          ${actionsStart ? `
             <div class="runner-actions">
-              <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
-              <div class="half go"   data-action="go"   data-id="${p.id}">CONTINUE</div>
-            </div>`:''}
-          <div class="badge">#${p.order}</div>
-          <div class="rname"><span class="bib">${bib||''}</span><span class="nm">${nm}</span></div>
-          <div class="rtime">${fmt(nowSync - tsToMillis(p.startTS))}</div>
+              <div class="half back" data-action="back" data-id="${r.id}">RESTART</div>
+              <div class="half go"   data-action="go"   data-id="${r.id}">CONTINUE</div>
+            </div>` : ''}
+          ${actionsFinish ? `
+            <div class="runner-actions">
+              <div class="half stay"   data-action="stay"   data-id="${r.id}">ON TRACK</div>
+              <div class="half finish" data-action="finish" data-id="${r.id}">FINISH</div>
+            </div>` : ''}
+          <div class="badge">#${r.order||0}</div>
+          <div class="rname"><span class="bib">${bib}</span><span class="nm">${nm}</span></div>
+          <div class="rtime">${fmt(elapsed)}</div>
         </div>`;
       }).join('');
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    async function revertStart(id){
-      await reload();
-      const p = participants.find(x=>x.id === id);
-      if(!p) return;
-      await updateDoc(p.ref,{
-        startTS: deleteField(),
-        stopTS:  deleteField()
-      });
-      goBackId = null;
-      renderListNow();
-      $('lastAction').textContent='Reinicio (Cronolap)';
-    }
-
-    // Click en lista (SALIDA: mostrar RESTART/CONTINUE)
+    // Clicks en lista EN CURSO
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
-      if (act && phase==='start') {
-        const id = act.dataset.id;
-        if (act.dataset.action === 'back') { await revertStart(id); return; }
-        if (act.dataset.action === 'go')   { goBackId=null; renderListNow(); return; }
-      }
       const row = e.target.closest('.runner');
       if(!row?.dataset.id) return;
       const id = row.dataset.id;
-      if(phase==='start'){
-        goBackId = (goBackId===id ? null : id);
-        renderListNow();
+
+      if (act){
+        const action = act.dataset.action;
+        if (action === 'back'){ await revertStart(id); return; }
+        if (action === 'go'){ goBackId=null; renderListNow(); $('lastAction').textContent='CONTINUE'; return; }
+        if (action === 'stay'){ await revertStop(id); return; }
+        if (action === 'finish'){ confirmFinishLocal(id); return; }
+      }
+
+      const isFrozen = !!frozenFinishes.find(f=>f.id===id);
+      if (isFrozen){
+        const f = frozenFinishes.find(f=>f.id===id);
+        if (f){ f.showActions = !f.showActions; }
+      } else {
+        if(phase==='start'){
+          goBackId = (goBackId===id ? null : id);
+        }
       }
     });
 
     onSnapshot(partsCol, async ()=>{
       await reload();
+      const running = runningOnTrack();
+      currentLive = running.map(p=>({
+        id: p.id,
+        order: p.order||0,
+        name: (p.name||'').toUpperCase(),
+        dorsal: (p.dorsal||'').toString().trim(),
+        startMS: tsToMillis(p.startTS)
+      }));
+      if(goBackId && !currentLive.some(r=>r.id===goBackId)) goBackId=null;
       ensureStatus();
-      const anyRunning = participants.some(p=>p.startTS && !p.stopTS);
-      setPhase(anyRunning ? 'finish' : 'start');
+      setPhase( running.length ? 'finish' : 'start' );
     });
 
     /* ===== Cámara + Detección ===== */
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
+    let overlayRowHitboxes=[];
 
     function fitCanvas(){
       const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -326,10 +396,7 @@
     btnEnable.onclick = async (e)=>{
       const btn = e.currentTarget;
       try{
-        if(!navigator.mediaDevices?.getUserMedia){
-          alert('Navegador sin cámara');
-          return;
-        }
+        if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
         const tries=[
           {video:{facingMode:{ideal:'environment'}},audio:false},
           {video:{facingMode:'environment'},audio:false},
@@ -349,10 +416,7 @@
         video.setAttribute('playsinline','true');
         video.muted=true;
         video.srcObject=stream;
-        await new Promise(res=>{
-          if(video.readyState>=2) res();
-          else video.onloadedmetadata=()=>res();
-        });
+        await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
         await video.play().catch(()=>{});
         btn.textContent='CÁMARA ACTIVADA';
         btn.disabled=true;
@@ -388,21 +452,73 @@
       if(!armed || !detectionEnabled) return;
       armed=false; above=false; aboveSince=0;
 
+      await reload();
+
       if(phase==='start'){
-        await startNext();
+        const nxt = nextToStart();
+        if(!nxt){
+          $('lastAction').textContent='Sin siguiente participante';
+          armAfter(COOLDOWN_START_MS);
+          return;
+        }
+        await updateDoc(nxt.ref,{ startTS:serverTimestamp(), stopTS:null });
         setPhase('finish');
         armAfter(COOLDOWN_START_MS);
         $('lastAction').textContent='Inicio (Cronolap)';
       }else{
-        await stopCurrent();
+        const running = runningOnTrack();
+        if(!running.length){
+          setPhase('start');
+          armAfter(COOLDOWN_FINISH_MS);
+          return;
+        }
+        const displayRows = running
+          .slice()
+          .sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
+        const p = displayRows[0];
+        const pos = displayRows.findIndex(x=>x.id===p.id);
+        await updateDoc(p.ref,{ stopTS:serverTimestamp() });
+        createFrozenFromParticipant(p, Math.max(0,pos));
         setPhase('start');
         armAfter(COOLDOWN_FINISH_MS);
         $('lastAction').textContent='Fin (Cronolap)';
       }
     }
 
+    /* ==== Clicks sobre overlay (RESTART / CONTINUE / ON TRACK / FINISH) ==== */
+    overlay.addEventListener('click', async (e)=>{
+      const rect = overlay.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const btn = overlayRowHitboxes.find(h => h.kind==='btn' && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
+      if(btn){
+        const id = btn.baseId;
+        if(btn.btn==='RESTART'){ await revertStart(id); return; }
+        if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
+        if(btn.btn==='STAY'){ await revertStop(id); return; }   // ON TRACK
+        if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
+      }
+
+      const row = overlayRowHitboxes.find(h => h.kind==='row' && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
+      if(!row) return;
+
+      if(row.frozen){
+        const f = frozenFinishes.find(f=>f.id===row.baseId);
+        if(f){ f.showActions = !f.showActions; }
+      }else{
+        if(phase==='start'){
+          goBackId = (goBackId===row.baseId ? null : row.baseId);
+        }
+      }
+    });
+
     function loop(){
       const {w,h} = fitCanvas();
+
+      // limpiar congelados antiguos (>9s)
+      const nowMs = Date.now();
+      frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
 
       const nowPerf = performance.now();
       if(!detectionEnabled){
@@ -421,9 +537,7 @@
       octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
       octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
 
-      drawOverlayTimes(w,h, participants.filter(p=>p.startTS && !p.stopTS).map(p=>({
-        id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-      })));
+      drawOverlayTimes(w,h,currentLive,frozenFinishes);
 
       const vw=video.videoWidth, vh=video.videoHeight;
       if(vw && vh){
@@ -454,9 +568,7 @@
             if(actEma>=up){ above=true; aboveSince=nowPerf; }
           }else{
             if(actEma<=down){ above=false; aboveSince=0; }
-            else if(detectionEnabled && (nowPerf-aboveSince)>=HOLD_MS){
-              trigger();
-            }
+            else if(detectionEnabled && (nowPerf-aboveSince)>=HOLD_MS){ trigger(); }
           }
         }
         prevFrame=frame;
@@ -464,77 +576,7 @@
       requestAnimationFrame(loop);
     }
 
-    function drawOverlayTimes(w,h,rows){
-      if(!rows.length) return;
-      const nowSync = Date.now() + serverOffsetMS;
-
-      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-
-      const base = Math.max(18, Math.floor(h*0.026));
-      const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.2;
-      const leftPad = Math.floor(w*0.065);
-      const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.18);
-      const rowH = base*1.45;
-      const radius = rowH/1.9;
-
-      const ctx = overlay.getContext('2d');
-      ctx.globalAlpha = 1;
-      ctx.textBaseline='middle';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = 'rgba(0,0,0,.9)';
-      ctx.lineWidth = Math.max(3, Math.floor(base*0.2));
-
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
-      let y = topPad;
-
-      for(let i=0;i<maxRows;i++){
-        const r = sorted[i];
-        const elapsed = nowSync - (r.startMS||nowSync);
-        const tText = fmt(elapsed);
-        const nText = r.name || '—';
-
-        const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
-
-        const grad = ctx.createLinearGradient(0, pillY, 0, pillY+pillH);
-        grad.addColorStop(0, 'rgba(45,50,60,.42)');
-        grad.addColorStop(1, 'rgba(30,34,42,.42)');
-        roundRect(ctx, pillX, pillY, pillW, pillH, radius);
-        ctx.fillStyle = grad; ctx.fill();
-        ctx.save(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.12)';
-        roundRect(ctx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5); ctx.stroke(); ctx.restore();
-
-        const badgeR = rowH*0.36;
-        const badgeCx = leftPad + badgeR + 4;
-        const badgeCy = y + rowH/2;
-        ctx.save();
-        ctx.beginPath(); ctx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2); ctx.closePath();
-        ctx.fillStyle = 'rgba(180,186,198,.34)'; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
-        ctx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        ctx.textAlign='center';
-        ctx.strokeStyle='rgba(0,0,0,.9)'; ctx.lineWidth=Math.max(3, Math.floor(base*0.2));
-        ctx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
-        ctx.fillStyle='#FFFFFF'; ctx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
-        ctx.restore();
-
-        const nameX = leftPad + badgeR*2 + 24;
-        ctx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        ctx.textAlign='left';
-        ctx.strokeText(nText, nameX, y + rowH/2);
-        ctx.fillStyle='#FFFFFF';
-        ctx.fillText  (nText, nameX, y + rowH/2);
-
-        ctx.textAlign='right';
-        ctx.strokeText(tText, w - rightPad - 18, y + rowH/2);
-        ctx.fillStyle='#FFFFFF';
-        ctx.fillText  (tText, w - rightPad - 18, y + rowH/2);
-
-        y += (rowH+10) + gap;
-      }
-    }
-
+    /* ===== Helpers overlay ===== */
     function roundRect(ctx,x,y,w,h,r){
       const rr = Math.min(r, h/2, w/2);
       ctx.beginPath();
@@ -544,6 +586,176 @@
       ctx.arcTo(x,   y+h, x,   y,   rr);
       ctx.arcTo(x,   y,   x+w, y,   rr);
       ctx.closePath();
+    }
+    function fitText(ctx, text, maxW, basePx){
+      let size = Math.floor(basePx);
+      ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      while(size>12 && ctx.measureText(text).width > maxW){
+        size -= 1;
+        ctx.font = `900 ${size}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      }
+      return size;
+    }
+    function elideText(ctx, text, maxW){
+      if(ctx.measureText(text).width <= maxW) return text;
+      const ell = '…';
+      const ellW = ctx.measureText(ell).width;
+      let lo=0, hi=text.length;
+      while(lo<hi){
+        const mid = Math.floor((lo+hi+1)/2);
+        const s = text.slice(0, mid);
+        if(ctx.measureText(s).width + ellW <= maxW) lo=mid; else hi=mid-1;
+      }
+      return text.slice(0, lo) + ell;
+    }
+
+    function drawOverlayTimes(w,h,rowsRunning, rowsFrozen){
+      overlayRowHitboxes = [];
+      const nowSync = Date.now() + serverOffsetMS;
+
+      const running = (rowsRunning||[])
+        .slice()
+        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
+
+      const frozen = (rowsFrozen||[]).slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
+      const merged = running.slice();
+      for(const f of frozen){
+        const pos = Math.max(0, Math.min((f.pos||0), merged.length));
+        const idx = merged.findIndex(x=>x.id===f.id);
+        const rowObj = { ...f, frozen:true };
+        if (idx>=0) merged.splice(idx,1,rowObj); else merged.splice(pos,0,rowObj);
+      }
+
+      if(!merged.length) return;
+
+      const base = Math.max(18, Math.floor(h*0.026));
+      const gapBase  = Math.max(5, Math.floor(h*0.011));
+      const gap  = gapBase * 2.4;
+      const leftPad = Math.floor(w*0.065);
+      const rightPad= Math.floor(w*0.065);
+      const topPad = Math.floor(h*0.20);
+      const rowH = base*1.45;
+      const radius = rowH/1.9;
+
+      octx.globalAlpha = 1;
+      octx.textBaseline='middle';
+      octx.fillStyle = '#FFFFFF';
+
+      const maxRows = Math.min(merged.length, Math.floor((h-topPad)/((rowH+10)+gap)));
+      let y = topPad;
+
+      for(let i=0;i<maxRows;i++){
+        const r = merged[i];
+        const isFrozen = !!r.frozen;
+        const elapsed = isFrozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
+        const tText = fmt(elapsed);
+        const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
+
+        const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
+        const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
+        grad.addColorStop(0, 'rgba(45,50,60,.42)');
+        grad.addColorStop(1, 'rgba(30,34,42,.42)');
+        roundRect(octx, pillX, pillY, pillW, pillH, radius);
+        octx.fillStyle = grad; octx.fill();
+
+        octx.save();
+        octx.lineWidth = 2;
+        octx.strokeStyle = 'rgba(255,255,255,.12)';
+        roundRect(octx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5);
+        octx.stroke();
+        octx.restore();
+
+        // Marco naranja (con parpadeo) cuando está congelado
+        if (isFrozen){
+          const vis = frozenVisualState(r.createdAt);
+          if (vis.show){
+            octx.save();
+            octx.lineWidth = 2;
+            octx.strokeStyle = 'rgba(255,156,58,.95)';
+            roundRect(octx, pillX-1, pillY-1, pillW+2, pillH+2, radius+1);
+            octx.stroke();
+            octx.restore();
+          }
+        }
+
+        const nameX = leftPad + 8;
+        const nameY = y + rowH/2;
+        const timeX = w - rightPad - 18;
+
+        octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+        const timeStrokeW = Math.max(2, Math.floor(base*0.16));
+        const timeW = Math.max(octx.measureText(tText).width + timeStrokeW*2, 80);
+        const minGap = 18;
+        const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeW);
+
+        const nameText = elideText(octx, nameFull, maxNameW);
+        octx.textAlign='left';
+        octx.fillStyle='#FFFFFF';
+        octx.fillText(nameText, nameX, nameY);
+
+        octx.textAlign='right';
+        octx.strokeStyle = 'rgba(0,0,0,.55)';
+        octx.lineWidth = timeStrokeW;
+        octx.strokeText(tText, timeX, nameY);
+        octx.fillStyle='#FFFFFF';
+        octx.fillText  (tText, timeX, nameY);
+
+        // SALIDA: RESTART / CONTINUE
+        if(!isFrozen && phase==='start' && goBackId===r.id){
+          const mid = pillX + pillW/2;
+          roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
+          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
+
+          octx.textAlign='center'; octx.fillStyle='#fff';
+          octx.strokeStyle='rgba(0,0,0,.55)';
+          const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
+
+          let fs = fitText(octx, 'RESTART', halfW, base*1.05);
+          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
+          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('RESTART', pillX + pillW/4,  ty); octx.fillText('RESTART', pillX + pillW/4,  ty);
+
+          fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
+          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
+          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('CONTINUE', mid + pillW/4, ty); octx.fillText('CONTINUE', mid + pillW/4, ty);
+
+          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+        }
+
+        // META: ON TRACK / FINISH (si showActions)
+        if (isFrozen && r.showActions){
+          const mid = pillX + pillW/2;
+          roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
+          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
+          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
+
+          octx.textAlign='center'; octx.fillStyle='#fff';
+          octx.strokeStyle='rgba(0,0,0,.55)';
+          const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
+
+          let fs = fitText(octx, 'ON TRACK', halfW, base*1.05);
+          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
+          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('ON TRACK', pillX + pillW/4,  ty); octx.fillText('ON TRACK', pillX + pillW/4,  ty);
+
+          fs = fitText(octx, 'FINISH', halfW, base*1.05);
+          octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
+          octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+          octx.strokeText('FINISH', mid + pillW/4, ty); octx.fillText('FINISH', mid + pillW/4, ty);
+
+          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+        }
+
+        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen:isFrozen });
+
+        y += (rowH+10) + gap;
+      }
     }
   </script>
 </body>
