@@ -10,35 +10,69 @@
       --bg:#121418; --panel:#1b1f27; --panel-2:#232a34; --text:#e8ecf1;
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
+      --danger:#e44848; --go:#38d66b; --orange:#ffae3a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background: radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                  var(--bg); color:var(--text);}
+                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%), var(--bg);
+      color:var(--text);
+    }
+    a{color:var(--accent);text-decoration:none}
     .wrap{max-width:1000px;margin:0 auto;padding:16px}
     .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
-    .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);cursor:pointer;text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px}
+    .btn{
+      display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:12px;border:1px solid var(--border);
+      background:#0f1217;color:var(--text);cursor:pointer;user-select:none;transition:transform .05s, background .15s, border-color .15s, color .15s;
+      text-transform:uppercase;font-weight:800;letter-spacing:.03em;font-size:14px;line-height:1;text-decoration:none;
+    }
+    .btn:hover{ background:#12161d } .btn:active{ transform:translateY(1px) }
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
+    .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
+
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
-    canvas.overlay{position:absolute;inset:0;pointer-events:none}
+    canvas.overlay{position:absolute;inset:0;pointer-events:auto}
+
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
+
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
+
     .list{margin-top:12px}
-    .runner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px}
+    .runner{
+      position:relative; overflow:hidden;
+      display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+      padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:#0f1217;margin-bottom:6px;cursor:pointer;
+    }
+    .runner.selected{ border-color:var(--ok); box-shadow:0 0 0 3px var(--okRing) inset; }
     .badge{font-weight:800;color:#cfe1ff;opacity:.9}
-    .rname{font-weight:800;text-transform:uppercase}
+    .rname{
+      display:grid; grid-template-columns: 56px 1fr; gap:8px; align-items:center;
+      font-weight:800; text-transform:uppercase;
+    }
+    .rname .bib{opacity:.95; font-weight:900; text-align:right;}
+    .rname .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
     .rtime{font-weight:900;letter-spacing:.4px}
+    .muted{color:var(--muted)}
+
+    /* Acciones en lista EN CURSO (SALIDA / META) */
+    .runner-actions{position:absolute;inset:0;display:flex; z-index:2;}
+    .runner-actions .half{
+      flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
+      letter-spacing:.02em; color:#fff;
+    }
+    .runner-actions .half.back{ background:var(--danger); }
+    .runner-actions .half.go{ background:var(--go); color:#052013; }
   </style>
 </head>
 <body class="wrap">
@@ -95,6 +129,7 @@
   <script type="module">
     import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
+    /* ===== Utils ===== */
     const $=(id)=>document.getElementById(id);
     const two=(n)=>String(n).padStart(2,'0');
     const three=(n)=>String(n).padStart(3,'0');
@@ -106,20 +141,22 @@
     await ensureAuthInit();
     await requireAuth('index.html');
 
+    /* ===== Parámetros ===== */
     const p = new URL(location.href).searchParams;
     const code = (p.get('code')||'').toUpperCase();
+
     $('tag').textContent   = code ? `Evento ${code}` : 'SIN CÓDIGO';
     $('evState').textContent = code || '—';
     $('evState').className   = code ? 'ok' : 'err';
     $('btnResult').onclick=(e)=>{ e.preventDefault(); location.href=`result.html?code=${encodeURIComponent(code)}`; };
     if(!code){ $('noCodeBox').style.display=''; throw new Error('No code'); }
 
-    // Firebase
+    /* ===== Firebase ===== */
     const { initializeApp, getApps, getApp } =
       await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
-      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc
+      serverTimestamp, collection, query, orderBy, getDocs, addDoc, deleteDoc, deleteField
     } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
 
     const firebaseConfig = {
@@ -142,7 +179,7 @@
     const s=await getDoc(eventRef);
     if(!s.exists()) await setDoc(eventRef,{code,createdAt:serverTimestamp()},{merge:true});
 
-    // Reloj sync
+    /* ===== Reloj sync ===== */
     let serverOffsetMS = 0;
     try{
       const pingRef = await addDoc(syncCol,{ serverNow: serverTimestamp() });
@@ -152,55 +189,94 @@
       await deleteDoc(pingRef);
     }catch(_){ serverOffsetMS=0; }
 
-    // Participantes
+    /* ===== Participantes ===== */
     let participants=[];
     async function reload(){
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
     const nextToStart = ()=> participants.find(p=>!p.startTS);
-    const runningOne  = ()=> participants.find(p=>p.startTS && !p.stopTS);
+    const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
+      .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
     async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-    async function stopCurrent(){ await reload(); const p=runningOne(); if(!p) return null;
-      await updateDoc(p.ref,{ stopTS:serverTimestamp() }); return p; }
 
-    // Estado CRONOLAP: alterna salida/meta
-    let phase = 'start'; // 'start' o 'finish'
+    async function stopCurrent(){
+      await reload();
+      const p = participants.find(x=>x.startTS && !x.stopTS);
+      if(!p) return null;
+      await updateDoc(p.ref,{ stopTS:serverTimestamp() });
+      return p;
+    }
+
+    // === Estados de interacción ===
+    let phase = 'start'; // 'start' | 'finish'  (CRONOLAP alterna según haya alguien en pista)
+    let goBackId = null;       // SALIDA: runner con overlay RESTART/CONTINUE
+    let selectedFinishId = null; // META: runner congelado que muestra ON TRACK/FINISH
+
+    // Congelados (META): id -> { atMs, startMS, elapsedAtFreeze, name, dorsal, order }
+    const frozen = new Map();
+    const FREEZE_MS = 5000; // 5s en CRONOLAP
+
     function setPhase(ph){ phase=ph; $('lapMode').textContent = ph==='start'?'SALIDA':'META'; }
 
-    // UI en vivo
-    let currentLive=[];
+    /* ===== UI EN CURSO ===== */
     function ensureStatus(){
       const nxt = nextToStart();
       $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
       $('tag').textContent = `Evento ${code}`;
     }
+
     function renderListNow(){
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
-      const live = participants.filter(p=>p.startTS && !p.stopTS)
-        .sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
+
+      // Corredores realmente en pista
+      const live = runningSorted();
+
       if(!live.length){ list.innerHTML='—'; return; }
-      list.innerHTML = live.map(p=>`<div class="runner">
-        <div class="badge">#${p.order}</div>
-        <div class="rname">${(p.name||'').toUpperCase()}</div>
-        <div class="rtime">${fmt((nowSync - tsToMillis(p.startTS)))}</div>
-      </div>`).join('');
+
+      list.innerHTML = live.map(p=>{
+        const showStartActions = (phase==='start' && goBackId===p.id);
+        const bib = (p.dorsal||'').toString().trim();
+        const nm  = (p.name||'').toUpperCase();
+        return `<div class="runner" data-id="${p.id}">
+          ${showStartActions?`
+            <div class="runner-actions">
+              <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
+              <div class="half go"   data-action="go"   data-id="${p.id}">CONTINUE</div>
+            </div>`:''}
+          <div class="badge">#${p.order}</div>
+          <div class="rname"><span class="bib">${bib||''}</span><span class="nm">${nm}</span></div>
+          <div class="rtime">${fmt(nowSync - tsToMillis(p.startTS))}</div>
+        </div>`;
+      }).join('');
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    onSnapshot(partsCol, async ()=>{
-      await reload();
-      currentLive = participants.filter(p=>p.startTS && !p.stopTS).map(p=>({
-        id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-      }));
-      ensureStatus();
-      setPhase(runningOne() ? 'finish' : 'start');
+    // Click en lista (para mostrar RESTART/CONTINUE cuando estamos en SALIDA)
+    $('runningList').addEventListener('click', async (e)=>{
+      const act = e.target.closest('[data-action]');
+      if (act && phase==='start') {
+        const id = act.dataset.id;
+        if (act.dataset.action === 'back') { await revertStart(id); return; }
+        if (act.dataset.action === 'go')   { goBackId=null; renderListNow(); return; }
+      }
+      const row = e.target.closest('.runner');
+      if(!row?.dataset.id) return;
+      const id = row.dataset.id;
+      if(phase==='start'){ goBackId = (goBackId===id ? null : id); renderListNow(); }
     });
 
-    // Cámara + detección
+    onSnapshot(partsCol, async ()=>{
+      await reload();
+      ensureStatus();
+      // Alterna fase automáticamente: si hay alguien en pista → META; si no → SALIDA
+      setPhase( participants.some(p=>p.startTS && !p.stopTS) ? 'finish' : 'start' );
+    });
+
+    /* ===== Cámara + Detección ===== */
     const stage=$('stage'), video=$('video'), overlay=$('overlay'), sens=$('sens'), sensValTxt=$('sensValTxt');
     const octx=overlay.getContext('2d',{willReadFrequently:true});
 
@@ -216,200 +292,15 @@
       return {w,h,dpr};
     }
 
-    const uiToPercent = (ui)=>{
-      const v = Math.max(0, Math.min(100, Number(ui)||50));
-      if(v<=50) return 5 + (v/50)*(20-5); else return 20 + ((v-50)/50)*(60-20);
-    };
+    const uiToPercent = (ui)=>{ const v = Math.max(0, Math.min(100, Number(ui)||50));
+      return v<=50 ? 5+(v/50)*(20-5) : 20+((v-50)/50)*(60-20); };
     const updateSensLabel = ()=>{ sensValTxt.textContent = `(${uiToPercent(sens.value).toFixed(0)}%)`; };
     updateSensLabel(); sens.oninput = updateSensLabel;
 
     const btnEnable = $('btnEnableCam');
-    btnEnable.onclick = async (e)=>{
+    btnEnable.onclick = async function (e) {
       const btn = e.currentTarget;
       try{
         if(!navigator.mediaDevices?.getUserMedia){ alert('Navegador sin cámara'); return; }
-        const tries=[{video:{facingMode:{ideal:'environment'}},audio:false},{video:{facingMode:'environment'},audio:false},{video:true,audio:false}];
-        let stream=null,lastErr=null;
-        for(const c of tries){ try{ stream=await navigator.mediaDevices.getUserMedia(c); if(stream) break; } catch(err){ lastErr=err; } }
-        if(!stream){ alert('No se pudo abrir la cámara.\n'+(lastErr?.name+': '+lastErr?.message)); return; }
-        video.setAttribute('playsinline','true'); video.muted=true; video.srcObject=stream;
-        await new Promise(res=>{ if(video.readyState>=2) res(); else video.onloadedmetadata=()=>res(); });
-        await video.play().catch(()=>{});
-        btn.textContent='CÁMARA ACTIVADA'; btn.disabled=true;
-
-        detectionEnabled=false; armingEndsAt=performance.now()+ARMING_DELAY_MS;
-        $('hudStatus').textContent='Calibrando… 2.0s';
-        requestAnimationFrame(loop);
-      }catch(err){ alert('Error cámara: '+(err?.message||err)); }
-    };
-
-    const COOLDOWN_START_MS  = 2400;
-    const COOLDOWN_FINISH_MS = 1800;
-    const EMA_ALPHA          = 0.35;
-    const MIN_PIXELS         = 28;
-    const HOLD_MS            = 140;
-    const ARMING_DELAY_MS    = 2000;
-    let prevFrame=null, armed=true, cooldownTimer=null;
-    let detectionEnabled=false, armingEndsAt=0;
-    let actEma=0, above=false, aboveSince=0;
-
-    function thresholdsFromSens(effPercent){
-      const frac = effPercent/100;
-      const up = 0.095 - frac*0.055;
-      const down = up * 0.6;
-      return { up: Math.max(0.02, up), down: Math.max(0.01, down) };
-    }
-    const armAfter=(ms)=>{ clearTimeout(cooldownTimer); cooldownTimer=setTimeout(()=>{ armed=true; },ms); };
-
-    async function trigger(){
-      if(!armed || !detectionEnabled) return;
-      armed=false; above=false; aboveSince=0;
-
-      if(phase==='start'){
-        await startNext(); setPhase('finish'); armAfter(COOLDOWN_START_MS); $('lastAction').textContent='Inicio (Cronolap)';
-      }else{
-        await stopCurrent(); setPhase('start'); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin (Cronolap)';
-      }
-    }
-
-    function loop(){
-      const {w,h} = fitCanvas();
-
-      const nowPerf = performance.now();
-      if(!detectionEnabled){
-        const left = Math.max(0, Math.ceil((armingEndsAt - nowPerf)/100)/10);
-        if(nowPerf >= armingEndsAt){ detectionEnabled = true; $('hudStatus').textContent = 'Listo'; }
-        else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
-      }
-
-      const roiWidth=Math.max(12, Math.round(w*0.08));
-      const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
-      octx.clearRect(0,0,w,h);
-      octx.fillStyle='rgba(255,0,0,.35)'; octx.fillRect(x1,0,2,h); octx.fillRect(x2-2,0,2,h);
-      octx.fillStyle='rgba(255,0,0,.18)'; octx.fillRect(x1,0,roiWidth,h);
-
-      drawOverlayTimes(w,h, participants.filter(p=>p.startTS && !p.stopTS).map(p=>({
-        id:p.id, order:p.order||0, name:(p.name||'').toUpperCase(), startMS: tsToMillis(p.startTS)
-      })));
-
-      const vw=video.videoWidth, vh=video.videoHeight;
-      if(vw && vh){
-        const scaleX = vw / stage.clientWidth;
-        const sx=Math.max(0, Math.min(vw-1, Math.round(x1*scaleX)));
-        const sw=Math.max(1, Math.min(vw-sx, Math.round(roiWidth*scaleX)));
-        const sy=0, sh=vh;
-        const dw = Math.max(50, Math.floor(sw * 0.35));
-        const dh = Math.max(50, Math.floor(sh * 0.35));
-        const tmp=document.createElement('canvas'); tmp.width=dw; tmp.height=dh;
-        const tctx=tmp.getContext('2d',{willReadFrequently:true}); tctx.drawImage(video,sx,sy,sw,sh,0,0,dw,dh);
-        const frame=tctx.getImageData(0,0,dw,dh);
-        if(prevFrame && prevFrame.width===dw && prevFrame.height===dh){
-          const eff = uiToPercent(sens.value);
-          const thrPix = 18 + Math.round((100 - eff) * 0.6);
-          let diffPix=0,total=0;
-          for(let i=0;i<frame.data.length;i+=4){
-            const d = Math.abs(frame.data[i]-prevFrame.data[i]) +
-                      Math.abs(frame.data[i+1]-prevFrame.data[i+1]) +
-                      Math.abs(frame.data[i+2]-prevFrame.data[i+2]);
-            if(d>thrPix) diffPix++; total++;
-          }
-          if(diffPix<MIN_PIXELS) diffPix=0;
-          const activity = diffPix/Math.max(1,total);
-          actEma = actEma*(1-EMA_ALPHA) + activity*EMA_ALPHA;
-          const {up,down} = thresholdsFromSens(eff);
-          if(!above){ if(actEma>=up){ above=true; aboveSince=nowPerf; } }
-          else{
-            if(actEma<=down){ above=false; aboveSince=0; }
-            else if(detectionEnabled && (nowPerf-aboveSince)>=HOLD_MS){ trigger(); }
-          }
-        }
-        prevFrame=frame;
-      }
-      requestAnimationFrame(loop);
-    }
-
-    // Overlay igual que en camera.html (blanco puro)
-    function drawOverlayTimes(w,h,rows){
-      if(!rows.length) return;
-      const nowSync = Date.now() + serverOffsetMS;
-
-      const sorted = rows.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
-
-      const base = Math.max(18, Math.floor(h*0.026));
-      const gapBase  = Math.max(5, Math.floor(h*0.011));
-      const gap  = gapBase * 2.2;
-      const leftPad = Math.floor(w*0.065);
-      const rightPad= Math.floor(w*0.065);
-      const topPad = Math.floor(h*0.18);
-      const rowH = base*1.45;
-      const radius = rowH/1.9;
-
-      const ctx = overlay.getContext('2d');
-      ctx.globalAlpha = 1;
-      ctx.textBaseline='middle';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = 'rgba(0,0,0,.9)';
-      ctx.lineWidth = Math.max(3, Math.floor(base*0.2));
-
-      const maxRows = Math.min(sorted.length, Math.floor((h-topPad)/((rowH+10)+gap)));
-      let y = topPad;
-
-      for(let i=0;i<maxRows;i++){
-        const r = sorted[i];
-        const elapsed = nowSync - (r.startMS||nowSync);
-        const tText = fmt(elapsed);
-        const nText = r.name || '—';
-
-        const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
-
-        const grad = ctx.createLinearGradient(0, pillY, 0, pillY+pillH);
-        grad.addColorStop(0, 'rgba(45,50,60,.42)');
-        grad.addColorStop(1, 'rgba(30,34,42,.42)');
-        roundRect(ctx, pillX, pillY, pillW, pillH, radius);
-        ctx.fillStyle = grad; ctx.fill();
-        ctx.save(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.12)';
-        roundRect(ctx, pillX+1, pillY+1, pillW-2, pillH-2, radius-1.5); ctx.stroke(); ctx.restore();
-
-        // Badge
-        const badgeR = rowH*0.36;
-        const badgeCx = leftPad + badgeR + 4;
-        const badgeCy = y + rowH/2;
-        ctx.save();
-        ctx.beginPath(); ctx.arc(badgeCx, badgeCy, badgeR, 0, Math.PI*2); ctx.closePath();
-        ctx.fillStyle = 'rgba(180,186,198,.34)'; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle='rgba(0,0,0,.35)'; ctx.stroke();
-        ctx.font = `900 ${Math.floor(base*0.9)}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        ctx.textAlign='center';
-        ctx.strokeStyle='rgba(0,0,0,.9)'; ctx.lineWidth=Math.max(3, Math.floor(base*0.2));
-        ctx.strokeText(`#${r.order}`, badgeCx, badgeCy+1);
-        ctx.fillStyle='#FFFFFF'; ctx.fillText(`#${r.order}`, badgeCx, badgeCy+1);
-        ctx.restore();
-
-        const nameX = leftPad + badgeR*2 + 24;
-        ctx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-        ctx.textAlign='left';
-        ctx.strokeText(nText, nameX, y + rowH/2);
-        ctx.fillStyle='#FFFFFF';
-        ctx.fillText  (nText, nameX, y + rowH/2);
-
-        ctx.textAlign='right';
-        ctx.strokeText(tText, w - rightPad - 18, y + rowH/2);
-        ctx.fillStyle='#FFFFFF';
-        ctx.fillText  (tText, w - rightPad - 18, y + rowH/2);
-
-        y += (rowH+10) + gap;
-      }
-    }
-    function roundRect(ctx,x,y,w,h,r){
-      const rr = Math.min(r, h/2, w/2);
-      ctx.beginPath();
-      ctx.moveTo(x+rr, y);
-      ctx.arcTo(x+w, y,   x+w, y+h, rr);
-      ctx.arcTo(x+w, y+h, x,   y+h, rr);
-      ctx.arcTo(x,   y+h, x,   y,   rr);
-      ctx.arcTo(x,   y,   x+w, y,   rr);
-      ctx.closePath();
-    }
-  </script>
-</body>
-</html>
+        const tries=[
+          {video:{
