@@ -11,7 +11,7 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
       --danger:#e44848; --go:#38d66b;
-      --hold:#ff9c3a; /* naranja para congelados */
+      --hold:#ff9c3a;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -29,7 +29,6 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
-    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -41,21 +40,17 @@
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
-    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
-    /* HUD */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
 
-    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
 
-    /* Lista EN CURSO */
     .list{margin-top:12px}
     .runner{
       position:relative; overflow:hidden;
@@ -77,7 +72,6 @@
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
-    /* Acciones encima de fila */
     .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
@@ -220,11 +214,10 @@
     let selectedId = null; // META (selección manual)
     let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
 
-    /* ===== META: congelados con posición fija + auto-confirm ===== */
-    // Visual: 0-5s naranja fijo, 5-9s naranja parpadeando (no rojo)
+    /* ===== META: congelados visuales ===== */
     const FINISH_ORANGE_MS = 5000;
-    const FINISH_FREEZE_MS = 9000;  // total congelado antes de desaparecer si no se toca
-    const BLINK_PERIOD_MS  = 150;   // parpadeo más rápido
+    const FINISH_FREEZE_MS = 9000;  // total congelado
+    const BLINK_PERIOD_MS  = 150;   // parpadeo rápido
     // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
     let frozenFinishes = [];
 
@@ -265,7 +258,6 @@
       return p;
     }
 
-    // SALIDA: volver a parrilla
     async function revertStart(id){
       try{
         await updateDoc(doc(partsCol, id), { startTS: deleteField(), stopTS: deleteField() });
@@ -276,16 +268,16 @@
       }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
     }
 
-    // META: STAY -> seguir en pista (elimina stopTS)
+    // META: ON TRACK -> seguir en pista (revertir stop)
     async function revertStop(id){
       try{
         await updateDoc(doc(partsCol, id), { stopTS: deleteField() });
         frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
-        $('lastAction').textContent='STAY (stop revertido)';
+        $('lastAction').textContent='ON TRACK (stop revertido)';
         await reload();
       }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
     }
-    // META: FINISH -> confirmar local (quitamos congelado de la UI)
+    // META: FINISH -> confirmar local
     function confirmFinishLocal(id){
       frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
       $('lastAction').textContent='FINISH confirmado';
@@ -293,7 +285,7 @@
 
     /* ===== UI en vivo ===== */
     let currentLive=[];           // [{id,order,name,dorsal,startMS}]
-    let overlayRowHitboxes=[];    // hitboxes overlay
+    let overlayRowHitboxes=[];
 
     const displayName = (p)=>{
       const bib = (p.dorsal??'').toString().trim();
@@ -309,7 +301,6 @@
       $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
     }
 
-    // Estado visual del congelado (ahora siempre naranja; en la 2ª fase parpadea)
     function frozenVisualState(createdAt){
       const elapsed = Date.now() - createdAt;
       if (elapsed < FINISH_ORANGE_MS){
@@ -317,7 +308,7 @@
       }
       if (elapsed < FINISH_FREEZE_MS){
         const phase = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
-        return { color:'orange', show: (phase % 2) === 0 }; // parpadeo naranja
+        return { color:'orange', show: (phase % 2) === 0 };
       }
       return { color:'none', show:false };
     }
@@ -327,10 +318,8 @@
       const list = $('runningList');
       if(!currentLive.length){ list.innerHTML='—'; return; }
 
-      // Lista base (más recientes arriba)
       const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-      // Inserta congelados en su índice guardado
       const froz = frozenFinishes.slice().sort((a,b)=> a.pos - b.pos);
       const merged = rows.slice();
       for(const f of froz){
@@ -355,7 +344,6 @@
 
         const timeNow = isFrozen ? p.frozenMs : (Date.now()+serverOffsetMS - (p.startMS||Date.now()+serverOffsetMS));
 
-        // borde naranja (fijo o parpadeando)
         let holdStyle = '';
         if (isFrozen){
           holdStyle = blinkOn
@@ -371,7 +359,7 @@
             </div>`:''}
           ${actionsFinish?`
             <div class="runner-actions">
-              <div class="half stay"   data-action="stay"   data-id="${p.id}">STAY</div>
+              <div class="half stay"   data-action="stay"   data-id="${p.id}">ON TRACK</div>
               <div class="half finish" data-action="finish" data-id="${p.id}">FINISH</div>
             </div>`:''}
           <div class="badge">#${p.order||0}</div>
@@ -503,21 +491,18 @@
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
 
-      // Botones overlay
       const btn = overlayRowHitboxes.find(h => (h.kind==='btn') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(btn){
         const id = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='STAY'){ await revertStop(id); return; }
+        if(btn.btn==='STAY'){ await revertStop(id); return; }     /* identificador interno sigue siendo STAY */
         if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
 
-      // Fila overlay
       const row = overlayRowHitboxes.find(h => (h.kind==='row') && x>=h.x && x<=h.x+h.w && y>=h.y && y<=h.y+h.h);
       if(!row) return;
 
-      // En META: si la fila es congelada -> alterna STAY/FINISH en overlay
       if(row.frozen && mode==='finish'){
         const f = frozenFinishes.find(f=>f.id===row.baseId);
         if(f) f.showActions = !f.showActions;
@@ -528,7 +513,6 @@
         selectedId = row.baseId;
         $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
       }else{
-        // SALIDA: toggle RESTART/CONTINUE sobreimpreso
         goBackId = (goBackId===row.baseId ? null : row.baseId);
       }
     });
@@ -536,7 +520,7 @@
     function loop(){
       const {w,h} = fitCanvas();
 
-      // Auto-confirm META: elimina congelados >9s
+      // Auto-confirm visual: quitar congelados > FINISH_FREEZE_MS
       const nowMs = Date.now();
       if (mode==='finish' && frozenFinishes.length){
         frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
@@ -549,7 +533,6 @@
         else { $('hudStatus').textContent = `Calibrando… ${left.toFixed(1)}s`; }
       }
 
-      // ROI
       const roiWidth=Math.max(12, Math.round(w*0.08));
       const cx=Math.round(w*0.5), x1=cx-Math.round(roiWidth/2), x2=cx+Math.round(roiWidth/2);
       octx.clearRect(0,0,w,h);
@@ -636,12 +619,10 @@
       overlayRowHitboxes = [];
       const nowSync = Date.now() + serverOffsetMS;
 
-      // Base: running (más recientes arriba)
       const running = (rowsRunning||[])
         .slice()
         .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
 
-      // Insertar congelados en su posición guardada (pos)
       const frozen = (rowsFrozen||[]).slice().sort((a,b)=> a.pos - b.pos);
       const merged = running.slice();
       for(const f of frozen){
@@ -675,7 +656,6 @@
         const tText = fmt(elapsed);
         const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
 
-        // Pastilla base
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
@@ -689,11 +669,12 @@
         octx.stroke();
         octx.restore();
 
-        // Borde naranja (fijo/parpadeo) si está congelado en META
         if (r.frozen && mode==='finish'){
-          const vis = frozenVisualState(r.createdAt);
+          const vis = (Date.now()-r.createdAt<FINISH_ORANGE_MS)
+            ? {show:true}
+            : {show: (Math.floor((Date.now()-r.createdAt-FINISH_ORANGE_MS)/BLINK_PERIOD_MS)%2)===0};
           if (vis.show){
-            const col = 'rgba(255,156,58,.95)'; // siempre naranja
+            const col = 'rgba(255,156,58,.95)';
             octx.save();
             octx.lineWidth = Math.max(4, Math.floor(base*0.20));
             octx.strokeStyle = col;
@@ -703,7 +684,6 @@
           }
         }
 
-        // Borde verde si seleccionado (en META, corriendo)
         if (!r.frozen && mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = Math.max(4, Math.floor(base*0.20));
@@ -713,7 +693,6 @@
           octx.restore();
         }
 
-        // Disposición nombre/tiempo con elid
         const nameX = leftPad + 8;
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
@@ -736,7 +715,7 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        /* SALIDA: RESTART/CONTINUE en overlay */
+        /* SALIDA overlay */
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
@@ -762,10 +741,10 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        /* META: STAY/FINISH en overlay cuando está congelado y desplegado */
+        /* META overlay (ON TRACK / FINISH) */
         if (r.frozen && r.showActions && mode==='finish'){
           const mid = pillX + pillW/2;
-          // STAY (verde)
+          // ON TRACK (verde)
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
           // FINISH (rojo)
@@ -776,21 +755,20 @@
           octx.strokeStyle='rgba(0,0,0,.55)';
           const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
 
-          let fs = fitText(octx, 'STAY', halfW, base*1.05);
+          let fs = fitText(octx, 'ON TRACK', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('STAY', pillX + pillW/4,  ty); octx.fillText('STAY', pillX + pillW/4,  ty);
+          octx.strokeText('ON TRACK', pillX + pillW/4,  ty); octx.fillText('ON TRACK', pillX + pillW/4,  ty);
 
           fs = fitText(octx, 'FINISH', halfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
           octx.strokeText('FINISH', mid + pillW/4, ty); octx.fillText('FINISH', mid + pillW/4, ty);
 
-          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });   /* id interno = STAY */
           overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        // Hitbox fila (marca si es congelado)
         overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen });
 
         y += (rowH+10) + gap;
