@@ -217,7 +217,7 @@
 
     let currentLive = [];     // corredores realmente en pista [{id,order,name,dorsal,startMS}]
     let frozenFinishes = [];  // [{id,order,name,dorsal,startMS,frozenMs,createdAt,showActions,pos,frozen:true}]
-    let goBackId = null;      // SALIDA: corredor con overlay RESTART/CONTINUE
+    let goBackId = null;      // corredor con overlay RESTART/CONTINUE
 
     function frozenVisualState(createdAt){
       const elapsed = Date.now() - createdAt;
@@ -305,7 +305,7 @@
           ? r.frozenMs
           : (nowSync - (r.startMS||nowSync));
         const baseCls = 'runner' + (isFrozen ? ' hold' : '');
-        const actionsStart  = (!isFrozen && phase==='start' && goBackId===r.id);
+        const actionsStart  = (!isFrozen && goBackId===r.id);
         const actionsFinish = (isFrozen && r.showActions);
 
         return `<div class="${baseCls}" data-id="${r.id}">
@@ -327,7 +327,7 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Clicks en lista EN CURSO
+    // Clicks en lista EN CURSO (igual filosofía que camera.html, sin limitar por fase)
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       const row = e.target.closest('.runner');
@@ -347,9 +347,7 @@
         const f = frozenFinishes.find(f=>f.id===id);
         if (f){ f.showActions = !f.showActions; }
       } else {
-        if(phase==='start'){
-          goBackId = (goBackId===id ? null : id);
-        }
+        goBackId = (goBackId===id ? null : id);
       }
     });
 
@@ -507,9 +505,7 @@
         const f = frozenFinishes.find(f=>f.id===row.baseId);
         if(f){ f.showActions = !f.showActions; }
       }else{
-        if(phase==='start'){
-          goBackId = (goBackId===row.baseId ? null : row.baseId);
-        }
+        goBackId = (goBackId===row.baseId ? null : row.baseId);
       }
     });
 
@@ -700,8 +696,8 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        // SALIDA: RESTART / CONTINUE
-        if(!isFrozen && phase==='start' && goBackId===r.id){
+        // SALIDA/META: RESTART / CONTINUE (ahora NO se limita por phase, como camera.html)
+        if(!isFrozen && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
           octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
