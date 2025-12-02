@@ -42,8 +42,59 @@
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
-    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
-    .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
+    .hud{
+      position:absolute;left:12px;right:12px;top:12px;
+      background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;
+      font-weight:800;backdrop-filter:blur(4px);
+      display:flex;align-items:center;gap:8px;
+    }
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 14px;border-radius:999px;
+      background:#1f2430;color:#e8ecf1;
+      font:inherit;font-weight:800;border:none;
+    }
+    /* Estilo clicable para "Siguiente" */
+    .pill-next{
+      cursor:pointer;
+    }
+    .pill-next::after{
+      content:"▾";
+      font-size:10px;
+      opacity:.7;
+      margin-left:4px;
+    }
+
+    /* Dropdown de selección del siguiente corredor */
+    .next-dropdown{
+      position:absolute;
+      right:16px;
+      top:calc(100% + 6px);
+      background:#1f2430;
+      border-radius:12px;
+      border:1px solid var(--border);
+      box-shadow:0 12px 40px rgba(0,0,0,.6);
+      max-height:260px;
+      overflow:auto;
+      min-width:220px;
+      z-index:20;
+    }
+    .next-dropdown-item{
+      padding:8px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .next-dropdown-item:hover{
+      background:#252c3a;
+    }
+    .next-dropdown-empty{
+      padding:8px 12px;
+      font-size:13px;
+      color:var(--muted);
+    }
 
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
@@ -103,7 +154,9 @@
 
         <div class="hud" id="hudTop">
           <span id="hudStatus">Listo</span>
-          • <span id="hudNext" class="pill">Siguiente: —</span>
+          •
+          <span id="hudNext" class="pill">Siguiente: —</span>
+          <div id="hudNextDropdown" class="next-dropdown" style="display:none"></div>
         </div>
       </div>
 
@@ -201,14 +254,42 @@
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
-    const nextToStart = ()=> participants.find(p=>!p.startTS);
-    const runningOnTrack = ()=> participants.filter(p=>p.startTS && !p.stopTS);
 
-    let phase = 'start'; // 'start' | 'finish'
+    // Fase actual del ciclo: 'start' (salida) o 'finish' (meta/lap)
+    let phase = 'start';
     function setPhase(ph){
       phase=ph;
       $('lapMode').textContent = ph==='start' ? 'SALIDA' : 'META';
     }
+
+    // Selección manual del siguiente corredor (como en camera.html)
+    let manualNextId = null;
+
+    const runningOnTrack = ()=> participants.filter(p=>p.startTS && !p.stopTS);
+
+    // Lista de participantes que aún no han salido
+    const notStartedList = ()=> participants
+      .filter(p=>!p.startTS)
+      .sort((a,b)=>(a.order||0)-(b.order||0));
+
+    // Etiqueta corta "45 ELOI" o solo "ELOI"
+    const shortLabel = (p)=>{
+      if(!p) return '—';
+      const dorsal = (p.dorsal||'').toString().trim();
+      const nm = (p.name||'').toUpperCase();
+      return (dorsal ? dorsal+' ' : '') + nm;
+    };
+
+    // Siguiente a salir, respetando selección manual si es válida
+    const nextToStart = ()=>{
+      if (manualNextId){
+        const manual = participants.find(p=>!p.startTS && p.id===manualNextId);
+        if (manual) return manual;
+        // si ya ha salido, limpiamos la selección
+        manualNextId = null;
+      }
+      return participants.find(p=>!p.startTS);
+    };
 
     /* ===== Congelados (META visual, ON TRACK/FINISH) ===== */
     const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
@@ -272,10 +353,72 @@
       $('lastAction').textContent='FINISH confirmado';
     }
 
+    /* ===== HUD "Siguiente" con desplegable ===== */
+    const hudNextEl = $('hudNext');
+    const hudNextDropdown = $('hudNextDropdown');
+    let hudNextDropdownOpen = false;
+
+    // Siempre mostramos como clicable, pero solo tiene efecto en fase SALIDA
+    hudNextEl.classList.add('pill-next');
+
+    const labelForNext = (nxt)=> 'Siguiente: ' + shortLabel(nxt);
+
+    function populateNextDropdown(){
+      const list = notStartedList();
+      if(!list.length){
+        hudNextDropdown.innerHTML = '<div class="next-dropdown-empty">No hay corredores pendientes</div>';
+        return;
+      }
+      hudNextDropdown.innerHTML = list.map(p=>{
+        const line = shortLabel(p); // "45 ELOI" o "ELOI"
+        const ord = p.order ?? '—';
+        return `<div class="next-dropdown-item" data-id="${p.id}">
+          <div>${line}</div>
+          <div class="muted" style="font-size:11px;">Orden ${ord}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function openNextDropdown(){
+      populateNextDropdown();
+      hudNextDropdown.style.display = 'block';
+      hudNextDropdownOpen = true;
+    }
+    function closeNextDropdown(){
+      hudNextDropdown.style.display = 'none';
+      hudNextDropdownOpen = false;
+    }
+    function toggleNextDropdown(){
+      if(hudNextDropdownOpen) closeNextDropdown();
+      else openNextDropdown();
+    }
+
+    hudNextEl.addEventListener('click',(e)=>{
+      // Solo permitimos seleccionar siguiente en fase SALIDA
+      if(phase !== 'start') return;
+      e.stopPropagation();
+      toggleNextDropdown();
+    });
+
+    hudNextDropdown.addEventListener('click',(e)=>{
+      const item = e.target.closest('.next-dropdown-item');
+      if(!item) return;
+      const id = item.dataset.id;
+      manualNextId = id || null;
+      ensureStatus();
+      closeNextDropdown();
+    });
+
+    document.addEventListener('click',(e)=>{
+      if(!hudNextDropdownOpen) return;
+      if(hudNextEl.contains(e.target) || hudNextDropdown.contains(e.target)) return;
+      closeNextDropdown();
+    });
+
     /* ===== UI en vivo ===== */
     function ensureStatus(){
       const nxt = nextToStart();
-      $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+      $('hudNext').textContent = labelForNext(nxt);
       $('tag').textContent = `Evento ${code}`;
     }
 
@@ -327,7 +470,7 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Clicks en lista EN CURSO (igual filosofía que camera.html, sin limitar por fase)
+    // Clicks en lista EN CURSO (igual filosofía que antes)
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       const row = e.target.closest('.runner');
@@ -460,6 +603,8 @@
           return;
         }
         await updateDoc(nxt.ref,{ startTS:serverTimestamp(), stopTS:null });
+        // una vez sale, limpiamos selección manual (no tiene sentido mantenerla)
+        manualNextId = null;
         setPhase('finish');
         armAfter(COOLDOWN_START_MS);
         $('lastAction').textContent='Inicio (Cronolap)';
@@ -611,7 +756,7 @@
 
       const running = (rowsRunning||[])
         .slice()
-        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
+        .sort((a,b)=> (b.startMS||0)-(a.startMS||0)); // aquí da igual el orden, luego se mezcla
 
       const frozen = (rowsFrozen||[]).slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
       const merged = running.slice();
@@ -661,7 +806,7 @@
         octx.stroke();
         octx.restore();
 
-        // Marco naranja (con parpadeo) cuando está congelado
+        // marco naranja (con parpadeo) si está congelado
         if (isFrozen){
           const vis = frozenVisualState(r.createdAt);
           if (vis.show){
@@ -696,7 +841,7 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        // SALIDA/META: RESTART / CONTINUE (ahora NO se limita por phase, como camera.html)
+        // RESTART / CONTINUE en línea activa (no congelada)
         if(!isFrozen && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
@@ -722,7 +867,7 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        // META: ON TRACK / FINISH (si showActions)
+        // ON TRACK / FINISH en congelados con showActions
         if (isFrozen && r.showActions){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
