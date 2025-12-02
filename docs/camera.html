@@ -11,7 +11,7 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
       --danger:#e44848; --go:#38d66b;
-      --hold:#ff9c3a;
+      --hold:#ff9c3a; /* naranja de espera */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -29,6 +29,7 @@
     .grid.one{display:grid;gap:16px}
     .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
 
+    /* Controles */
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .controls .btn{flex:1 1 0; min-height:44px; justify-content:center; white-space:nowrap}
     .btn{
@@ -40,17 +41,21 @@
     .btn.primary{ background:var(--accent); border-color:var(--accent); color:#0b1220 }
     .btn.primary:hover{ background:var(--accent-2); border-color:var(--accent-2) }
 
+    /* Cámara */
     .stage{position:relative;margin-top:10px;border-radius:16px;overflow:hidden;height:60vh;background:#000;display:flex;align-items:center;justify-content:center;border:1px solid var(--border)}
     video{width:100%;height:100%;object-fit:cover;background:#000;display:block}
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
+    /* HUD */
     .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
     .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
 
+    /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
     label{display:block;margin-bottom:6px;font-weight:700}
     input[type=range]{width:100%}
 
+    /* Lista EN CURSO */
     .list{margin-top:12px}
     .runner{
       position:relative; overflow:hidden;
@@ -72,6 +77,7 @@
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
+    /* Overlays encima de cada fila */
     .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
@@ -215,9 +221,10 @@
     let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
 
     /* ===== META: congelados visuales ===== */
-    const FINISH_ORANGE_MS = 5000;
-    const FINISH_FREEZE_MS = 9000;  // total congelado
+    const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
+    const FINISH_FREEZE_MS = 9000;  // total 9s congelado (los últimos 4s parpadeo)
     const BLINK_PERIOD_MS  = 150;   // parpadeo rápido
+    const OVER_OUTLINE_W   = 2;     // grosor de línea sobreimpresa (igual que lista)
     // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
     let frozenFinishes = [];
 
@@ -228,11 +235,11 @@
       if (!p){ const run = runningSorted(); p = run[0] || null; }
       if (!p) return null;
 
-      // Posición visual actual (más recientes arriba)
+      // Posición visual actual (ordenado por más reciente arriba)
       const displayRows = runningSorted().slice().sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
       const idx = Math.max(0, displayRows.findIndex(x=>x.id===p.id));
 
-      // Escribe stopTS
+      // Escribe stopTS (registro real)
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
 
       // Congela para UI (solo META)
@@ -277,7 +284,7 @@
         await reload();
       }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
     }
-    // META: FINISH -> confirmar local
+    // META: FINISH -> confirmar local (quitamos congelado de la UI; el stop real ya está escrito)
     function confirmFinishLocal(id){
       frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
       $('lastAction').textContent='FINISH confirmado';
@@ -308,7 +315,7 @@
       }
       if (elapsed < FINISH_FREEZE_MS){
         const phase = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
-        return { color:'orange', show: (phase % 2) === 0 };
+        return { color:'orange', show: (phase % 2) === 0 }; // parpadeo (visibilidad)
       }
       return { color:'none', show:false };
     }
@@ -318,8 +325,10 @@
       const list = $('runningList');
       if(!currentLive.length){ list.innerHTML='—'; return; }
 
+      // Orden “en curso” por más reciente arriba
       const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
+      // Mezclar congelados manteniendo posición
       const froz = frozenFinishes.slice().sort((a,b)=> a.pos - b.pos);
       const merged = rows.slice();
       for(const f of froz){
@@ -344,6 +353,7 @@
 
         const timeNow = isFrozen ? p.frozenMs : (Date.now()+serverOffsetMS - (p.startMS||Date.now()+serverOffsetMS));
 
+        let holdClass = isFrozen ? ' hold' : '';
         let holdStyle = '';
         if (isFrozen){
           holdStyle = blinkOn
@@ -351,7 +361,7 @@
             : 'border-color:transparent;box-shadow:none;';
         }
 
-        return `<div class="runner${sel}${isFrozen?' hold':''}" data-id="${p.id}" style="${holdStyle}">
+        return `<div class="runner${sel}${holdClass}" data-id="${p.id}" style="${holdStyle}">
           ${actionsStart?`
             <div class="runner-actions">
               <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
@@ -496,7 +506,7 @@
         const id = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='STAY'){ await revertStop(id); return; }     /* identificador interno sigue siendo STAY */
+        if(btn.btn==='STAY'){ await revertStop(id); return; }   // identificador interno STAY (texto ON TRACK)
         if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
 
@@ -520,7 +530,7 @@
     function loop(){
       const {w,h} = fitCanvas();
 
-      // Auto-confirm visual: quitar congelados > FINISH_FREEZE_MS
+      // Auto-quitar congelados visuales tras FINISH_FREEZE_MS
       const nowMs = Date.now();
       if (mode==='finish' && frozenFinishes.length){
         frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
@@ -656,12 +666,14 @@
         const tText = fmt(elapsed);
         const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
 
+        /* Pastilla base */
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
         octx.fillStyle = grad; octx.fill();
+        /* fino borde sutil de la pastilla */
         octx.save();
         octx.lineWidth = 2;
         octx.strokeStyle = 'rgba(255,255,255,.12)';
@@ -669,16 +681,17 @@
         octx.stroke();
         octx.restore();
 
+        /* Marco de estado: ahora más fino y con offset de 1px hacia fuera */
         if (r.frozen && mode==='finish'){
           const vis = (Date.now()-r.createdAt<FINISH_ORANGE_MS)
             ? {show:true}
             : {show: (Math.floor((Date.now()-r.createdAt-FINISH_ORANGE_MS)/BLINK_PERIOD_MS)%2)===0};
           if (vis.show){
-            const col = 'rgba(255,156,58,.95)';
             octx.save();
-            octx.lineWidth = Math.max(4, Math.floor(base*0.20));
-            octx.strokeStyle = col;
-            roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
+            octx.lineWidth = OVER_OUTLINE_W;
+            octx.strokeStyle = 'rgba(255,156,58,.95)'; /* naranja */
+            /* offset exterior de 1px: -1 en x/y y +2 en ancho/alto, radio +1 */
+            roundRect(octx, pillX-1, pillY-1, pillW+2, pillH+2, radius+1);
             octx.stroke();
             octx.restore();
           }
@@ -686,13 +699,14 @@
 
         if (!r.frozen && mode==='finish' && selectedId===r.id){
           octx.save();
-          octx.lineWidth = Math.max(4, Math.floor(base*0.20));
-          octx.strokeStyle = 'rgba(127,255,182,.95)';
-          roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
+          octx.lineWidth = OVER_OUTLINE_W;
+          octx.strokeStyle = 'rgba(127,255,182,.95)'; /* selección verde (mismo grosor) */
+          roundRect(octx, pillX-1, pillY-1, pillW+2, pillH+2, radius+1);
           octx.stroke();
           octx.restore();
         }
 
+        /* Texto nombre/tiempo */
         const nameX = leftPad + 8;
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
@@ -715,7 +729,7 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        /* SALIDA overlay */
+        /* SALIDA overlay (RESTART/CONTINUE) */
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
