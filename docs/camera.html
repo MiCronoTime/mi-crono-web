@@ -47,8 +47,56 @@
     canvas.overlay{position:absolute;inset:0;pointer-events:auto}
 
     /* HUD */
-    .hud{position:absolute;left:12px;right:12px;top:12px;background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;font-weight:800;backdrop-filter:blur(4px)}
-    .pill{display:inline-block;padding:6px 14px;border-radius:999px;background:#1f2430;color:#e8ecf1}
+    .hud{
+      position:absolute;left:12px;right:12px;top:12px;
+      background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;
+      font-weight:800;backdrop-filter:blur(4px);
+      display:flex;align-items:center;gap:8px;
+      position:absolute;
+    }
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 14px;border-radius:999px;
+      background:#1f2430;color:#e8ecf1;
+      font:inherit;font-weight:800;border:none;
+    }
+    .pill-next{cursor:pointer;}
+    .pill-next::after{
+      content:"▾";
+      font-size:10px;
+      opacity:.7;
+      margin-left:4px;
+    }
+
+    .next-dropdown{
+      position:absolute;
+      right:16px;
+      top:calc(100% + 6px);
+      background:#1f2430;
+      border-radius:12px;
+      border:1px solid var(--border);
+      box-shadow:0 12px 40px rgba(0,0,0,.6);
+      max-height:260px;
+      overflow:auto;
+      min-width:220px;
+      z-index:20;
+    }
+    .next-dropdown-item{
+      padding:8px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .next-dropdown-item:hover{
+      background:#252c3a;
+    }
+    .next-dropdown-empty{
+      padding:8px 12px;
+      font-size:13px;
+      color:var(--muted);
+    }
 
     /* Paneles inferiores */
     .sub{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px}
@@ -113,7 +161,9 @@
 
         <div class="hud" id="hudTop">
           <span id="hudStatus">Listo</span>
-          • <span id="hudNext" class="pill">Siguiente: —</span>
+          •
+          <span id="hudNext" class="pill pill-next">Siguiente: —</span>
+          <div id="hudNextDropdown" class="next-dropdown" style="display:none"></div>
         </div>
       </div>
 
@@ -210,15 +260,32 @@
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
-    const nextToStart = ()=> participants.find(p=>!p.startTS);
+    // manualNextId permite fijar manualmente el siguiente en salir (siempre que aún no haya salido)
+    let selectedId = null; // META (selección manual)
+    let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
+    let manualNextId = null; // START (siguiente corredor fijado a mano)
+
+    const nextToStart = ()=>{
+      if (manualNextId){
+        const manual = participants.find(p=>!p.startTS && p.id===manualNextId);
+        if (manual) return manual;
+        // si ya no cumple condición, limpiamos selección manual
+        manualNextId = null;
+      }
+      return participants.find(p=>!p.startTS);
+    };
     const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
       .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
 
-    async function startNext(){ await reload(); const p=nextToStart(); if(!p) return null;
-      await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null }); return p; }
-
-    let selectedId = null; // META (selección manual)
-    let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
+    async function startNext(){
+      await reload();
+      const p = nextToStart();
+      if(!p) return null;
+      // una vez lo lanzamos, limpiamos selección manual
+      manualNextId = null;
+      await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
+      return p;
+    }
 
     /* ===== META: congelados visuales ===== */
     const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
@@ -300,13 +367,80 @@
       return { bib, nm, full: (bib? bib+' ' : '') + nm };
     };
 
+    const hudNextEl = $('hudNext');
+    const hudNextDropdown = $('hudNextDropdown');
+    let hudNextDropdownOpen = false;
+
+    const notStartedList = ()=> participants
+      .filter(p=>!p.startTS)
+      .sort((a,b)=>(a.order||0)-(b.order||0));
+
+    const labelForNext = (nxt)=>{
+      if(!nxt) return 'Siguiente: —';
+      const base = 'Siguiente: ' + (nxt.name||'—').toUpperCase();
+      if (manualNextId && nxt.id===manualNextId) return base + ' • (fijado)';
+      return base;
+    };
+
     function ensureStatus(){
       const nxt = nextToStart();
-      $('hudNext').textContent = 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+      $('hudNext').textContent = labelForNext(nxt);
       const hasStart = participants.some(p=>p.startTS);
       const hasStop  = participants.some(p=>p.stopTS);
       $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
     }
+
+    function populateNextDropdown(){
+      const list = notStartedList();
+      if(!list.length){
+        hudNextDropdown.innerHTML = '<div class="next-dropdown-empty">No hay corredores pendientes</div>';
+        return;
+      }
+      hudNextDropdown.innerHTML = list.map(p=>{
+        const nm = (p.name||'').toUpperCase();
+        const dorsal = (p.dorsal||'').toString().trim();
+        const badge = dorsal ? `#${dorsal} · ` : '';
+        const ord = p.order ?? '—';
+        return `<div class="next-dropdown-item" data-id="${p.id}">
+          <div>${badge}${nm}</div>
+          <div class="muted" style="font-size:11px;">Orden ${ord}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function openNextDropdown(){
+      populateNextDropdown();
+      hudNextDropdown.style.display = 'block';
+      hudNextDropdownOpen = true;
+    }
+    function closeNextDropdown(){
+      hudNextDropdown.style.display = 'none';
+      hudNextDropdownOpen = false;
+    }
+    function toggleNextDropdown(){
+      if(hudNextDropdownOpen) closeNextDropdown();
+      else openNextDropdown();
+    }
+
+    hudNextEl.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      toggleNextDropdown();
+    });
+
+    hudNextDropdown.addEventListener('click',(e)=>{
+      const item = e.target.closest('.next-dropdown-item');
+      if(!item) return;
+      const id = item.dataset.id;
+      manualNextId = id || null;
+      ensureStatus();
+      closeNextDropdown();
+    });
+
+    document.addEventListener('click',(e)=>{
+      if(!hudNextDropdownOpen) return;
+      if(hudNextEl.contains(e.target) || hudNextDropdown.contains(e.target)) return;
+      closeNextDropdown();
+    });
 
     function frozenVisualState(createdAt){
       const elapsed = Date.now() - createdAt;
