@@ -368,6 +368,14 @@
       return { bib, nm, full: (bib? bib+' ' : '') + nm };
     };
 
+    // Etiqueta corta "45 ELOI" o solo "ELOI"
+    const shortLabel = (p)=>{
+      if(!p) return '—';
+      const dorsal = (p.dorsal||'').toString().trim();
+      const nm = (p.name||'').toUpperCase();
+      return (dorsal ? dorsal+' ' : '') + nm;
+    };
+
     const hudNextEl = $('hudNext');
     const hudNextDropdown = $('hudNextDropdown');
     let hudNextDropdownOpen = false;
@@ -382,7 +390,7 @@
       .sort((a,b)=>(a.order||0)-(b.order||0));
 
     const labelForNext = (nxt)=>{
-      return 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
+      return 'Siguiente: ' + (nxt ? shortLabel(nxt) : '—');
     };
 
     function ensureStatus(){
@@ -400,12 +408,10 @@
         return;
       }
       hudNextDropdown.innerHTML = list.map(p=>{
-        const nm = (p.name||'').toUpperCase();
-        const dorsal = (p.dorsal||'').toString().trim();
-        const badge = dorsal ? `#${dorsal} · ` : '';
+        const line = shortLabel(p); // "45 ELOI" o solo "ELOI"
         const ord = p.order ?? '—';
         return `<div class="next-dropdown-item" data-id="${p.id}">
-          <div>${badge}${nm}</div>
+          <div>${line}</div>
           <div class="muted" style="font-size:11px;">Orden ${ord}</div>
         </div>`;
       }).join('');
@@ -542,7 +548,7 @@
         if (f){ f.showActions = !f.showActions; return; }
         selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
       }else{
-        goBackId = (goBackId===id ? null : id); renderListNow();
+        goBackId = (goBackId===row.baseId ? null : row.baseId);
       }
     });
 
