@@ -7,206 +7,329 @@
   <link rel="stylesheet" href="styles.css"/>
   <style>
     :root{
-      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1; --muted:#b5bdc9;
-      --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
+      --bg:#121418; --panel:#1b1f27; --panel2:#232a34; --text:#e8ecf1;
+      --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
+      --row:#0f1217; --row2:#111720; --headGrad1:#202633; --headGrad2:#181e29;
     }
-    body{
-      margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
-                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),
-                 var(--bg);
-      color:var(--text)
-    }
+                 radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);
+      color:var(--text)}
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
-    .header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-    .title{font-size:32px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
-    .userbar{margin-top:6px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:inline-block}
+    .titleTop{display:flex;align-items:center;gap:12px;font-size:32px;font-weight:900;letter-spacing:.02em;margin:6px 0 10px 0;text-transform:uppercase}
+    .connected{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:10px;color:var(--muted);max-width:560px}
 
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
-    h2{margin:0 0 12px 0;text-transform:uppercase;letter-spacing:.04em;font-size:24px}
-    label{display:block;margin:10px 0 6px 0;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
-    input,textarea{
-      width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);
-      background:#0f1217;color:var(--text);font-size:15px
-    }
-    textarea{min-height:140px;resize:vertical}
-    small.muted{color:var(--muted)}
-    .btn{
-      display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px;
-      border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text);
-      font-weight:900;text-transform:uppercase;letter-spacing:.03em;cursor:pointer
-    }
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+    .h2{font-size:24px;font-weight:900;text-transform:uppercase;margin:0 0 12px 0}
+    label{display:block;margin:10px 0 6px 0;font-weight:800}
+    input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0f1217;color:var(--text)}
+    .muted{color:var(--muted)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid var(--border);background:#0f1217;color:var(--text);cursor:pointer;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#0b1220}
     .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
-    .btn.ghost{background:#0f1217;border-color:var(--border)}
-    .btn.danger{background:#611b26;border-color:#8a2b3a}
-    .rowbtns{display:flex;gap:10px;flex-wrap:wrap}
-    .tools{margin-top:16px}
-    .muted{color:var(--muted)}
-    .ok{color:#7cffb6;font-weight:800}
-    .err{color:#ff7b8c;font-weight:800}
-    @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#111}
+    .rowBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+
+    /* Tabla editable */
+    .tableWrap{border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    table.editor{width:100%;border-collapse:separate;border-spacing:0;background:var(--row)}
+    thead th{
+      text-align:left;padding:12px 14px;font-weight:900;text-transform:uppercase;letter-spacing:.02em;
+      background:linear-gradient(180deg,var(--headGrad1),var(--headGrad2)); color:#cfe1ff; border-bottom:1px solid var(--border)
+    }
+    thead th:first-child{width:150px}
+    tbody tr:nth-child(odd){background:var(--row)}
+    tbody tr:nth-child(even){background:var(--row2)}
+    td{padding:0;border-bottom:1px solid #1a222e}
+    td:last-child{border-left:1px solid #1a222e}
+    .cell{width:100%;height:46px;display:flex;align-items:center}
+    .cell input{
+      width:100%;height:46px;border:0;outline:none;background:transparent;color:var(--text);padding:0 14px;font-weight:800
+    }
+    .cell input.name{text-transform:uppercase}
+    .cell input::placeholder{color:#6f7a8a}
+    .mini{padding:8px 10px;border-radius:10px;font-size:12px}
+
+    /* Modal selector (cargar lista / elegir para unirse) */
+    .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal{width:min(92vw,560px);max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.5);padding:14px}
+    .modal h3{margin:4px 0 10px 0;font-size:20px;text-transform:uppercase}
+    .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
+    .evItem:hover{background:#111720}
+    .smallMuted{font-size:12px;color:var(--muted)}
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="header">
-      <div class="title">CRONOLAP</div>
-    </div>
-    <div id="userBar" class="userbar" style="display:none">Conectado: —</div>
+    <div class="titleTop">📷 CRONOLAP</div>
+    <div id="who" class="connected">Conectado: —</div>
 
-    <div class="grid" style="margin-top:12px">
+    <div class="grid">
+      <!-- CREAR -->
       <section class="panel">
-        <h2>Crear evento</h2>
-
+        <div class="h2">Crear evento</div>
         <label>Código del evento</label>
-        <input id="eventCode" placeholder="P.EJ. TEST1" oninput="this.value=this.value.toUpperCase()"/>
+        <input id="evCode" type="text" placeholder="P.EJ. TEST1" autocomplete="off"/>
 
-        <label style="margin-top:10px">Participantes (uno por línea, en orden de salida)</label>
-        <textarea id="parts" placeholder="CORREDOR 1
-CORREDOR 2
-CORREDOR 3"></textarea>
-
-        <small class="muted" style="display:block;margin-top:10px">
-          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
-        </small>
-
-        <div class="rowbtns" style="margin-top:14px">
+        <label style="margin-top:12px">Participantes (uno por línea, en orden de salida)</label>
+        <div class="tableWrap">
+          <table class="editor" id="tbl">
+            <thead>
+              <tr><th>Dorsal</th><th>Nombre</th></tr>
+            </thead>
+            <tbody id="tbody">
+              <!-- filas dinámicas -->
+            </tbody>
+          </table>
+        </div>
+        <div class="rowBtns">
+          <button id="btnAddRow" class="btn mini">+ Añadir fila</button>
+          <button id="btnLoadList" class="btn mini">Cargar lista</button>
           <button id="btnSave" class="btn primary">Guardar evento</button>
         </div>
 
-        <div id="state" class="muted" style="margin-top:10px">—</div>
+        <div class="muted" style="margin-top:10px">
+          Si el evento ya existe, se <b>RESETEA por completo</b> (borra participantes y tiempos) y se crean estos nuevos.
+        </div>
       </section>
 
+      <!-- UNIRSE -->
       <section class="panel">
-        <h2>Unirse a un evento</h2>
-
+        <div class="h2">Unirse a un evento</div>
         <label>Código</label>
-        <input id="joinCode" placeholder="TEST1" oninput="this.value=this.value.toUpperCase()"/>
+        <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
 
-        <div class="rowbtns" style="margin-top:14px">
-          <a id="goCrono"  class="btn ghost">📷&nbsp;Abrir Cronolap</a>
-          <a id="goResult" class="btn ghost">🗂️&nbsp;Resultados</a>
+        <div class="rowBtns">
+          <a id="goCrono"  class="btn">📷 Abrir CRONOLAP</a>
+          <a id="goResult" class="btn">🧾 Resultados</a>
         </div>
 
-        <small class="muted" style="display:block;margin-top:12px">
-          En <b>CRONOLAP</b> la <b>SALIDA</b> y la <b>META</b> las marca el <b>mismo dispositivo</b>.
-          Sale un participante, completa la vuelta y entonces sale el siguiente.
-        </small>
+        <div class="muted" style="margin-top:10px">
+          En <b>CRONOLAP</b> la <b>SALIDA</b> y la <b>META</b> las marca el <u>mismo dispositivo</u>. Sale un participante, completa la vuelta y entonces sale el siguiente.
+        </div>
       </section>
     </div>
 
-    <section class="panel tools">
-      <h2>Herramientas</h2>
-      <p class="muted">
-        <b>RESET EVENTOS</b> elimina <u>todos</u> los eventos y sus participantes de tu base de datos. Úsalo solo si quieres limpiar por completo.
-      </p>
-      <div class="rowbtns">
-        <button id="btnReset" class="btn danger">Reset eventos</button>
+    <!-- HERRAMIENTAS -->
+    <section class="panel" style="margin-top:16px">
+      <div class="h2">Herramientas</div>
+      <div class="muted" style="margin-bottom:10px">
+        <b>Reset eventos</b> elimina <u>todos</u> los eventos y sus participantes de tu base de datos. Úsalo solo si quieres limpiar por completo.
       </div>
+      <button id="btnReset" class="btn danger">Reset eventos</button>
     </section>
   </div>
 
+  <!-- MODAL reutilizable (cargar lista / elegir para unirse) -->
+  <div id="pickMask" class="modalMask" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="modal">
+      <h3 id="pickTitle">Selecciona un evento</h3>
+      <div id="pickList"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+        <button id="pickCancel" class="btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
-    import { ensureAuthInit, requireAuth, currentCtx, mountUserBar } from './js/auth.js';
-    import { initializeApp, getApps, getApp } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js';
-    import {
-      getFirestore, doc, setDoc, collection, addDoc, getDocs, deleteDoc,
-      serverTimestamp
-    } from 'https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js';
+    import { ensureAuthInit, requireAuth, currentCtx } from './js/auth.js';
 
-    (async function init(){
-      // Auth + barra usuario
-      await ensureAuthInit();
-      await requireAuth('index.html');
-      mountUserBar('userBar');
+    await ensureAuthInit();
+    await requireAuth('index.html');
 
-      // Firebase
-      const firebaseConfig = {
-        apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
-        authDomain: "mi-crono-time-888b7.firebaseapp.com",
-        projectId: "mi-crono-time-888b7",
-        storageBucket: "mi-crono-time-888b7.appspot.com",
-        messagingSenderId: "379025900327",
-        appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
-      };
-      const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-      const db  = getFirestore(app);
+    const who = document.getElementById('who');
+    const { uid, email } = currentCtx();
+    who.textContent = `Conectado: ${email}`;
 
-      const { uid } = currentCtx();
-      const $=id=>document.getElementById(id);
+    const evCode   = document.getElementById('evCode');
+    const joinCode = document.getElementById('joinCode');
 
-      const codeEl   = $('eventCode');
-      const partsEl  = $('parts');
-      const joinCode = $('joinCode');
-      const stateEl  = $('state');
+    const btnAddRow   = document.getElementById('btnAddRow');
+    const btnSave     = document.getElementById('btnSave');
+    const btnLoadList = document.getElementById('btnLoadList');
+    const btnReset    = document.getElementById('btnReset');
+    const btnGoCrono  = document.getElementById('goCrono');
+    const btnGoRes    = document.getElementById('goResult');
+    const tbody       = document.getElementById('tbody');
 
-      const CODE = () => (codeEl.value||'').trim().toUpperCase();
-      const JCODE= () => (joinCode.value||'').trim().toUpperCase();
-      const PARTS= () => (partsEl.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(s=>s.toUpperCase());
+    // Modal reutilizable
+    const pickMask   = document.getElementById('pickMask');
+    const pickList   = document.getElementById('pickList');
+    const pickTitle  = document.getElementById('pickTitle');
+    const pickCancel = document.getElementById('pickCancel');
 
-      // Guardar evento (resetea el existente y crea participantes)
-      $('btnSave').onclick = async ()=>{
-        stateEl.textContent='Guardando…'; stateEl.className='muted';
-        try{
-          const code = CODE(); if(!code) throw new Error('Escribe un código de evento');
-          const eventRef = doc(db,'users',uid,'events',code);
-          await setDoc(eventRef,{ code, createdAt: serverTimestamp() },{ merge:true });
+    // Mayúsculas suaves para códigos
+    const toUC = (s)=> (s||'').normalize('NFC').toUpperCase();
+    evCode.addEventListener('input', ()=> evCode.value = toUC(evCode.value) );
+    joinCode.addEventListener('input', ()=> joinCode.value = toUC(joinCode.value) );
 
-          const list = PARTS();
-          if(list.length){
-            const partsCol = collection(eventRef,'participants');
-            // elimina antiguos
-            const prev = await getDocs(partsCol);
-            for(const d of prev.docs) await deleteDoc(d.ref);
-            // crea nuevos
-            for(let i=0;i<list.length;i++){
-              await addDoc(partsCol,{
-                name:list[i], order:i+1, startTS:null, stopTS:null, createdAt: serverTimestamp()
-              });
-            }
-          }
-          stateEl.textContent='Evento guardado'; stateEl.className='ok';
-        }catch(e){
-          stateEl.textContent='Error: '+(e.message||e); stateEl.className='err';
-          console.error(e);
+    // === Tabla dinámica DORSAL | NOMBRE ===
+    function addRow(dorsal='', name=''){
+      const tr = document.createElement('tr');
+      const td1 = document.createElement('td');
+      const td2 = document.createElement('td');
+      const c1 = document.createElement('div'); c1.className='cell';
+      const c2 = document.createElement('div'); c2.className='cell';
+
+      const iD = document.createElement('input');
+      iD.type='text'; iD.inputMode='numeric'; iD.placeholder='—'; iD.value=dorsal;
+      iD.addEventListener('input', ()=>{ iD.value = iD.value.replace(/\D+/g,'').slice(0,6); });
+
+      const iN = document.createElement('input');
+      iN.type='text'; iN.className='name'; iN.placeholder='CORREDOR';
+      iN.value = (name||'').toUpperCase();
+      iN.addEventListener('input', ()=> iN.value = iN.value.toUpperCase() );
+
+      c1.appendChild(iD); c2.appendChild(iN);
+      td1.appendChild(c1); td2.appendChild(c2);
+      tr.appendChild(td1); tr.appendChild(td2);
+      tbody.appendChild(tr);
+      return tr;
+    }
+
+    function rowsData(){
+      const out=[];
+      [...tbody.querySelectorAll('tr')].forEach(()=>{
+        /* NO-OP: usamos índice creado abajo, no la posición física */
+      });
+      let order=1;
+      for(const tr of tbody.querySelectorAll('tr')){
+        const [iD,iN] = tr.querySelectorAll('input');
+        const name = (iN.value||'').trim().toUpperCase();
+        const dorsal = (iD.value||'').trim();
+        if(!name) continue;
+        const obj = { order, name };
+        if(dorsal) obj.dorsal=dorsal;
+        out.push(obj); order++;
+      }
+      return out;
+    }
+
+    btnAddRow.addEventListener('click', ()=> addRow() );
+    // 3 filas de arranque
+    addRow(); addRow(); addRow();
+
+    // === Firebase ===
+    const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const {
+      getFirestore, doc, collection, getDoc, setDoc, serverTimestamp, writeBatch,
+      getDocs, query, orderBy, deleteDoc
+    } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js');
+
+    const app = getApps().length ? getApp() : initializeApp({
+      apiKey: "AIzaSyCt52Q6LEJ0fl0iKUIE6OKXlbp42fzOgBU",
+      authDomain: "mi-crono-time-888b7.firebaseapp.com",
+      projectId: "mi-crono-time-888b7",
+      storageBucket: "mi-crono-time-888b7.appspot.com",
+      messagingSenderId: "379025900327",
+      appId: "1:379025900327:web:6f10f46ee086ca61f8df02"
+    });
+    const db = getFirestore(app);
+
+    const eventRef = (code)=> doc(db,'users',uid,'events',toUC(code));
+    const partsCol = (code)=> collection(eventRef(code),'participants');
+
+    /* ========= Guardar evento ========= */
+    btnSave.addEventListener('click', async ()=>{
+      const code = toUC(evCode.value.trim());
+      if(!code){ alert('Pon un CÓDIGO de evento'); return; }
+      const list = rowsData();
+      if(!list.length){ alert('Añade al menos un participante'); return; }
+
+      try{
+        await setDoc(eventRef(code), { code, updatedAt: serverTimestamp(), createdAt: serverTimestamp() }, { merge:true });
+
+        // borrar participantes antiguos
+        const snap = await getDocs(partsCol(code));
+        const bDel = writeBatch(db); snap.forEach(d=> bDel.delete(d.ref)); await bDel.commit();
+
+        // insertar nuevos
+        const b = writeBatch(db);
+        list.forEach(p=> b.set(doc(partsCol(code)), p) );
+        await b.commit();
+
+        // Auto-rellenar "Unirse a un evento"
+        joinCode.value = code;
+
+        alert('Evento guardado');
+      }catch(e){ alert('Error guardando: '+(e.message||e)); }
+    });
+
+    /* ========= Cargar lista desde otro evento ========= */
+    btnLoadList.addEventListener('click', ()=> openPicker('Selecciona un evento', async (evId)=>{
+      try{
+        const snap = await getDocs(query(partsCol(evId), orderBy('order','asc')));
+        if(snap.empty){ alert('Ese evento no tiene participantes'); return; }
+        tbody.innerHTML='';
+        snap.forEach(d=>{
+          const p = d.data();
+          addRow(p.dorsal||'', (p.name||'').toUpperCase());
+        });
+        addRow(); // extra
+        pickMask.style.display='none';
+        alert(`Lista cargada desde ${evId}. Cambia el CÓDIGO y pulsa GUARDAR EVENTO para crear uno nuevo.`);
+      }catch(e){
+        alert('No se pudo cargar la lista: '+(e.message||e));
+      }
+    }));
+
+    /* ========= Desplegable para UNIRSE ========= */
+    // Abre selector al enfocar o hacer click en el input
+    joinCode.addEventListener('focus', openJoinPicker);
+    joinCode.addEventListener('click', openJoinPicker);
+    function openJoinPicker(){
+      openPicker('Elige evento para unirte', (evId)=>{
+        joinCode.value = toUC(evId);
+        pickMask.style.display='none';
+      });
+    }
+
+    // Función genérica de apertura de modal + listado
+    async function openPicker(title, onPick){
+      pickTitle.textContent = title;
+      pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
+      pickMask.style.display = 'flex';
+      try{
+        const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
+        if(evsSnap.empty){ pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>'; return; }
+        pickList.innerHTML='';
+        evsSnap.forEach(docu=>{
+          const d = docu.data()||{};
+          const when = d.updatedAt?.toDate ? d.updatedAt.toDate() :
+                       (d.updatedAt? new Date(d.updatedAt.seconds*1000) : null);
+          const nice = when ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when) : '—';
+          const div=document.createElement('div');
+          div.className='evItem';
+          div.innerHTML = `<div><b>${d.code||docu.id}</b><div class="smallMuted">${nice}</div></div><div class="smallMuted">Seleccionar</div>`;
+          div.addEventListener('click', ()=> onPick(docu.id));
+          pickList.appendChild(div);
+        });
+      }catch(e){
+        pickList.innerHTML = `<div class="smallMuted">Error: ${e.message||e}</div>`;
+      }
+    }
+    pickCancel.addEventListener('click', ()=> pickMask.style.display='none' );
+
+    /* ========= Navegación ========= */
+    const codeFromJoin = ()=> toUC(joinCode.value.trim());
+    btnGoCrono.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`cronolap.html?code=${encodeURIComponent(c)}`; };
+    btnGoRes.onclick   = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
+
+    /* ========= Reset total ========= */
+    btnReset.addEventListener('click', async ()=>{
+      if(!confirm('Esto borrará TODOS tus eventos y participantes. ¿Seguro?')) return;
+      try{
+        const evsSnap = await getDocs(collection(doc(db,'users',uid),'events'));
+        for(const evDoc of evsSnap.docs){
+          const ps = await getDocs(collection(evDoc.ref,'participants'));
+          const b1 = writeBatch(db); ps.forEach(x=>b1.delete(x.ref)); await b1.commit();
+          await deleteDoc(evDoc.ref);
         }
-      };
-
-      // Abrir Cronolap (misma cámara, un dispositivo marca salida y meta del mismo corredor)
-      $('goCrono').onclick = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        // Usa tu cámara estándar; si tienes una variante para cronolap, cambia a camera_cronolap.html
-        location.href = `camera_cronolap.html?code=${encodeURIComponent(c)}&mode=start`;
-      };
-
-      // Resultados
-      $('goResult').onclick = (e)=>{ e.preventDefault();
-        const c=JCODE(); if(!c){ alert('Escribe el código en "Código"'); return; }
-        location.href = `result.html?code=${encodeURIComponent(c)}`;
-      };
-
-      // Reset eventos del usuario
-      $('btnReset').onclick = async ()=>{
-        if(!confirm('¿Seguro que quieres BORRAR TODOS tus eventos y participantes?\nEsta acción no se puede deshacer.')) return;
-        stateEl.textContent='Borrando…'; stateEl.className='muted';
-        try{
-          const evs = await getDocs(collection(db,'users',uid,'events'));
-          for(const ev of evs.docs){
-            const partsSnap = await getDocs(collection(ev.ref,'participants'));
-            for(const p of partsSnap.docs) await deleteDoc(p.ref);
-            const syncSnap = await getDocs(collection(ev.ref,'sync'));
-            for(const s of syncSnap.docs) await deleteDoc(s.ref);
-            await deleteDoc(ev.ref);
-          }
-          stateEl.textContent='Reset completado'; stateEl.className='ok';
-        }catch(e){
-          stateEl.textContent='Error al resetear: '+(e.message||e); stateEl.className='err';
-          console.error(e);
-        }
-      };
-    })();
+        alert('Limpieza completada');
+      }catch(e){ alert('Error al resetear: '+(e.message||e)); }
+    });
   </script>
 </body>
 </html>
