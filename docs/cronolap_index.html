@@ -11,10 +11,12 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent2:#7cc4ff; --danger:#ff7b8c;
       --row:#0f1217; --row2:#111720; --headGrad1:#202633; --headGrad2:#181e29;
     }
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    body{
+      margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background:radial-gradient(1200px 800px at 20% -10%, #151924 0%, transparent 60%),
                  radial-gradient(1200px 800px at 120% 10%, #1a2030 0%, transparent 55%),var(--bg);
-      color:var(--text)}
+      color:var(--text)
+    }
     .wrap{max-width:1100px;margin:0 auto;padding:18px}
     .titleTop{display:flex;align-items:center;gap:12px;font-size:32px;font-weight:900;letter-spacing:.02em;margin:6px 0 10px 0;text-transform:uppercase}
     .connected{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;margin-bottom:10px;color:var(--muted);max-width:560px}
@@ -30,6 +32,7 @@
     .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#111}
     .rowBtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .mini{padding:8px 10px;border-radius:10px;font-size:12px}
 
     /* Tabla editable */
     .tableWrap{border:1px solid var(--border);border-radius:14px;overflow:hidden}
@@ -49,16 +52,38 @@
     }
     .cell input.name{text-transform:uppercase}
     .cell input::placeholder{color:#6f7a8a}
-    .mini{padding:8px 10px;border-radius:10px;font-size:12px}
 
-    /* Modal selector (cargar lista / elegir para unirse) */
+    /* UNIRSE: input + select tipo result.html */
+    .addbarJoin{
+      display:grid; gap:8px; align-items:center;
+      grid-template-columns: 1fr 1fr; /* móvil: input + select */
+    }
+    @media (min-width:520px){
+      .addbarJoin{
+        grid-template-columns: 1fr 220px; /* en escritorio, select más estrecho */
+      }
+    }
+    select{
+      background:#0f141d;
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:10px;
+      padding:10px 12px;
+      width:100%;
+    }
+
+    /* Modal selector (cargar lista / elegir para unirse en crear) */
     .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
     .modal{width:min(92vw,560px);max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.5);padding:14px}
     .modal h3{margin:4px 0 10px 0;font-size:20px;text-transform:uppercase}
     .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
     .evItem:hover{background:#111720}
     .smallMuted{font-size:12px;color:var(--muted)}
-    @media (max-width:900px){ .grid{grid-template-columns:1fr} .connected{max-width:100%} }
+
+    @media (max-width:900px){
+      .grid{grid-template-columns:1fr}
+      .connected{max-width:100%}
+    }
   </style>
 </head>
 <body>
@@ -99,7 +124,12 @@
       <section class="panel">
         <div class="h2">Unirse a un evento</div>
         <label>Código</label>
-        <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
+        <div class="addbarJoin">
+          <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
+          <select id="selJoin">
+            <option value="">Cargando eventos…</option>
+          </select>
+        </div>
 
         <div class="rowBtns">
           <a id="goCrono"  class="btn">📷 Abrir CRONOLAP</a>
@@ -122,7 +152,7 @@
     </section>
   </div>
 
-  <!-- MODAL reutilizable (cargar lista / elegir para unirse) -->
+  <!-- MODAL reutilizable (cargar lista) -->
   <div id="pickMask" class="modalMask" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
     <div class="modal">
       <h3 id="pickTitle">Selecciona un evento</h3>
@@ -145,6 +175,7 @@
 
     const evCode   = document.getElementById('evCode');
     const joinCode = document.getElementById('joinCode');
+    const selJoin  = document.getElementById('selJoin');
 
     const btnAddRow   = document.getElementById('btnAddRow');
     const btnSave     = document.getElementById('btnSave');
@@ -154,7 +185,7 @@
     const btnGoRes    = document.getElementById('goResult');
     const tbody       = document.getElementById('tbody');
 
-    // Modal reutilizable
+    // Modal reutilizable (solo para Cargar lista)
     const pickMask   = document.getElementById('pickMask');
     const pickList   = document.getElementById('pickList');
     const pickTitle  = document.getElementById('pickTitle');
@@ -191,9 +222,6 @@
 
     function rowsData(){
       const out=[];
-      [...tbody.querySelectorAll('tr')].forEach(()=>{
-        /* NO-OP: usamos índice creado abajo, no la posición física */
-      });
       let order=1;
       for(const tr of tbody.querySelectorAll('tr')){
         const [iD,iN] = tr.querySelectorAll('input');
@@ -212,7 +240,8 @@
     addRow(); addRow(); addRow();
 
     // === Firebase ===
-    const { initializeApp, getApps, getApp } = await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
+    const { initializeApp, getApps, getApp } =
+      await import('https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js');
     const {
       getFirestore, doc, collection, getDoc, setDoc, serverTimestamp, writeBatch,
       getDocs, query, orderBy, deleteDoc
@@ -252,6 +281,7 @@
 
         // Auto-rellenar "Unirse a un evento"
         joinCode.value = code;
+        await fillJoinSelect(); // refrescar selector para incluir el nuevo evento
 
         alert('Evento guardado');
       }catch(e){ alert('Error guardando: '+(e.message||e)); }
@@ -275,31 +305,62 @@
       }
     }));
 
-    /* ========= Desplegable para UNIRSE ========= */
-    // Abre selector al enfocar o hacer click en el input
-    joinCode.addEventListener('focus', openJoinPicker);
-    joinCode.addEventListener('click', openJoinPicker);
-    function openJoinPicker(){
-      openPicker('Elige evento para unirte', (evId)=>{
-        joinCode.value = toUC(evId);
-        pickMask.style.display='none';
-      });
+    /* ========= Selector de eventos para UNIRSE (tipo result.html) ========= */
+    async function fillJoinSelect(){
+      try{
+        selJoin.disabled = true;
+        selJoin.innerHTML = '<option value="">Cargando eventos…</option>';
+        const evsSnap = await getDocs(
+          query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
+        );
+        if(evsSnap.empty){
+          selJoin.innerHTML = '<option value="">Sin eventos aún</option>';
+          return;
+        }
+        const opts = [];
+        evsSnap.forEach(docu=>{
+          const d = docu.data() || {};
+          const code = d.code || docu.id;
+          opts.push(`<option value="${code}">${code}</option>`);
+        });
+        selJoin.innerHTML = '<option value="">Seleccionar evento…</option>' + opts.join('');
+        selJoin.disabled = false;
+      }catch(e){
+        selJoin.innerHTML = '<option value="">Error cargando eventos</option>';
+        selJoin.disabled = true;
+        console.error(e);
+      }
     }
+    await fillJoinSelect();
 
-    // Función genérica de apertura de modal + listado
+    // Cuando elegimos un evento del desplegable, lo volcamos al input
+    selJoin.addEventListener('change', ()=>{
+      const val = selJoin.value || '';
+      if(!val) return;
+      joinCode.value = toUC(val);
+    });
+
+    // Función genérica de apertura de modal (para Cargar lista)
     async function openPicker(title, onPick){
       pickTitle.textContent = title;
       pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
       pickMask.style.display = 'flex';
       try{
-        const evsSnap = await getDocs(query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc')));
-        if(evsSnap.empty){ pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>'; return; }
+        const evsSnap = await getDocs(
+          query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
+        );
+        if(evsSnap.empty){
+          pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>';
+          return;
+        }
         pickList.innerHTML='';
         evsSnap.forEach(docu=>{
           const d = docu.data()||{};
           const when = d.updatedAt?.toDate ? d.updatedAt.toDate() :
                        (d.updatedAt? new Date(d.updatedAt.seconds*1000) : null);
-          const nice = when ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when) : '—';
+          const nice = when
+            ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when)
+            : '—';
           const div=document.createElement('div');
           div.className='evItem';
           div.innerHTML = `<div><b>${d.code||docu.id}</b><div class="smallMuted">${nice}</div></div><div class="smallMuted">Seleccionar</div>`;
@@ -314,8 +375,16 @@
 
     /* ========= Navegación ========= */
     const codeFromJoin = ()=> toUC(joinCode.value.trim());
-    btnGoCrono.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera_cronolap.html?code=${encodeURIComponent(c)}`; };
-    btnGoRes.onclick   = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
+    btnGoCrono.onclick = ()=>{
+      const c = codeFromJoin();
+      if(!c) return alert('Pon un código');
+      location.href=`camera_cronolap.html?code=${encodeURIComponent(c)}`;
+    };
+    btnGoRes.onclick   = ()=>{
+      const c = codeFromJoin();
+      if(!c) return alert('Pon un código');
+      location.href=`result.html?code=${encodeURIComponent(c)}`;
+    };
 
     /* ========= Reset total ========= */
     btnReset.addEventListener('click', async ()=>{
@@ -327,6 +396,7 @@
           const b1 = writeBatch(db); ps.forEach(x=>b1.delete(x.ref)); await b1.commit();
           await deleteDoc(evDoc.ref);
         }
+        await fillJoinSelect();
         alert('Limpieza completada');
       }catch(e){ alert('Error al resetear: '+(e.message||e)); }
     });
