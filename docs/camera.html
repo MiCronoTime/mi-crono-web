@@ -11,7 +11,7 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
       --danger:#e44848; --go:#38d66b;
-      --hold:#ff9c3a; /* naranja para congelados en META */
+      --hold:#ff9c3a; /* naranja para congelados (fase 1) */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -220,7 +220,11 @@
     let selectedId = null; // META (selección manual)
     let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
 
-    /* ===== META: congelados con posición fija + auto-confirm 8s ===== */
+    /* ===== META: congelados con posición fija + auto-confirm ===== */
+    // Visual: 0-5s naranja fijo, 5-9s rojo parpadeo
+    const FINISH_ORANGE_MS = 5000;
+    const FINISH_FREEZE_MS = 9000; // total congelado antes de confirmar
+    const BLINK_PERIOD_MS  = 300;  // parpadeo ~3.3 Hz
     // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
     let frozenFinishes = [];
 
@@ -231,14 +235,14 @@
       if (!p){ const run = runningSorted(); p = run[0] || null; }
       if (!p) return null;
 
-      // Calcula posición visual actual (más recientes arriba)
+      // Posición visual actual (más recientes arriba)
       const displayRows = runningSorted().slice().sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
       const idx = Math.max(0, displayRows.findIndex(x=>x.id===p.id));
 
       // Escribe stopTS
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
 
-      // Congela
+      // Congela para UI (solo META)
       if (mode==='finish'){
         const startMS = tsToMillis(p.startTS);
         const nowSync = Date.now() + serverOffsetMS;
@@ -281,7 +285,7 @@
         await reload();
       }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
     }
-    // META: FINISH -> confirmar local
+    // META: FINISH -> confirmar local (quitamos congelado de la UI)
     function confirmFinishLocal(id){
       frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
       $('lastAction').textContent='FINISH confirmado';
@@ -305,6 +309,19 @@
       $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
     }
 
+    // Visual state for frozen finish (color + blinkOn)
+    function frozenVisualState(createdAt){
+      const elapsed = Date.now() - createdAt;
+      if (elapsed < FINISH_ORANGE_MS){
+        return { color:'orange', show:true };
+      }
+      if (elapsed < FINISH_FREEZE_MS){
+        const phase = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
+        return { color:'red', show: (phase % 2) === 0 }; // on/off blink
+      }
+      return { color:'none', show:false };
+    }
+
     function renderListNow(){
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
@@ -318,26 +335,48 @@
       const merged = rows.slice();
       for(const f of froz){
         const pos = Math.max(0, Math.min(f.pos, merged.length));
-        // Evita duplicados (si aún aparece corriendo)
-        if (!merged.find(x=>x.id===f.id)) merged.splice(pos, 0, { ...f, frozen:true });
-        else {
-          // Si aparece, sustitúyelo por su versión congelada visual
-          const i = merged.findIndex(x=>x.id===f.id);
-          merged.splice(i, 1, { ...merged[i], frozen:true, showActions:f.showActions, createdAt:f.createdAt, frozenMs:f.frozenMs });
-        }
+        const idx = merged.findIndex(x=>x.id===f.id);
+        const visual = frozenVisualState(f.createdAt);
+        const isBlinkOn = visual.show;
+        const isRedPhase = (visual.color==='red');
+        const obj = {
+          ...f,
+          frozen:true,
+          frozenRed: isRedPhase,
+          frozenBlinkOn: isBlinkOn
+        };
+        if (idx>=0) merged.splice(idx, 1, { ...merged[idx], ...obj });
+        else merged.splice(pos, 0, obj);
       }
 
       list.innerHTML = merged.map(p=>{
         const isFrozen = !!p.frozen && (mode==='finish');
+        const isRed = !!p.frozenRed;
+        const blinkOn = (p.frozenBlinkOn!==undefined)? p.frozenBlinkOn : true;
+
         const sel = (!isFrozen && mode==='finish' && selectedId===p.id) ? ' selected' : '';
         const { bib, nm } = displayName(p);
 
-        const actionsStart = (mode==='start' && goBackId===p.id);
+        const actionsStart  = (mode==='start'  && goBackId===p.id);
         const actionsFinish = (isFrozen && p.showActions && mode==='finish');
 
         const timeNow = isFrozen ? p.frozenMs : (Date.now()+serverOffsetMS - (p.startMS||Date.now()+serverOffsetMS));
 
-        return `<div class="runner${sel}${isFrozen?' hold':''}" data-id="${p.id}">
+        // estilo de borde dinámico (naranja fijo / rojo parpadeo / oculto en off)
+        let holdStyle = '';
+        if (isFrozen){
+          if (blinkOn){
+            if (isRed){
+              holdStyle = 'border-color:rgba(228,72,72,.98);box-shadow:0 0 0 3px rgba(228,72,72,.35) inset;';
+            }else{
+              holdStyle = 'border-color:var(--hold);box-shadow:0 0 0 3px rgba(255,156,58,.35) inset;';
+            }
+          }else{
+            holdStyle = 'border-color:transparent;box-shadow:none;';
+          }
+        }
+
+        return `<div class="runner${sel}${isFrozen?' hold':''}" data-id="${p.id}" style="${holdStyle}">
           ${actionsStart?`
             <div class="runner-actions">
               <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
@@ -364,24 +403,19 @@
       const id = row.dataset.id;
 
       if (act){
-        // Acciones START
         if (mode==='start'){
           if (act.dataset.action === 'back') { await revertStart(id); return; }
           if (act.dataset.action === 'go')   { goBackId=null; renderListNow(); return; }
         }
-        // Acciones FINISH (lista)
         if (mode==='finish'){
           if (act.dataset.action === 'stay')   { await revertStop(id); return; }
           if (act.dataset.action === 'finish') { confirmFinishLocal(id); return; }
         }
       }
 
-      // Sin botón: toggle selección / acciones
       if(mode==='finish'){
-        // Si es congelado: alternar STAY/FINISH en la lista
         const f = frozenFinishes.find(f=>f.id===id);
         if (f){ f.showActions = !f.showActions; return; }
-        // Si es corriendo: selección normal
         selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
       }else{
         goBackId = (goBackId===id ? null : id); renderListNow();
@@ -507,7 +541,7 @@
         selectedId = row.baseId;
         $('lastAction').textContent = 'Seleccionado: ' + (currentLive.find(r=>r.id===selectedId)?.name || selectedId);
       }else{
-        // SALIDA: toggle RESTART/CONTINUE sobreimpreso (restaurado)
+        // SALIDA: toggle RESTART/CONTINUE sobreimpreso
         goBackId = (goBackId===row.baseId ? null : row.baseId);
       }
     });
@@ -515,10 +549,10 @@
     function loop(){
       const {w,h} = fitCanvas();
 
-      // Auto-confirm META: elimina congelados >8s
+      // Auto-confirm META: elimina congelados >9s
       const nowMs = Date.now();
       if (mode==='finish' && frozenFinishes.length){
-        frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < 8000);
+        frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
       }
 
       const nowPerf = performance.now();
@@ -625,7 +659,6 @@
       const merged = running.slice();
       for(const f of frozen){
         const pos = Math.max(0, Math.min(f.pos, merged.length));
-        // Evita duplicado al render si sigue en "running"
         const idx = merged.findIndex(x=>x.id===f.id);
         const rowObj = { ...f, frozen:true };
         if (idx>=0) merged.splice(idx, 1, rowObj); else merged.splice(pos, 0, rowObj);
@@ -669,14 +702,18 @@
         octx.stroke();
         octx.restore();
 
-        // Borde naranja si está congelado (META)
+        // Borde según estado congelado (META)
         if (r.frozen && mode==='finish'){
-          octx.save();
-          octx.lineWidth = Math.max(4, Math.floor(base*0.20));
-          octx.strokeStyle = 'rgba(255,156,58,.95)';
-          roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
-          octx.stroke();
-          octx.restore();
+          const vis = frozenVisualState(r.createdAt);
+          if (vis.show){
+            const col = (vis.color==='red') ? 'rgba(228,72,72,.98)' : 'rgba(255,156,58,.95)';
+            octx.save();
+            octx.lineWidth = Math.max(4, Math.floor(base*0.20));
+            octx.strokeStyle = col;
+            roundRect(octx, pillX+2, pillY+2, pillW-4, pillH-4, radius-2);
+            octx.stroke();
+            octx.restore();
+          }
         }
 
         // Borde verde si seleccionado (en META, corriendo)
@@ -712,7 +749,7 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        // Botones SALIDA (RESTART/CONTINUE) en overlay
+        /* SALIDA: RESTART/CONTINUE en overlay */
         if(mode==='start' && goBackId===r.id){
           const mid = pillX + pillW/2;
           roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
@@ -738,7 +775,7 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
         }
 
-        // Botones META (STAY/FINISH) en overlay
+        /* META: STAY/FINISH en overlay cuando está congelado y desplegado */
         if (r.frozen && r.showActions && mode==='finish'){
           const mid = pillX + pillW/2;
           // STAY (verde)
