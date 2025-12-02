@@ -52,7 +52,6 @@
       background:var(--hud);color:#fff;border-radius:18px;padding:12px 16px;
       font-weight:800;backdrop-filter:blur(4px);
       display:flex;align-items:center;gap:8px;
-      position:absolute;
     }
     .pill{
       display:inline-flex;align-items:center;gap:6px;
@@ -60,7 +59,9 @@
       background:#1f2430;color:#e8ecf1;
       font:inherit;font-weight:800;border:none;
     }
-    .pill-next{cursor:pointer;}
+    .pill-next{
+      cursor:pointer;
+    }
     .pill-next::after{
       content:"▾";
       font-size:10px;
@@ -162,7 +163,7 @@
         <div class="hud" id="hudTop">
           <span id="hudStatus">Listo</span>
           •
-          <span id="hudNext" class="pill pill-next">Siguiente: —</span>
+          <span id="hudNext" class="pill">Siguiente: —</span>
           <div id="hudNextDropdown" class="next-dropdown" style="display:none"></div>
         </div>
       </div>
@@ -269,7 +270,7 @@
       if (manualNextId){
         const manual = participants.find(p=>!p.startTS && p.id===manualNextId);
         if (manual) return manual;
-        // si ya no cumple condición, limpiamos selección manual
+        // si ya no cumple condición (p.ej. ya ha salido), limpiamos selección manual
         manualNextId = null;
       }
       return participants.find(p=>!p.startTS);
@@ -371,15 +372,17 @@
     const hudNextDropdown = $('hudNextDropdown');
     let hudNextDropdownOpen = false;
 
+    // solo en SALIDA mostramos estilo clickable + flechita
+    if (mode === 'start') {
+      hudNextEl.classList.add('pill-next');
+    }
+
     const notStartedList = ()=> participants
       .filter(p=>!p.startTS)
       .sort((a,b)=>(a.order||0)-(b.order||0));
 
     const labelForNext = (nxt)=>{
-      if(!nxt) return 'Siguiente: —';
-      const base = 'Siguiente: ' + (nxt.name||'—').toUpperCase();
-      if (manualNextId && nxt.id===manualNextId) return base + ' • (fijado)';
-      return base;
+      return 'Siguiente: ' + (nxt ? (nxt.name||'—').toUpperCase() : '—');
     };
 
     function ensureStatus(){
@@ -423,6 +426,8 @@
     }
 
     hudNextEl.addEventListener('click',(e)=>{
+      // solo SALIDA puede abrir el desplegable
+      if (mode !== 'start') return;
       e.stopPropagation();
       toggleNextDropdown();
     });
