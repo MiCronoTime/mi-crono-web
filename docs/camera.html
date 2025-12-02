@@ -11,7 +11,7 @@
       --muted:#b5bdc9; --border:#2b3240; --accent:#5ea1ff; --accent-2:#7cc4ff; --hud: rgba(0,0,0,.55);
       --ok:#7cffb6; --okRing:rgba(127,255,182,.35);
       --danger:#e44848; --go:#38d66b;
-      --hold:#ff9c3a; /* naranja para congelados (fase 1) */
+      --hold:#ff9c3a; /* naranja para congelados */
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -77,7 +77,7 @@
     .rtime{font-weight:900;letter-spacing:.4px}
     .muted{color:var(--muted)}
 
-    /* Acciones encima de fila (compartido) */
+    /* Acciones encima de fila */
     .runner-actions{position:absolute;inset:0;display:flex; z-index:3;}
     .runner-actions .half{
       flex:1; display:flex; align-items:center; justify-content:center; font-weight:900; text-transform:uppercase;
@@ -221,10 +221,10 @@
     let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
 
     /* ===== META: congelados con posición fija + auto-confirm ===== */
-    // Visual: 0-5s naranja fijo, 5-9s rojo parpadeo
+    // Visual: 0-5s naranja fijo, 5-9s naranja parpadeando (no rojo)
     const FINISH_ORANGE_MS = 5000;
-    const FINISH_FREEZE_MS = 9000; // total congelado antes de confirmar
-    const BLINK_PERIOD_MS  = 150;  // parpadeo ~3.3 Hz
+    const FINISH_FREEZE_MS = 9000;  // total congelado antes de desaparecer si no se toca
+    const BLINK_PERIOD_MS  = 150;   // parpadeo más rápido
     // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
     let frozenFinishes = [];
 
@@ -309,7 +309,7 @@
       $('tag').textContent = `Evento ${code} • ${hasStart?'Inicio OK':'Sin inicio'} • ${hasStop?'Algún fin':''}`;
     }
 
-    // Visual state for frozen finish (color + blinkOn)
+    // Estado visual del congelado (ahora siempre naranja; en la 2ª fase parpadea)
     function frozenVisualState(createdAt){
       const elapsed = Date.now() - createdAt;
       if (elapsed < FINISH_ORANGE_MS){
@@ -317,7 +317,7 @@
       }
       if (elapsed < FINISH_FREEZE_MS){
         const phase = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
-        return { color:'red', show: (phase % 2) === 0 }; // on/off blink
+        return { color:'orange', show: (phase % 2) === 0 }; // parpadeo naranja
       }
       return { color:'none', show:false };
     }
@@ -338,20 +338,13 @@
         const idx = merged.findIndex(x=>x.id===f.id);
         const visual = frozenVisualState(f.createdAt);
         const isBlinkOn = visual.show;
-        const isRedPhase = (visual.color==='red');
-        const obj = {
-          ...f,
-          frozen:true,
-          frozenRed: isRedPhase,
-          frozenBlinkOn: isBlinkOn
-        };
+        const obj = { ...f, frozen:true, frozenBlinkOn:isBlinkOn };
         if (idx>=0) merged.splice(idx, 1, { ...merged[idx], ...obj });
         else merged.splice(pos, 0, obj);
       }
 
       list.innerHTML = merged.map(p=>{
         const isFrozen = !!p.frozen && (mode==='finish');
-        const isRed = !!p.frozenRed;
         const blinkOn = (p.frozenBlinkOn!==undefined)? p.frozenBlinkOn : true;
 
         const sel = (!isFrozen && mode==='finish' && selectedId===p.id) ? ' selected' : '';
@@ -362,18 +355,12 @@
 
         const timeNow = isFrozen ? p.frozenMs : (Date.now()+serverOffsetMS - (p.startMS||Date.now()+serverOffsetMS));
 
-        // estilo de borde dinámico (naranja fijo / rojo parpadeo / oculto en off)
+        // borde naranja (fijo o parpadeando)
         let holdStyle = '';
         if (isFrozen){
-          if (blinkOn){
-            if (isRed){
-              holdStyle = 'border-color:rgba(228,72,72,.98);box-shadow:0 0 0 3px rgba(228,72,72,.35) inset;';
-            }else{
-              holdStyle = 'border-color:var(--hold);box-shadow:0 0 0 3px rgba(255,156,58,.35) inset;';
-            }
-          }else{
-            holdStyle = 'border-color:transparent;box-shadow:none;';
-          }
+          holdStyle = blinkOn
+            ? 'border-color:var(--hold);box-shadow:0 0 0 3px rgba(255,156,58,.35) inset;'
+            : 'border-color:transparent;box-shadow:none;';
         }
 
         return `<div class="runner${sel}${isFrozen?' hold':''}" data-id="${p.id}" style="${holdStyle}">
@@ -702,11 +689,11 @@
         octx.stroke();
         octx.restore();
 
-        // Borde según estado congelado (META)
+        // Borde naranja (fijo/parpadeo) si está congelado en META
         if (r.frozen && mode==='finish'){
           const vis = frozenVisualState(r.createdAt);
           if (vis.show){
-            const col = (vis.color==='red') ? 'rgba(228,72,72,.98)' : 'rgba(255,156,58,.95)';
+            const col = 'rgba(255,156,58,.95)'; // siempre naranja
             octx.save();
             octx.lineWidth = Math.max(4, Math.floor(base*0.20));
             octx.strokeStyle = col;
