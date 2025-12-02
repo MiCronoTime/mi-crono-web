@@ -314,7 +314,7 @@
 
     /* ========= Navegación ========= */
     const codeFromJoin = ()=> toUC(joinCode.value.trim());
-    btnGoCrono.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`cronolap.html?code=${encodeURIComponent(c)}`; };
+    btnGoCrono.onclick = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`camera_cronolap.html?code=${encodeURIComponent(c)}`; };
     btnGoRes.onclick   = ()=>{ const c=codeFromJoin(); if(!c) return alert('Pon un código'); location.href=`result.html?code=${encodeURIComponent(c)}`; };
 
     /* ========= Reset total ========= */
