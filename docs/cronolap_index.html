@@ -53,32 +53,48 @@
     .cell input.name{text-transform:uppercase}
     .cell input::placeholder{color:#6f7a8a}
 
-    /* UNIRSE: input + select tipo result.html */
-    .addbarJoin{
-      display:grid; gap:8px; align-items:center;
-      grid-template-columns: 1fr 1fr; /* móvil: input + select */
-    }
-    @media (min-width:520px){
-      .addbarJoin{
-        grid-template-columns: 1fr 220px; /* en escritorio, select más estrecho */
-      }
-    }
-    select{
-      background:#0f141d;
-      border:1px solid var(--border);
-      color:var(--text);
-      border-radius:10px;
-      padding:10px 12px;
+    /* UNIRSE: select con aspecto de barra */
+    select#joinCode{
       width:100%;
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#0f1217;
+      color:var(--text);
     }
 
-    /* Modal selector (cargar lista / elegir para unirse en crear) */
-    .modalMask{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50}
-    .modal{width:min(92vw,560px);max-height:80vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 70px rgba(0,0,0,.5);padding:14px}
+    /* Modal selector (para Cargar lista) */
+    .modalMask{
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.55);
+      backdrop-filter:blur(2px);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:50
+    }
+    .modal{
+      width:min(92vw,560px);
+      max-height:80vh;
+      overflow:auto;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:14px;
+      box-shadow:0 18px 70px rgba(0,0,0,.5);
+      padding:14px
+    }
     .modal h3{margin:4px 0 10px 0;font-size:20px;text-transform:uppercase}
-    .evItem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1217;cursor:pointer;margin-bottom:8px}
-    .evItem:hover{background:#111720}
     .smallMuted{font-size:12px;color:var(--muted)}
+
+    /* select dentro del modal */
+    .modal select{
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#0f1217;
+      color:var(--text);
+    }
 
     @media (max-width:900px){
       .grid{grid-template-columns:1fr}
@@ -124,12 +140,8 @@
       <section class="panel">
         <div class="h2">Unirse a un evento</div>
         <label>Código</label>
-        <div class="addbarJoin">
-          <input id="joinCode" type="text" placeholder="TEST1" autocomplete="off"/>
-          <select id="selJoin">
-            <option value="">Cargando eventos…</option>
-          </select>
-        </div>
+        <!-- misma barra, pero ahora es un select -->
+        <select id="joinCode"></select>
 
         <div class="rowBtns">
           <a id="goCrono"  class="btn">📷 Abrir CRONOLAP</a>
@@ -152,13 +164,14 @@
     </section>
   </div>
 
-  <!-- MODAL reutilizable (cargar lista) -->
+  <!-- MODAL reutilizable (Cargar lista) -->
   <div id="pickMask" class="modalMask" role="dialog" aria-modal="true" aria-labelledby="pickTitle">
     <div class="modal">
       <h3 id="pickTitle">Selecciona un evento</h3>
       <div id="pickList"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
         <button id="pickCancel" class="btn">Cancelar</button>
+        <button id="pickOk" class="btn primary">Aceptar</button>
       </div>
     </div>
   </div>
@@ -175,7 +188,6 @@
 
     const evCode   = document.getElementById('evCode');
     const joinCode = document.getElementById('joinCode');
-    const selJoin  = document.getElementById('selJoin');
 
     const btnAddRow   = document.getElementById('btnAddRow');
     const btnSave     = document.getElementById('btnSave');
@@ -185,16 +197,16 @@
     const btnGoRes    = document.getElementById('goResult');
     const tbody       = document.getElementById('tbody');
 
-    // Modal reutilizable (solo para Cargar lista)
+    // Modal reutilizable (para cargar lista)
     const pickMask   = document.getElementById('pickMask');
     const pickList   = document.getElementById('pickList');
     const pickTitle  = document.getElementById('pickTitle');
     const pickCancel = document.getElementById('pickCancel');
+    const pickOk     = document.getElementById('pickOk');
 
     // Mayúsculas suaves para códigos
     const toUC = (s)=> (s||'').normalize('NFC').toUpperCase();
     evCode.addEventListener('input', ()=> evCode.value = toUC(evCode.value) );
-    joinCode.addEventListener('input', ()=> joinCode.value = toUC(joinCode.value) );
 
     // === Tabla dinámica DORSAL | NOMBRE ===
     function addRow(dorsal='', name=''){
@@ -260,6 +272,38 @@
     const eventRef = (code)=> doc(db,'users',uid,'events',toUC(code));
     const partsCol = (code)=> collection(eventRef(code),'participants');
 
+    /* ========= Selector de eventos para UNIRSE (tipo result.html) ========= */
+    async function fillJoinSelect(selectedCode){
+      try{
+        joinCode.disabled = true;
+        joinCode.innerHTML = '<option value="">Seleccionar evento…</option>';
+        const evsSnap = await getDocs(
+          query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
+        );
+        if(evsSnap.empty){
+          joinCode.innerHTML = '<option value="">Sin eventos aún</option>';
+          return;
+        }
+        const opts = [];
+        evsSnap.forEach(docu=>{
+          const d = docu.data()||{};
+          const code = d.code || docu.id;
+          opts.push(`<option value="${code}">${code}</option>`);
+        });
+        joinCode.innerHTML = '<option value="">Seleccionar evento…</option>' + opts.join('');
+        joinCode.disabled = false;
+        if(selectedCode){
+          joinCode.value = toUC(selectedCode);
+        }
+      }catch(e){
+        joinCode.innerHTML = '<option value="">Error cargando eventos</option>';
+        joinCode.disabled = true;
+        console.error(e);
+      }
+    }
+
+    await fillJoinSelect();
+
     /* ========= Guardar evento ========= */
     btnSave.addEventListener('click', async ()=>{
       const code = toUC(evCode.value.trim());
@@ -279,18 +323,17 @@
         list.forEach(p=> b.set(doc(partsCol(code)), p) );
         await b.commit();
 
-        // Auto-rellenar "Unirse a un evento"
-        joinCode.value = code;
-        await fillJoinSelect(); // refrescar selector para incluir el nuevo evento
+        // refrescar select "Unirse" y seleccionar el evento recién creado
+        await fillJoinSelect(code);
 
         alert('Evento guardado');
       }catch(e){ alert('Error guardando: '+(e.message||e)); }
     });
 
-    /* ========= Cargar lista desde otro evento ========= */
-    btnLoadList.addEventListener('click', ()=> openPicker('Selecciona un evento', async (evId)=>{
+    /* ========= Cargar lista desde otro evento (modal con select) ========= */
+    btnLoadList.addEventListener('click', ()=> openPicker('Selecciona un evento', async (evCodePicked)=>{
       try{
-        const snap = await getDocs(query(partsCol(evId), orderBy('order','asc')));
+        const snap = await getDocs(query(partsCol(evCodePicked), orderBy('order','asc')));
         if(snap.empty){ alert('Ese evento no tiene participantes'); return; }
         tbody.innerHTML='';
         snap.forEach(d=>{
@@ -299,52 +342,19 @@
         });
         addRow(); // extra
         pickMask.style.display='none';
-        alert(`Lista cargada desde ${evId}. Cambia el CÓDIGO y pulsa GUARDAR EVENTO para crear uno nuevo.`);
+        alert(`Lista cargada desde ${evCodePicked}. Cambia el CÓDIGO y pulsa GUARDAR EVENTO para crear uno nuevo.`);
       }catch(e){
         alert('No se pudo cargar la lista: '+(e.message||e));
       }
     }));
 
-    /* ========= Selector de eventos para UNIRSE (tipo result.html) ========= */
-    async function fillJoinSelect(){
-      try{
-        selJoin.disabled = true;
-        selJoin.innerHTML = '<option value="">Cargando eventos…</option>';
-        const evsSnap = await getDocs(
-          query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
-        );
-        if(evsSnap.empty){
-          selJoin.innerHTML = '<option value="">Sin eventos aún</option>';
-          return;
-        }
-        const opts = [];
-        evsSnap.forEach(docu=>{
-          const d = docu.data() || {};
-          const code = d.code || docu.id;
-          opts.push(`<option value="${code}">${code}</option>`);
-        });
-        selJoin.innerHTML = '<option value="">Seleccionar evento…</option>' + opts.join('');
-        selJoin.disabled = false;
-      }catch(e){
-        selJoin.innerHTML = '<option value="">Error cargando eventos</option>';
-        selJoin.disabled = true;
-        console.error(e);
-      }
-    }
-    await fillJoinSelect();
-
-    // Cuando elegimos un evento del desplegable, lo volcamos al input
-    selJoin.addEventListener('change', ()=>{
-      const val = selJoin.value || '';
-      if(!val) return;
-      joinCode.value = toUC(val);
-    });
-
-    // Función genérica de apertura de modal (para Cargar lista)
     async function openPicker(title, onPick){
       pickTitle.textContent = title;
-      pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
       pickMask.style.display = 'flex';
+      pickList.innerHTML = '<div class="smallMuted">Cargando…</div>';
+      pickOk.disabled = true;
+      let currentVal = '';
+
       try{
         const evsSnap = await getDocs(
           query(collection(db,'users',uid,'events'), orderBy('updatedAt','desc'))
@@ -353,36 +363,47 @@
           pickList.innerHTML = '<div class="smallMuted">No tienes eventos aún.</div>';
           return;
         }
-        pickList.innerHTML='';
+        const options = [];
         evsSnap.forEach(docu=>{
           const d = docu.data()||{};
-          const when = d.updatedAt?.toDate ? d.updatedAt.toDate() :
-                       (d.updatedAt? new Date(d.updatedAt.seconds*1000) : null);
-          const nice = when
-            ? new Intl.DateTimeFormat('es-ES',{dateStyle:'medium', timeStyle:'short'}).format(when)
-            : '—';
-          const div=document.createElement('div');
-          div.className='evItem';
-          div.innerHTML = `<div><b>${d.code||docu.id}</b><div class="smallMuted">${nice}</div></div><div class="smallMuted">Seleccionar</div>`;
-          div.addEventListener('click', ()=> onPick(docu.id));
-          pickList.appendChild(div);
+          const code = d.code || docu.id;
+          options.push(`<option value="${code}">${code}</option>`);
         });
+        pickList.innerHTML = `
+          <select id="pickSelect">
+            ${options.join('')}
+          </select>
+          <div class="smallMuted" style="margin-top:6px">Elige un evento y pulsa Aceptar.</div>
+        `;
+        const pickSelect = document.getElementById('pickSelect');
+        currentVal = pickSelect.value;
+        pickSelect.addEventListener('change', ()=>{ currentVal = pickSelect.value; });
+
+        pickOk.disabled = false;
+        pickOk.onclick = ()=>{
+          if(!currentVal){ alert('Selecciona un evento'); return; }
+          onPick(currentVal);
+        };
       }catch(e){
         pickList.innerHTML = `<div class="smallMuted">Error: ${e.message||e}</div>`;
       }
     }
-    pickCancel.addEventListener('click', ()=> pickMask.style.display='none' );
+
+    pickCancel.addEventListener('click', ()=>{
+      pickMask.style.display='none';
+    });
 
     /* ========= Navegación ========= */
-    const codeFromJoin = ()=> toUC(joinCode.value.trim());
+    const codeFromJoin = ()=> toUC(joinCode.value || '');
+
     btnGoCrono.onclick = ()=>{
       const c = codeFromJoin();
-      if(!c) return alert('Pon un código');
+      if(!c) return alert('Selecciona un evento');
       location.href=`camera_cronolap.html?code=${encodeURIComponent(c)}`;
     };
     btnGoRes.onclick   = ()=>{
       const c = codeFromJoin();
-      if(!c) return alert('Pon un código');
+      if(!c) return alert('Selecciona un evento');
       location.href=`result.html?code=${encodeURIComponent(c)}`;
     };
 
