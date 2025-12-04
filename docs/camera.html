@@ -126,7 +126,6 @@
     .rtime{
       font-weight:900;
       letter-spacing:.4px;
-      /* evitar vaivén: dígitos de ancho fijo */
       font-variant-numeric: tabular-nums;
       font-feature-settings:"tnum" 1;
     }
@@ -276,7 +275,6 @@
       if (manualNextId){
         const manual = participants.find(p=>!p.startTS && p.id===manualNextId);
         if (manual) return manual;
-        // si ya no cumple condición (p.ej. ya ha salido), limpiamos selección manual
         manualNextId = null;
       }
       return participants.find(p=>!p.startTS);
@@ -288,7 +286,6 @@
       await reload();
       const p = nextToStart();
       if(!p) return null;
-      // una vez lo lanzamos, limpiamos selección manual
       manualNextId = null;
       await updateDoc(p.ref,{ startTS:serverTimestamp(), stopTS:null });
       return p;
@@ -298,7 +295,7 @@
     const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
     const FINISH_FREEZE_MS = 9000;  // total 9s congelado (los últimos 4s parpadeo)
     const BLINK_PERIOD_MS  = 150;   // parpadeo rápido
-    const OVER_OUTLINE_W   = 2;     // grosor de línea sobreimpresa (igual que lista)
+    const OVER_OUTLINE_W   = 2;     // grosor de línea sobreimpresa
     // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
     let frozenFinishes = [];
 
@@ -313,10 +310,8 @@
       const displayRows = runningSorted().slice().sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
       const idx = Math.max(0, displayRows.findIndex(x=>x.id===p.id));
 
-      // Escribe stopTS (registro real)
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
 
-      // Congela para UI (solo META)
       if (mode==='finish'){
         const startMS = tsToMillis(p.startTS);
         const nowSync = Date.now() + serverOffsetMS;
@@ -330,7 +325,8 @@
           frozenMs,
           showActions: false,
           createdAt: Date.now(),
-          pos: idx
+          pos: idx,
+          frozen: true
         });
       }
 
@@ -349,7 +345,6 @@
       }catch(e){ alert('No se pudo aplicar RESTART: '+(e.message||e)); }
     }
 
-    // META: ON TRACK -> seguir en pista (revertir stop)
     async function revertStop(id){
       try{
         await updateDoc(doc(partsCol, id), { stopTS: deleteField() });
@@ -358,14 +353,14 @@
         await reload();
       }catch(e){ alert('No se pudo revertir llegada: '+(e.message||e)); }
     }
-    // META: FINISH -> confirmar local (quitamos congelado de la UI; el stop real ya está escrito)
+
     function confirmFinishLocal(id){
       frozenFinishes = frozenFinishes.filter(f=>f.id!==id);
       $('lastAction').textContent='FINISH confirmado';
     }
 
     /* ===== UI en vivo ===== */
-    let currentLive=[];           // [{id,order,name,dorsal,startMS}]
+    let currentLive=[];
     let overlayRowHitboxes=[];
 
     const displayName = (p)=>{
@@ -374,7 +369,6 @@
       return { bib, nm, full: (bib? bib+' ' : '') + nm };
     };
 
-    // Etiqueta corta "45 ELOI" o solo "ELOI"
     const shortLabel = (p)=>{
       if(!p) return '—';
       const dorsal = (p.dorsal||'').toString().trim();
@@ -386,7 +380,6 @@
     const hudNextDropdown = $('hudNextDropdown');
     let hudNextDropdownOpen = false;
 
-    // solo en SALIDA mostramos estilo clickable + flechita
     if (mode === 'start') {
       hudNextEl.classList.add('pill-next');
     }
@@ -395,9 +388,7 @@
       .filter(p=>!p.startTS)
       .sort((a,b)=>(a.order||0)-(b.order||0));
 
-    const labelForNext = (nxt)=>{
-      return 'Siguiente: ' + (nxt ? shortLabel(nxt) : '—');
-    };
+    const labelForNext = (nxt)=> 'Siguiente: ' + (nxt ? shortLabel(nxt) : '—');
 
     function ensureStatus(){
       const nxt = nextToStart();
@@ -414,7 +405,7 @@
         return;
       }
       hudNextDropdown.innerHTML = list.map(p=>{
-        const line = shortLabel(p); // "45 ELOI" o solo "ELOI"
+        const line = shortLabel(p);
         const ord = p.order ?? '—';
         return `<div class="next-dropdown-item" data-id="${p.id}">
           <div>${line}</div>
@@ -438,7 +429,6 @@
     }
 
     hudNextEl.addEventListener('click',(e)=>{
-      // solo SALIDA puede abrir el desplegable
       if (mode !== 'start') return;
       e.stopPropagation();
       toggleNextDropdown();
@@ -466,7 +456,7 @@
       }
       if (elapsed < FINISH_FREEZE_MS){
         const phase = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
-        return { color:'orange', show: (phase % 2) === 0 }; // parpadeo (visibilidad)
+        return { color:'orange', show: (phase % 2) === 0 };
       }
       return { color:'none', show:false };
     }
@@ -476,10 +466,8 @@
       const list = $('runningList');
       if(!currentLive.length){ list.innerHTML='—'; return; }
 
-      // Orden “en curso” por más reciente arriba
       const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
 
-      // Mezclar congelados manteniendo posición
       const froz = frozenFinishes.slice().sort((a,b)=> a.pos - b.pos);
       const merged = rows.slice();
       for(const f of froz){
@@ -531,7 +519,6 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Clicks en lista EN CURSO
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       const row = e.target.closest('.runner');
@@ -554,9 +541,7 @@
         if (f){ f.showActions = !f.showActions; return; }
         selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
       }else{
-        // SALIDA: seleccionar para mostrar RESTART/CONTINUE también desde lista
-        goBackId = (goBackId===id ? null : id);
-        renderListNow();
+        goBackId = (goBackId===row.baseId ? null : row.baseId);
       }
     });
 
@@ -649,7 +634,7 @@
       else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
     }
 
-    /* Hit-testing overlay (botones > fila) */
+    /* Hit-testing overlay */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
@@ -659,7 +644,7 @@
         const id = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='STAY'){ await revertStop(id); return; }   // identificador interno STAY (texto ON TRACK)
+        if(btn.btn==='STAY'){ await revertStop(id); return; }
         if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
 
@@ -683,7 +668,6 @@
     function loop(){
       const {w,h} = fitCanvas();
 
-      // Auto-quitar congelados visuales tras FINISH_FREEZE_MS
       const nowMs = Date.now();
       if (mode==='finish' && frozenFinishes.length){
         frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
@@ -704,7 +688,6 @@
 
       drawOverlayTimes(w,h,currentLive, frozenFinishes);
 
-      // Detector
       const vw=video.videoWidth, vh=video.videoHeight;
       if(vw && vh){
         const scaleX = vw / stage.clientWidth;
@@ -778,6 +761,24 @@
       return text.slice(0, lo) + ell;
     }
 
+    /* Tiempo fijo en rejilla para evitar vaivén */
+    function drawTimeFixed(ctx, leftX, centerY, blockW, text, basePx, strokeW){
+      const template = '88:88.888';
+      const chars = template.length;
+      const cellW = blockW / chars;
+
+      ctx.font = `900 ${basePx}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = strokeW;
+
+      for(let i=0;i<chars;i++){
+        const ch = text[i] || ' ';
+        const cx = leftX + (i + 0.5) * cellW;
+        ctx.strokeText(ch, cx, centerY);
+        ctx.fillText(ch, cx, centerY);
+      }
+    }
+
     function drawOverlayTimes(w,h,rowsRunning, rowsFrozen){
       overlayRowHitboxes = [];
       const nowSync = Date.now() + serverOffsetMS;
@@ -785,6 +786,7 @@
       const running = (rowsRunning||[])
         .slice()
         .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
+      running.reverse();
 
       const frozen = (rowsFrozen||[]).slice().sort((a,b)=> a.pos - b.pos);
       const merged = running.slice();
@@ -792,7 +794,8 @@
         const pos = Math.max(0, Math.min(f.pos, merged.length));
         const idx = merged.findIndex(x=>x.id===f.id);
         const rowObj = { ...f, frozen:true };
-        if (idx>=0) merged.splice(idx, 1, rowObj); else merged.splice(pos, 0, rowObj);
+        if (idx>=0) merged.splice(idx, 1, rowObj);
+        else merged.splice(pos, 0, rowObj);
       }
 
       if(!merged.length) return;
@@ -807,7 +810,7 @@
       const radius = rowH/1.9;
 
       const nameFont = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-      const timeFont = `900 ${base}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      const timeFont = nameFont;
 
       octx.globalAlpha = 1;
       octx.textBaseline='middle';
@@ -818,18 +821,18 @@
 
       for(let i=0;i<maxRows;i++){
         const r = merged[i];
-        const elapsed = r.frozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
+        const isFrozen = !!r.frozen && (mode==='finish');
+        const elapsed = isFrozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
         const tText = fmt(elapsed);
         const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
 
-        /* Pastilla base */
         const pillX = leftPad-10, pillW = (w - leftPad - rightPad) + 20, pillY = y-6, pillH = rowH+12;
         const grad = octx.createLinearGradient(0, pillY, 0, pillY+pillH);
         grad.addColorStop(0, 'rgba(45,50,60,.42)');
         grad.addColorStop(1, 'rgba(30,34,42,.42)');
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
         octx.fillStyle = grad; octx.fill();
-        /* fino borde sutil de la pastilla */
+
         octx.save();
         octx.lineWidth = 2;
         octx.strokeStyle = 'rgba(255,255,255,.12)';
@@ -837,62 +840,52 @@
         octx.stroke();
         octx.restore();
 
-        /* Marco de estado: ahora más fino y con offset de 1px hacia fuera */
-        if (r.frozen && mode==='finish'){
-          const vis = (Date.now()-r.createdAt<FINISH_ORANGE_MS)
-            ? {show:true}
-            : {show: (Math.floor((Date.now()-r.createdAt-FINISH_ORANGE_MS)/BLINK_PERIOD_MS)%2)===0};
+        if (isFrozen && mode==='finish'){
+          const vis = frozenVisualState(r.createdAt);
           if (vis.show){
             octx.save();
             octx.lineWidth = OVER_OUTLINE_W;
-            octx.strokeStyle = 'rgba(255,156,58,.95)'; /* naranja */
-            /* offset exterior de 1px: -1 en x/y y +2 en ancho/alto, radio +1 */
+            octx.strokeStyle = 'rgba(255,156,58,.95)';
             roundRect(octx, pillX-1, pillY-1, pillW+2, pillH+2, radius+1);
             octx.stroke();
             octx.restore();
           }
         }
 
-        if (!r.frozen && mode==='finish' && selectedId===r.id){
+        if (!isFrozen && mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = OVER_OUTLINE_W;
-          octx.strokeStyle = 'rgba(127,255,182,.95)'; /* selección verde (mismo grosor) */
+          octx.strokeStyle = 'rgba(127,255,182,.95)';
           roundRect(octx, pillX-1, pillY-1, pillW+2, pillH+2, radius+1);
           octx.stroke();
           octx.restore();
         }
 
-        /* Texto nombre/tiempo */
         const nameX = leftPad + 8;
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
 
-        // Primero calculamos el ancho de bloque de tiempo con una plantilla fija
-        const timeStrokeW = Math.max(2, Math.floor(base*0.16));
         octx.font = timeFont;
-        const templateTime = '88:88.888'; // máximo ancho
-        const timeBlockW = Math.max(octx.measureText(templateTime).width + timeStrokeW*2, 80);
+        const timeStrokeW = Math.max(2, Math.floor(base*0.16));
+        const templateTime = '88:88.888';
+        const rawW = octx.measureText(templateTime).width;
+        const timeBlockW = Math.max(rawW + timeStrokeW*2, 80);
 
+        const leftTimeBlock = timeX - timeBlockW;
         const minGap = 18;
-        const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeBlockW);
+        const maxNameW = Math.max(60, (leftTimeBlock - minGap) - nameX);
 
-        // Nombre (fuente normal)
         octx.font = nameFont;
         const nameText = elideText(octx, nameFull, maxNameW);
         octx.textAlign='left';
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
-        // Tiempo (fuente monoespaciada numérica y bloque fijo)
-        octx.font = timeFont;
-        octx.textAlign='right';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
-        octx.lineWidth = timeStrokeW;
-        octx.strokeText(tText, timeX, nameY);
         octx.fillStyle='#FFFFFF';
-        octx.fillText  (tText, timeX, nameY);
+        drawTimeFixed(octx, leftTimeBlock, nameY, timeBlockW, tText, base, timeStrokeW);
 
-        /* SALIDA overlay (RESTART/CONTINUE) con misma forma que el crono */
+        /* SALIDA overlay (RESTART/CONTINUE) */
         if(mode==='start' && goBackId===r.id){
           const clipX = pillX-1;
           const clipY = pillY-1;
@@ -900,23 +893,19 @@
           const clipH = pillH+2;
 
           octx.save();
-          // recortamos con la misma pastilla exterior
           roundRect(octx, clipX, clipY, clipW, clipH, radius+1);
           octx.clip();
 
           const halfW = clipW / 2;
 
-          // mitad izquierda roja
           octx.fillStyle = 'rgba(229,72,72,.92)';
           octx.fillRect(clipX, clipY, halfW, clipH);
 
-          // mitad derecha verde
           octx.fillStyle = 'rgba(56,214,107,.92)';
           octx.fillRect(clipX + halfW, clipY, clipW - halfW, clipH);
 
           octx.restore();
 
-          // texto centrado en cada mitad
           octx.textAlign='center';
           octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
@@ -924,14 +913,12 @@
           const textPad = 20;
           const textHalfW = halfW - textPad*2;
 
-          // RESTART
           let fs = fitText(octx, 'RESTART', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('RESTART', clipX + halfW/2,  ty);
-          octx.fillText  ('RESTART', clipX + halfW/2,  ty);
+          octx.strokeText('RESTART', clipX + halfW/2, ty);
+          octx.fillText  ('RESTART', clipX + halfW/2, ty);
 
-          // CONTINUE
           fs = fitText(octx, 'CONTINUE', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
@@ -942,8 +929,8 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        /* META overlay (ON TRACK / FINISH) con misma forma */
-        if (r.frozen && r.showActions && mode==='finish'){
+        /* META overlay (ON TRACK / FINISH) */
+        if (isFrozen && r.showActions && mode==='finish'){
           const clipX = pillX-1;
           const clipY = pillY-1;
           const clipW = pillW+2;
@@ -955,17 +942,16 @@
 
           const halfW = clipW / 2;
 
-          // ON TRACK (verde) izquierda
           octx.fillStyle = 'rgba(56,214,107,.92)';
           octx.fillRect(clipX, clipY, halfW, clipH);
 
-          // FINISH (rojo) derecha
           octx.fillStyle = 'rgba(229,72,72,.92)';
           octx.fillRect(clipX + halfW, clipY, clipW - halfW, clipH);
 
           octx.restore();
 
-          octx.textAlign='center'; octx.fillStyle='#fff';
+          octx.textAlign='center';
+          octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
           const ty = nameY;
           const textPad = 20;
@@ -974,8 +960,8 @@
           let fs = fitText(octx, 'ON TRACK', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('ON TRACK', clipX + halfW/2,  ty);
-          octx.fillText  ('ON TRACK', clipX + halfW/2,  ty);
+          octx.strokeText('ON TRACK', clipX + halfW/2, ty);
+          octx.fillText  ('ON TRACK', clipX + halfW/2, ty);
 
           fs = fitText(octx, 'FINISH', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
@@ -983,11 +969,11 @@
           octx.strokeText('FINISH', clipX + halfW + halfW/2, ty);
           octx.fillText  ('FINISH', clipX + halfW + halfW/2, ty);
 
-          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:clipX,        y:clipY, w:halfW,      h:clipH });   /* id interno = STAY */
+          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:clipX,        y:clipY, w:halfW,      h:clipH });
           overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen });
+        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen && (mode==='finish') });
 
         y += (rowH+10) + gap;
       }
