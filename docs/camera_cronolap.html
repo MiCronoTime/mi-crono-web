@@ -54,7 +54,6 @@
       background:#1f2430;color:#e8ecf1;
       font:inherit;font-weight:800;border:none;
     }
-    /* Estilo clicable para "Siguiente" */
     .pill-next{
       cursor:pointer;
     }
@@ -65,7 +64,6 @@
       margin-left:4px;
     }
 
-    /* Dropdown de selección del siguiente corredor */
     .next-dropdown{
       position:absolute;
       right:16px;
@@ -119,7 +117,6 @@
     .rtime{
       font-weight:900;
       letter-spacing:.4px;
-      /* Evitar vaivén: dígitos de ancho fijo */
       font-variant-numeric: tabular-nums;
       font-feature-settings:"tnum" 1;
     }
@@ -261,24 +258,20 @@
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
 
-    // Fase actual del ciclo: 'start' (salida) o 'finish' (meta/lap)
     let phase = 'start';
     function setPhase(ph){
       phase=ph;
       $('lapMode').textContent = ph==='start' ? 'SALIDA' : 'META';
     }
 
-    // Selección manual del siguiente corredor
     let manualNextId = null;
 
     const runningOnTrack = ()=> participants.filter(p=>p.startTS && !p.stopTS);
 
-    // Lista de participantes que aún no han salido
     const notStartedList = ()=> participants
       .filter(p=>!p.startTS)
       .sort((a,b)=>(a.order||0)-(b.order||0));
 
-    // Etiqueta corta "45 ELOI" o solo "ELOI"
     const shortLabel = (p)=>{
       if(!p) return '—';
       const dorsal = (p.dorsal||'').toString().trim();
@@ -286,7 +279,6 @@
       return (dorsal ? dorsal+' ' : '') + nm;
     };
 
-    // Siguiente a salir, respetando selección manual si es válida
     const nextToStart = ()=>{
       if (manualNextId){
         const manual = participants.find(p=>!p.startTS && p.id===manualNextId);
@@ -296,14 +288,14 @@
       return participants.find(p=>!p.startTS);
     };
 
-    /* ===== Congelados (META visual, ON TRACK/FINISH) ===== */
-    const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
-    const FINISH_FREEZE_MS = 9000;  // total 9s congelado
+    /* ===== Congelados ===== */
+    const FINISH_ORANGE_MS = 5000;
+    const FINISH_FREEZE_MS = 9000;
     const BLINK_PERIOD_MS  = 150;
 
-    let currentLive = [];     // corredores realmente en pista [{id,order,name,dorsal,startMS}]
-    let frozenFinishes = [];  // [{id,order,name,dorsal,startMS,frozenMs,createdAt,showActions,pos,frozen:true}]
-    let goBackId = null;      // corredor con overlay RESTART/CONTINUE
+    let currentLive = [];
+    let frozenFinishes = [];
+    let goBackId = null;
 
     function frozenVisualState(createdAt){
       const elapsed = Date.now() - createdAt;
@@ -358,12 +350,11 @@
       $('lastAction').textContent='FINISH confirmado';
     }
 
-    /* ===== HUD "Siguiente" con desplegable ===== */
+    /* ===== HUD "Siguiente" ===== */
     const hudNextEl = $('hudNext');
     const hudNextDropdown = $('hudNextDropdown');
     let hudNextDropdownOpen = false;
 
-    // Siempre mostramos como clicable, pero solo tiene efecto en fase SALIDA
     hudNextEl.classList.add('pill-next');
 
     const labelForNext = (nxt)=> 'Siguiente: ' + shortLabel(nxt);
@@ -474,7 +465,6 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
-    // Clicks en lista EN CURSO
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       const row = e.target.closest('.runner');
@@ -632,7 +622,6 @@
       }
     }
 
-    /* ==== Clicks sobre overlay (RESTART / CONTINUE / ON TRACK / FINISH) ==== */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -643,7 +632,7 @@
         const id = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='STAY'){ await revertStop(id); return; }   // ON TRACK
+        if(btn.btn==='STAY'){ await revertStop(id); return; }
         if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
 
@@ -661,7 +650,6 @@
     function loop(){
       const {w,h} = fitCanvas();
 
-      // limpiar congelados antiguos (>9s)
       const nowMs = Date.now();
       frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
 
@@ -754,13 +742,31 @@
       return text.slice(0, lo) + ell;
     }
 
+    /* Dibuja tiempo en rejilla fija para evitar vaivén */
+    function drawTimeFixed(ctx, leftX, centerY, blockW, text, basePx, strokeW){
+      const template = '88:88.888';
+      const chars = template.length;
+      const cellW = blockW / chars;
+
+      ctx.font = `900 ${basePx}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      ctx.textAlign = 'center';
+      ctx.lineWidth = strokeW;
+
+      for(let i=0;i<chars;i++){
+        const ch = text[i] || ' ';
+        const cx = leftX + (i + 0.5) * cellW;
+        ctx.strokeText(ch, cx, centerY);
+        ctx.fillText(ch, cx, centerY);
+      }
+    }
+
     function drawOverlayTimes(w,h,rowsRunning, rowsFrozen){
       overlayRowHitboxes = [];
       const nowSync = Date.now() + serverOffsetMS;
 
       const running = (rowsRunning||[])
         .slice()
-        .sort((a,b)=> (b.startMS||0)-(a.startMS||0)); // más reciente arriba
+        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
 
       const frozen = (rowsFrozen||[]).slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
       const merged = running.slice();
@@ -783,7 +789,7 @@
       const radius = rowH/1.9;
 
       const nameFont = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-      const timeFont = nameFont; // misma familia que "En curso"
+      const timeFont = nameFont;
 
       octx.globalAlpha = 1;
       octx.textBaseline='middle';
@@ -813,7 +819,6 @@
         octx.stroke();
         octx.restore();
 
-        // marco naranja/parpadeo si está congelado
         if (isFrozen){
           const vis = frozenVisualState(r.createdAt);
           if (vis.show){
@@ -830,31 +835,28 @@
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
 
-        // ancho de bloque de tiempo fijo para evitar vaivén
         octx.font = timeFont;
         const timeStrokeW = Math.max(2, Math.floor(base*0.16));
         const templateTime = '88:88.888';
-        const timeBlockW = Math.max(octx.measureText(templateTime).width + timeStrokeW*2, 80);
-        const minGap = 18;
-        const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeBlockW);
+        const rawW = octx.measureText(templateTime).width;
+        const timeBlockW = Math.max(rawW + timeStrokeW*2, 80);
 
-        // Nombre
+        const leftTimeBlock = timeX - timeBlockW;
+        const minGap = 18;
+        const maxNameW = Math.max(60, (leftTimeBlock - minGap) - nameX);
+
         octx.font = nameFont;
         const nameText = elideText(octx, nameFull, maxNameW);
         octx.textAlign='left';
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
-        // Tiempo
-        octx.font = timeFont;
-        octx.textAlign='right';
+        // Tiempo con rejilla fija
         octx.strokeStyle = 'rgba(0,0,0,.55)';
-        octx.lineWidth = timeStrokeW;
-        octx.strokeText(tText, timeX, nameY);
         octx.fillStyle='#FFFFFF';
-        octx.fillText  (tText, timeX, nameY);
+        drawTimeFixed(octx, leftTimeBlock, nameY, timeBlockW, tText, base, timeStrokeW);
 
-        /* RESTART / CONTINUE en línea activa (no congelada) con misma forma que el crono */
+        /* RESTART / CONTINUE */
         if(!isFrozen && goBackId===r.id){
           const clipX = pillX-1;
           const clipY = pillY-1;
@@ -867,17 +869,14 @@
 
           const halfW = clipW / 2;
 
-          // Izquierda roja
           octx.fillStyle = 'rgba(229,72,72,.92)';
           octx.fillRect(clipX, clipY, halfW, clipH);
 
-          // Derecha verde
           octx.fillStyle = 'rgba(56,214,107,.92)';
           octx.fillRect(clipX + halfW, clipY, clipW - halfW, clipH);
 
           octx.restore();
 
-          // Texto
           octx.textAlign='center';
           octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
@@ -901,7 +900,7 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        /* ON TRACK / FINISH en congelados con misma forma */
+        /* ON TRACK / FINISH */
         if (isFrozen && r.showActions){
           const clipX = pillX-1;
           const clipY = pillY-1;
@@ -914,11 +913,9 @@
 
           const halfW = clipW / 2;
 
-          // ON TRACK (verde) izquierda
           octx.fillStyle = 'rgba(56,214,107,.92)';
           octx.fillRect(clipX, clipY, halfW, clipH);
 
-          // FINISH (rojo) derecha
           octx.fillStyle = 'rgba(229,72,72,.92)';
           octx.fillRect(clipX + halfW, clipY, clipW - halfW, clipH);
 
