@@ -389,8 +389,8 @@
       else openNextDropdown();
     }
 
+    // ⬇️ AHORA SIEMPRE PERMITE ABRIR EL DESPLEGABLE (como en camera.html)
     hudNextEl.addEventListener('click',(e)=>{
-      if(phase !== 'start') return;
       e.stopPropagation();
       toggleNextDropdown();
     });
@@ -742,7 +742,7 @@
       return text.slice(0, lo) + ell;
     }
 
-    /* Dibuja tiempo en rejilla fija para evitar vaivén */
+    /* Tiempo fijo en rejilla para evitar vaivén */
     function drawTimeFixed(ctx, leftX, centerY, blockW, text, basePx, strokeW){
       const template = '88:88.888';
       const chars = template.length;
@@ -851,7 +851,6 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
-        // Tiempo con rejilla fija
         octx.strokeStyle = 'rgba(0,0,0,.55)';
         octx.fillStyle='#FFFFFF';
         drawTimeFixed(octx, leftTimeBlock, nameY, timeBlockW, tText, base, timeStrokeW);
