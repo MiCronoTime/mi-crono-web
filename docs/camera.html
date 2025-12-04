@@ -123,7 +123,13 @@
     }
     .rname .bib{opacity:.95; font-weight:900; text-align:right;}
     .rname .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .rtime{font-weight:900;letter-spacing:.4px}
+    .rtime{
+      font-weight:900;
+      letter-spacing:.4px;
+      /* fijar ancho de cada dígito para evitar “vaivén” */
+      font-variant-numeric: tabular-nums;
+      font-feature-settings:"tnum" 1;
+    }
     .muted{color:var(--muted)}
 
     /* Overlays encima de cada fila */
@@ -548,7 +554,9 @@
         if (f){ f.showActions = !f.showActions; return; }
         selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
       }else{
-        goBackId = (goBackId===row.baseId ? null : row.baseId);
+        // FIX: usar id correcto para SALIDA -> RESTART/CONTINUE
+        goBackId = (goBackId===id ? null : id);
+        renderListNow();
       }
     });
 
@@ -798,6 +806,9 @@
       const rowH = base*1.45;
       const radius = rowH/1.9;
 
+      const nameFont = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+      const timeFont = `900 ${base}px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+
       octx.globalAlpha = 1;
       octx.textBaseline='middle';
       octx.fillStyle = '#FFFFFF';
@@ -856,17 +867,24 @@
         const nameY = y + rowH/2;
         const timeX = w - rightPad - 18;
 
-        octx.font = `900 ${base}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
+        // Primero calculamos el ancho de bloque de tiempo con una plantilla fija
         const timeStrokeW = Math.max(2, Math.floor(base*0.16));
-        const timeW = Math.max(octx.measureText(tText).width + timeStrokeW*2, 80);
-        const minGap = 18;
-        const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeW);
+        octx.font = timeFont;
+        const templateTime = '88:88.888'; // máximo ancho
+        const timeBlockW = Math.max(octx.measureText(templateTime).width + timeStrokeW*2, 80);
 
+        const minGap = 18;
+        const maxNameW = Math.max(60, (timeX - minGap) - nameX - timeBlockW);
+
+        // Nombre (fuente normal)
+        octx.font = nameFont;
         const nameText = elideText(octx, nameFull, maxNameW);
         octx.textAlign='left';
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
+        // Tiempo (fuente monoespaciada numérica y bloque fijo)
+        octx.font = timeFont;
         octx.textAlign='right';
         octx.strokeStyle = 'rgba(0,0,0,.55)';
         octx.lineWidth = timeStrokeW;
