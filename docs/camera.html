@@ -126,7 +126,7 @@
     .rtime{
       font-weight:900;
       letter-spacing:.4px;
-      /* fijar ancho de cada dígito para evitar “vaivén” */
+      /* evitar vaivén: dígitos de ancho fijo */
       font-variant-numeric: tabular-nums;
       font-feature-settings:"tnum" 1;
     }
@@ -554,7 +554,7 @@
         if (f){ f.showActions = !f.showActions; return; }
         selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
       }else{
-        // FIX: usar id correcto para SALIDA -> RESTART/CONTINUE
+        // SALIDA: seleccionar para mostrar RESTART/CONTINUE también desde lista
         goBackId = (goBackId===id ? null : id);
         renderListNow();
       }
@@ -892,58 +892,99 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText  (tText, timeX, nameY);
 
-        /* SALIDA overlay (RESTART/CONTINUE) */
+        /* SALIDA overlay (RESTART/CONTINUE) con misma forma que el crono */
         if(mode==='start' && goBackId===r.id){
-          const mid = pillX + pillW/2;
-          roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
-          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
+          const clipX = pillX-1;
+          const clipY = pillY-1;
+          const clipW = pillW+2;
+          const clipH = pillH+2;
 
-          octx.textAlign='center'; octx.fillStyle='#fff';
+          octx.save();
+          // recortamos con la misma pastilla exterior
+          roundRect(octx, clipX, clipY, clipW, clipH, radius+1);
+          octx.clip();
+
+          const halfW = clipW / 2;
+
+          // mitad izquierda roja
+          octx.fillStyle = 'rgba(229,72,72,.92)';
+          octx.fillRect(clipX, clipY, halfW, clipH);
+
+          // mitad derecha verde
+          octx.fillStyle = 'rgba(56,214,107,.92)';
+          octx.fillRect(clipX + halfW, clipY, clipW - halfW, clipH);
+
+          octx.restore();
+
+          // texto centrado en cada mitad
+          octx.textAlign='center';
+          octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
-          const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
+          const ty = nameY;
+          const textPad = 20;
+          const textHalfW = halfW - textPad*2;
 
-          let fs = fitText(octx, 'RESTART', halfW, base*1.05);
+          // RESTART
+          let fs = fitText(octx, 'RESTART', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('RESTART', pillX + pillW/4,  ty); octx.fillText('RESTART', pillX + pillW/4,  ty);
+          octx.strokeText('RESTART', clipX + halfW/2,  ty);
+          octx.fillText  ('RESTART', clipX + halfW/2,  ty);
 
-          fs = fitText(octx, 'CONTINUE', halfW, base*1.05);
+          // CONTINUE
+          fs = fitText(octx, 'CONTINUE', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('CONTINUE', mid + pillW/4, ty); octx.fillText('CONTINUE', mid + pillW/4, ty);
+          octx.strokeText('CONTINUE', clipX + halfW + halfW/2, ty);
+          octx.fillText  ('CONTINUE', clipX + halfW + halfW/2, ty);
 
-          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });
-          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'RESTART',  baseId:r.id, x:clipX,        y:clipY, w:halfW,      h:clipH });
+          overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        /* META overlay (ON TRACK / FINISH) */
+        /* META overlay (ON TRACK / FINISH) con misma forma */
         if (r.frozen && r.showActions && mode==='finish'){
-          const mid = pillX + pillW/2;
-          // ON TRACK (verde)
-          roundRect(octx, pillX+2, pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(56,214,107,.92)'; octx.fill();
-          // FINISH (rojo)
-          roundRect(octx, mid+1,  pillY+2, pillW/2-3, pillH-4, radius-3);
-          octx.fillStyle = 'rgba(229,72,72,.92)'; octx.fill();
+          const clipX = pillX-1;
+          const clipY = pillY-1;
+          const clipW = pillW+2;
+          const clipH = pillH+2;
+
+          octx.save();
+          roundRect(octx, clipX, clipY, clipW, clipH, radius+1);
+          octx.clip();
+
+          const halfW = clipW / 2;
+
+          // ON TRACK (verde) izquierda
+          octx.fillStyle = 'rgba(56,214,107,.92)';
+          octx.fillRect(clipX, clipY, halfW, clipH);
+
+          // FINISH (rojo) derecha
+          octx.fillStyle = 'rgba(229,72,72,.92)';
+          octx.fillRect(clipX + halfW, clipY, clipW - halfW, clipH);
+
+          octx.restore();
 
           octx.textAlign='center'; octx.fillStyle='#fff';
           octx.strokeStyle='rgba(0,0,0,.55)';
-          const ty = nameY, pad = 20, halfW = pillW/2 - 3 - pad*2;
+          const ty = nameY;
+          const textPad = 20;
+          const textHalfW = halfW - textPad*2;
 
-          let fs = fitText(octx, 'ON TRACK', halfW, base*1.05);
+          let fs = fitText(octx, 'ON TRACK', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('ON TRACK', pillX + pillW/4,  ty); octx.fillText('ON TRACK', pillX + pillW/4,  ty);
+          octx.strokeText('ON TRACK', clipX + halfW/2,  ty);
+          octx.fillText  ('ON TRACK', clipX + halfW/2,  ty);
 
-          fs = fitText(octx, 'FINISH', halfW, base*1.05);
+          fs = fitText(octx, 'FINISH', textHalfW, base*1.05);
           octx.lineWidth = Math.max(3, Math.floor(fs*0.22));
           octx.font = `900 ${fs}px system-ui,-apple-system,Segoe UI,Roboto,Arial`;
-          octx.strokeText('FINISH', mid + pillW/4, ty); octx.fillText('FINISH', mid + pillW/4, ty);
+          octx.strokeText('FINISH', clipX + halfW + halfW/2, ty);
+          octx.fillText  ('FINISH', clipX + halfW + halfW/2, ty);
 
-          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:pillX+2, y:pillY+2, w:pillW/2-3, h:pillH-4 });   /* id interno = STAY */
-          overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:mid+1,  y:pillY+2, w:pillW/2-3, h:pillH-4 });
+          overlayRowHitboxes.push({ kind:'btn', btn:'STAY',   baseId:r.id, x:clipX,        y:clipY, w:halfW,      h:clipH });   /* id interno = STAY */
+          overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
         overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen });
