@@ -54,6 +54,7 @@
       background:#1f2430;color:#e8ecf1;
       font:inherit;font-weight:800;border:none;
     }
+    /* Estilo clicable para "Siguiente" */
     .pill-next{
       cursor:pointer;
     }
@@ -64,6 +65,7 @@
       margin-left:4px;
     }
 
+    /* Dropdown de selección del siguiente corredor */
     .next-dropdown{
       position:absolute;
       right:16px;
@@ -258,20 +260,24 @@
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
 
+    // Fase actual del ciclo: 'start' (salida) o 'finish' (meta/lap)
     let phase = 'start';
     function setPhase(ph){
       phase=ph;
       $('lapMode').textContent = ph==='start' ? 'SALIDA' : 'META';
     }
 
+    // Selección manual del siguiente corredor (como en camera.html)
     let manualNextId = null;
 
     const runningOnTrack = ()=> participants.filter(p=>p.startTS && !p.stopTS);
 
+    // Lista de participantes que aún no han salido
     const notStartedList = ()=> participants
       .filter(p=>!p.startTS)
       .sort((a,b)=>(a.order||0)-(b.order||0));
 
+    // Etiqueta corta "45 ELOI" o solo "ELOI"
     const shortLabel = (p)=>{
       if(!p) return '—';
       const dorsal = (p.dorsal||'').toString().trim();
@@ -279,23 +285,25 @@
       return (dorsal ? dorsal+' ' : '') + nm;
     };
 
+    // Siguiente a salir, respetando selección manual si es válida
     const nextToStart = ()=>{
       if (manualNextId){
         const manual = participants.find(p=>!p.startTS && p.id===manualNextId);
         if (manual) return manual;
+        // si ya ha salido, limpiamos la selección
         manualNextId = null;
       }
       return participants.find(p=>!p.startTS);
     };
 
-    /* ===== Congelados ===== */
-    const FINISH_ORANGE_MS = 5000;
-    const FINISH_FREEZE_MS = 9000;
+    /* ===== Congelados (META visual, ON TRACK/FINISH) ===== */
+    const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
+    const FINISH_FREEZE_MS = 9000;  // total 9s congelado
     const BLINK_PERIOD_MS  = 150;
 
-    let currentLive = [];
-    let frozenFinishes = [];
-    let goBackId = null;
+    let currentLive = [];     // corredores realmente en pista [{id,order,name,dorsal,startMS}]
+    let frozenFinishes = [];  // [{id,order,name,dorsal,startMS,frozenMs,createdAt,showActions,pos,frozen:true}]
+    let goBackId = null;      // corredor con overlay RESTART/CONTINUE
 
     function frozenVisualState(createdAt){
       const elapsed = Date.now() - createdAt;
@@ -350,11 +358,12 @@
       $('lastAction').textContent='FINISH confirmado';
     }
 
-    /* ===== HUD "Siguiente" ===== */
+    /* ===== HUD "Siguiente" con desplegable ===== */
     const hudNextEl = $('hudNext');
     const hudNextDropdown = $('hudNextDropdown');
     let hudNextDropdownOpen = false;
 
+    // Siempre mostramos como clicable, pero solo tiene efecto en fase SALIDA
     hudNextEl.classList.add('pill-next');
 
     const labelForNext = (nxt)=> 'Siguiente: ' + shortLabel(nxt);
@@ -366,7 +375,7 @@
         return;
       }
       hudNextDropdown.innerHTML = list.map(p=>{
-        const line = shortLabel(p);
+        const line = shortLabel(p); // "45 ELOI" o "ELOI"
         const ord = p.order ?? '—';
         return `<div class="next-dropdown-item" data-id="${p.id}">
           <div>${line}</div>
@@ -389,8 +398,9 @@
       else openNextDropdown();
     }
 
-    // ⬇️ AHORA SIEMPRE PERMITE ABRIR EL DESPLEGABLE (como en camera.html)
     hudNextEl.addEventListener('click',(e)=>{
+      // Solo permitimos seleccionar siguiente en fase SALIDA
+      if(phase !== 'start') return;
       e.stopPropagation();
       toggleNextDropdown();
     });
@@ -421,6 +431,7 @@
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
 
+      // running: en curso (startTS sin stopTS), más reciente arriba
       const running = currentLive
         .slice()
         .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
@@ -465,6 +476,7 @@
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
+    // Clicks en lista EN CURSO
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       const row = e.target.closest('.runner');
@@ -485,7 +497,6 @@
         if (f){ f.showActions = !f.showActions; }
       } else {
         goBackId = (goBackId===id ? null : id);
-        renderListNow();
       }
     });
 
@@ -584,13 +595,32 @@
     }
     const armAfter=(ms)=>{ clearTimeout(cooldownTimer); cooldownTimer=setTimeout(()=>{ armed=true; },ms); };
 
+    /* ==== NUEVA LÓGICA: bloquear salida mientras haya corredor en pista
+          o mientras el anterior siga congelado en los 9s de hold ==== */
     async function trigger(){
       if(!armed || !detectionEnabled) return;
       armed=false; above=false; aboveSince=0;
 
       await reload();
 
+      const running = runningOnTrack();
+
       if(phase==='start'){
+        // 1) Si aún hay alguien en pista, no permitimos nueva salida
+        if(running.length){
+          $('lastAction').textContent='Espera a que termine el corredor en curso';
+          armAfter(COOLDOWN_START_MS);
+          return;
+        }
+        // 2) Si hay un corredor recién terminado aún congelado (últimos 9s), tampoco
+        const now = Date.now();
+        const hasRecentFrozen = frozenFinishes.some(f => (now - f.createdAt) < FINISH_FREEZE_MS);
+        if(hasRecentFrozen){
+          $('lastAction').textContent='Espera a que finalice el corredor anterior';
+          armAfter(COOLDOWN_START_MS);
+          return;
+        }
+
         const nxt = nextToStart();
         if(!nxt){
           $('lastAction').textContent='Sin siguiente participante';
@@ -598,12 +628,12 @@
           return;
         }
         await updateDoc(nxt.ref,{ startTS:serverTimestamp(), stopTS:null });
+        // una vez sale, limpiamos selección manual
         manualNextId = null;
         setPhase('finish');
         armAfter(COOLDOWN_START_MS);
         $('lastAction').textContent='Inicio (Cronolap)';
       }else{
-        const running = runningOnTrack();
         if(!running.length){
           setPhase('start');
           armAfter(COOLDOWN_FINISH_MS);
@@ -622,6 +652,7 @@
       }
     }
 
+    /* ==== Clicks sobre overlay (RESTART / CONTINUE / ON TRACK / FINISH) ==== */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -632,7 +663,7 @@
         const id = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='STAY'){ await revertStop(id); return; }
+        if(btn.btn==='STAY'){ await revertStop(id); return; }   // ON TRACK
         if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
 
@@ -650,6 +681,7 @@
     function loop(){
       const {w,h} = fitCanvas();
 
+      // limpiar congelados antiguos (>9s)
       const nowMs = Date.now();
       frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
 
@@ -742,7 +774,7 @@
       return text.slice(0, lo) + ell;
     }
 
-    /* Tiempo fijo en rejilla para evitar vaivén */
+    /* Dibujo del tiempo en celdas fijas para evitar vaivén */
     function drawTimeFixed(ctx, leftX, centerY, blockW, text, basePx, strokeW){
       const template = '88:88.888';
       const chars = template.length;
@@ -766,7 +798,8 @@
 
       const running = (rowsRunning||[])
         .slice()
-        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
+        .sort((a,b)=> (a.startMS||0)-(b.startMS||0))
+        .reverse();
 
       const frozen = (rowsFrozen||[]).slice().sort((a,b)=> (a.pos||0)-(b.pos||0));
       const merged = running.slice();
@@ -819,6 +852,7 @@
         octx.stroke();
         octx.restore();
 
+        // marco naranja/parpadeo si está congelado
         if (isFrozen){
           const vis = frozenVisualState(r.createdAt);
           if (vis.show){
@@ -855,7 +889,7 @@
         octx.fillStyle='#FFFFFF';
         drawTimeFixed(octx, leftTimeBlock, nameY, timeBlockW, tText, base, timeStrokeW);
 
-        /* RESTART / CONTINUE */
+        // RESTART / CONTINUE en línea activa (no congelada)
         if(!isFrozen && goBackId===r.id){
           const clipX = pillX-1;
           const clipY = pillY-1;
@@ -899,7 +933,7 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        /* ON TRACK / FINISH */
+        // ON TRACK / FINISH en congelados con showActions
         if (isFrozen && r.showActions){
           const clipX = pillX-1;
           const clipY = pillY-1;
