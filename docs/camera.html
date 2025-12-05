@@ -127,7 +127,7 @@
       font-weight:900;
       letter-spacing:.4px;
       font-variant-numeric: tabular-nums;
-      font-feature-settings:"tnum" 1;
+      font-feature-settings: "tnum" 1;
     }
     .muted{color:var(--muted)}
 
@@ -266,7 +266,12 @@
       const snap=await getDocs(query(partsCol, orderBy('order','asc')));
       participants = snap.docs.map(d=>({ id:d.id, ref:d.ref, ...d.data() }));
     }
-    // manualNextId permite fijar manualmente el siguiente en salir (siempre que aún no haya salido)
+
+    const runningSorted = ()=> participants
+      .filter(p=>p.startTS && !p.stopTS)
+      .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) ); // PRIMERO EN SALIR ARRIBA
+
+    // manualNextId permite fijar manualmente el siguiente en salir
     let selectedId = null; // META (selección manual)
     let goBackId   = null; // SALIDA (RESTART/CONTINUE visible)
     let manualNextId = null; // START (siguiente corredor fijado a mano)
@@ -279,8 +284,16 @@
       }
       return participants.find(p=>!p.startTS);
     };
-    const runningSorted = ()=> participants.filter(p=>p.startTS && !p.stopTS)
-      .sort((a,b)=> tsToMillis(a.startTS) - tsToMillis(b.startTS) );
+    const runningOnTrackSorted = ()=> runningSorted();
+
+    /* ===== META: congelados visuales ===== */
+    const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
+    const FINISH_FREEZE_MS = 9000;  // total 9s congelado (los últimos 4s parpadeo)
+    const BLINK_PERIOD_MS  = 150;   // parpadeo rápido
+    const OVER_OUTLINE_W   = 2;     // grosor de línea sobreimpresa
+
+    // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, frozen:true}
+    let frozenFinishes = [];
 
     async function startNext(){
       await reload();
@@ -291,24 +304,17 @@
       return p;
     }
 
-    /* ===== META: congelados visuales ===== */
-    const FINISH_ORANGE_MS = 5000;  // 5s naranja fijo
-    const FINISH_FREEZE_MS = 9000;  // total 9s congelado (los últimos 4s parpadeo)
-    const BLINK_PERIOD_MS  = 150;   // parpadeo rápido
-    const OVER_OUTLINE_W   = 2;     // grosor de línea sobreimpresa
-    // item: {id, order, name, dorsal, startMS, frozenMs, showActions, createdAt, pos}
-    let frozenFinishes = [];
-
     async function stopSelectedOrEarliest(){
       await reload();
       let p = null;
-      if (selectedId) p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
-      if (!p){ const run = runningSorted(); p = run[0] || null; }
+      if (selectedId){
+        p = participants.find(x => x.id === selectedId && x.startTS && !x.stopTS) || null;
+      }
+      if (!p){
+        const run = runningOnTrackSorted();
+        p = run[0] || null;
+      }
       if (!p) return null;
-
-      // Posición visual actual (ordenado por más reciente arriba)
-      const displayRows = runningSorted().slice().sort((a,b)=> tsToMillis(b.startTS)-tsToMillis(a.startTS));
-      const idx = Math.max(0, displayRows.findIndex(x=>x.id===p.id));
 
       await updateDoc(p.ref, { stopTS: serverTimestamp() });
 
@@ -325,7 +331,6 @@
           frozenMs,
           showActions: false,
           createdAt: Date.now(),
-          pos: idx,
           frozen: true
         });
       }
@@ -360,7 +365,7 @@
     }
 
     /* ===== UI en vivo ===== */
-    let currentLive=[];
+    let currentLive=[];           // [{id,order,name,dorsal,startMS}]
     let overlayRowHitboxes=[];
 
     const displayName = (p)=>{
@@ -388,7 +393,7 @@
       .filter(p=>!p.startTS)
       .sort((a,b)=>(a.order||0)-(b.order||0));
 
-    const labelForNext = (nxt)=> 'Siguiente: ' + (nxt ? shortLabel(nxt) : '—');
+    const labelForNext = (nxt)=> 'Siguiente: ' + shortLabel(nxt);
 
     function ensureStatus(){
       const nxt = nextToStart();
@@ -455,8 +460,8 @@
         return { color:'orange', show:true };
       }
       if (elapsed < FINISH_FREEZE_MS){
-        const phase = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
-        return { color:'orange', show: (phase % 2) === 0 };
+        const phaseIdx = Math.floor((elapsed - FINISH_ORANGE_MS) / BLINK_PERIOD_MS);
+        return { color:'orange', show:(phaseIdx % 2) === 0 };
       }
       return { color:'none', show:false };
     }
@@ -464,61 +469,66 @@
     function renderListNow(){
       const nowSync = Date.now() + serverOffsetMS;
       const list = $('runningList');
-      if(!currentLive.length){ list.innerHTML='—'; return; }
 
-      const rows = currentLive.slice().sort((a,b)=> (a.startMS||0)-(b.startMS||0)).reverse();
+      // Unificamos en curso + congelados, ordenados por orden de salida
+      const mergedMap = new Map();
+      currentLive.forEach(r => mergedMap.set(r.id, { ...r, frozen:false }));
+      frozenFinishes.forEach(f => mergedMap.set(f.id, { ...f, frozen:true }));
 
-      const froz = frozenFinishes.slice().sort((a,b)=> a.pos - b.pos);
-      const merged = rows.slice();
-      for(const f of froz){
-        const pos = Math.max(0, Math.min(f.pos, merged.length));
-        const idx = merged.findIndex(x=>x.id===f.id);
-        const visual = frozenVisualState(f.createdAt);
-        const isBlinkOn = visual.show;
-        const obj = { ...f, frozen:true, frozenBlinkOn:isBlinkOn };
-        if (idx>=0) merged.splice(idx, 1, { ...merged[idx], ...obj });
-        else merged.splice(pos, 0, obj);
+      const merged = [...mergedMap.values()]
+        .sort((a,b)=> (a.startMS||0) - (b.startMS||0)); // PRIMERO EN SALIR ARRIBA
+
+      if(!merged.length){
+        list.innerHTML='—';
+        return;
       }
 
-      list.innerHTML = merged.map(p=>{
-        const isFrozen = !!p.frozen && (mode==='finish');
-        const blinkOn = (p.frozenBlinkOn!==undefined)? p.frozenBlinkOn : true;
+      list.innerHTML = merged.map(r=>{
+        const isFrozen = r.frozen && (mode==='finish');
 
-        const sel = (!isFrozen && mode==='finish' && selectedId===p.id) ? ' selected' : '';
-        const { bib, nm } = displayName(p);
+        const { bib, nm } = displayName(r);
+        const actionsStart  = (mode==='start'  && !isFrozen && goBackId===r.id);
+        const actionsFinish = (mode==='finish' && isFrozen && r.showActions);
 
-        const actionsStart  = (mode==='start'  && goBackId===p.id);
-        const actionsFinish = (isFrozen && p.showActions && mode==='finish');
-
-        const timeNow = isFrozen ? p.frozenMs : (Date.now()+serverOffsetMS - (p.startMS||Date.now()+serverOffsetMS));
-
-        let holdClass = isFrozen ? ' hold' : '';
+        let elapsed;
+        let holdClass = '';
         let holdStyle = '';
+
         if (isFrozen){
-          holdStyle = blinkOn
-            ? 'border-color:var(--hold);box-shadow:0 0 0 3px rgba(255,156,58,.35) inset;'
-            : 'border-color:transparent;box-shadow:none;';
+          elapsed = r.frozenMs;
+          const vis = frozenVisualState(r.createdAt);
+          if (vis.show){
+            holdClass = ' hold';
+            holdStyle = 'border-color:var(--hold);box-shadow:0 0 0 3px rgba(255,156,58,.35) inset;';
+          } else {
+            holdStyle = 'border-color:transparent;box-shadow:none;';
+          }
+        }else{
+          elapsed = nowSync - (r.startMS||nowSync);
         }
 
-        return `<div class="runner${sel}${holdClass}" data-id="${p.id}" style="${holdStyle}">
+        const sel = (!isFrozen && mode==='finish' && selectedId===r.id) ? ' selected' : '';
+
+        return `<div class="runner${sel}${holdClass}" data-id="${r.id}" style="${holdStyle}">
           ${actionsStart?`
             <div class="runner-actions">
-              <div class="half back" data-action="back" data-id="${p.id}">RESTART</div>
-              <div class="half go"   data-action="go"   data-id="${p.id}">CONTINUE</div>
+              <div class="half back" data-action="back" data-id="${r.id}">RESTART</div>
+              <div class="half go"   data-action="go"   data-id="${r.id}">CONTINUE</div>
             </div>`:''}
           ${actionsFinish?`
             <div class="runner-actions">
-              <div class="half stay"   data-action="stay"   data-id="${p.id}">ON TRACK</div>
-              <div class="half finish" data-action="finish" data-id="${p.id}">FINISH</div>
+              <div class="half stay"   data-action="stay"   data-id="${r.id}">ON TRACK</div>
+              <div class="half finish" data-action="finish" data-id="${r.id}">FINISH</div>
             </div>`:''}
-          <div class="badge">#${p.order||0}</div>
-          <div class="rname"><span class="bib">${(p.dorsal||'').toString().trim()}</span><span class="nm">${nm}</span></div>
-          <div class="rtime">${fmt(timeNow)}</div>
+          <div class="badge">#${r.order||0}</div>
+          <div class="rname"><span class="bib">${bib}</span><span class="nm">${nm}</span></div>
+          <div class="rtime">${fmt(elapsed)}</div>
         </div>`;
       }).join('');
     }
     (function tickList(){ renderListNow(); setTimeout(tickList, 100); })();
 
+    // Clicks en lista EN CURSO (SALIDA y META activos)
     $('runningList').addEventListener('click', async (e)=>{
       const act = e.target.closest('[data-action]');
       const row = e.target.closest('.runner');
@@ -528,26 +538,29 @@
       if (act){
         if (mode==='start'){
           if (act.dataset.action === 'back') { await revertStart(id); return; }
-          if (act.dataset.action === 'go')   { goBackId=null; renderListNow(); return; }
+          if (act.dataset.action === 'go')   { goBackId=null; renderListNow(); $('lastAction').textContent='CONTINUE'; return; }
         }
         if (mode==='finish'){
           if (act.dataset.action === 'stay')   { await revertStop(id); return; }
-          if (act.dataset.action === 'finish') { confirmFinishLocal(id); return; }
+          if (act.dataset.action === 'finish') { confirmFinishLocal(id); renderListNow(); return; }
         }
       }
 
       if(mode==='finish'){
         const f = frozenFinishes.find(f=>f.id===id);
-        if (f){ f.showActions = !f.showActions; return; }
-        selectedId=id; $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
+        if (f){ f.showActions = !f.showActions; renderListNow(); return; }
+        selectedId=id;
+        $('lastAction').textContent='Seleccionado: '+(currentLive.find(r=>r.id===id)?.name||id);
       }else{
-        goBackId = (goBackId===row.baseId ? null : row.baseId);
+        goBackId = (goBackId===id ? null : id);
+        renderListNow();
       }
     });
 
     onSnapshot(partsCol, async ()=>{
       await reload();
-      currentLive = runningSorted().map(p=>({
+      const running = runningOnTrackSorted();
+      currentLive = running.map(p=>({
         id:p.id, order: p.order||0,
         name: (p.name||'').toUpperCase(),
         dorsal: (p.dorsal||'').toString().trim(),
@@ -555,7 +568,7 @@
       }));
 
       if (mode === 'finish') {
-        const run = runningSorted();
+        const run = runningOnTrackSorted();
         const earliest = run[0]?.id || null;
         if (!selectedId || !run.some(p => p.id === selectedId)) selectedId = earliest;
       } else {
@@ -630,11 +643,18 @@
     async function trigger(){
       if(!armed || !detectionEnabled) return;
       armed=false; above=false; aboveSince=0;
-      if (mode==='start') { await startNext(); armAfter(COOLDOWN_START_MS); $('lastAction').textContent='Inicio marcado'; }
-      else { await stopSelectedOrEarliest(); armAfter(COOLDOWN_FINISH_MS); $('lastAction').textContent='Fin marcado'; }
+      if (mode==='start') {
+        await startNext();
+        armAfter(COOLDOWN_START_MS);
+        $('lastAction').textContent='Inicio marcado';
+      } else {
+        await stopSelectedOrEarliest();
+        armAfter(COOLDOWN_FINISH_MS);
+        $('lastAction').textContent='Fin marcado';
+      }
     }
 
-    /* Hit-testing overlay */
+    /* Hit-testing overlay (botones > fila) */
     overlay.addEventListener('click', async (e)=>{
       const rect = overlay.getBoundingClientRect();
       const x = e.clientX - rect.left, y = e.clientY - rect.top;
@@ -644,7 +664,7 @@
         const id = btn.baseId;
         if(btn.btn==='RESTART'){ await revertStart(id); return; }
         if(btn.btn==='CONTINUE'){ goBackId=null; $('lastAction').textContent='CONTINUE'; return; }
-        if(btn.btn==='STAY'){ await revertStop(id); return; }
+        if(btn.btn==='STAY'){ await revertStop(id); return; }   // ON TRACK
         if(btn.btn==='FINISH'){ confirmFinishLocal(id); return; }
       }
 
@@ -653,7 +673,7 @@
 
       if(row.frozen && mode==='finish'){
         const f = frozenFinishes.find(f=>f.id===row.baseId);
-        if(f) f.showActions = !f.showActions;
+        if(f){ f.showActions = !f.showActions; }
         return;
       }
 
@@ -668,6 +688,7 @@
     function loop(){
       const {w,h} = fitCanvas();
 
+      // Auto-quitar congelados visuales tras FINISH_FREEZE_MS
       const nowMs = Date.now();
       if (mode==='finish' && frozenFinishes.length){
         frozenFinishes = frozenFinishes.filter(f => (nowMs - f.createdAt) < FINISH_FREEZE_MS);
@@ -761,7 +782,7 @@
       return text.slice(0, lo) + ell;
     }
 
-    /* Tiempo fijo en rejilla para evitar vaivén */
+    // Dibuja el tiempo en celdas fijas (para que no haga vaivén)
     function drawTimeFixed(ctx, leftX, centerY, blockW, text, basePx, strokeW){
       const template = '88:88.888';
       const chars = template.length;
@@ -783,20 +804,16 @@
       overlayRowHitboxes = [];
       const nowSync = Date.now() + serverOffsetMS;
 
-      const running = (rowsRunning||[])
-        .slice()
-        .sort((a,b)=> (b.startMS||0)-(a.startMS||0));
-      running.reverse();
+      const running = (rowsRunning||[]).slice();
+      const frozen  = (rowsFrozen||[]).slice();
 
-      const frozen = (rowsFrozen||[]).slice().sort((a,b)=> a.pos - b.pos);
-      const merged = running.slice();
-      for(const f of frozen){
-        const pos = Math.max(0, Math.min(f.pos, merged.length));
-        const idx = merged.findIndex(x=>x.id===f.id);
-        const rowObj = { ...f, frozen:true };
-        if (idx>=0) merged.splice(idx, 1, rowObj);
-        else merged.splice(pos, 0, rowObj);
-      }
+      // Unificamos en un mapa por id y ordenamos por startMS (orden de salida)
+      const mergedMap = new Map();
+      running.forEach(r => mergedMap.set(r.id, { ...r, frozen:false }));
+      frozen.forEach(f  => mergedMap.set(f.id, { ...f, frozen:true }));
+
+      const merged = [...mergedMap.values()]
+        .sort((a,b)=> (a.startMS||0) - (b.startMS||0)); // primero que salió arriba
 
       if(!merged.length) return;
 
@@ -821,8 +838,10 @@
 
       for(let i=0;i<maxRows;i++){
         const r = merged[i];
-        const isFrozen = !!r.frozen && (mode==='finish');
-        const elapsed = isFrozen ? r.frozenMs : (nowSync - (r.startMS||nowSync));
+        const isFrozen = r.frozen && (mode==='finish');
+
+        const startMS = r.startMS || (nowSync);
+        const elapsed = isFrozen ? r.frozenMs : (nowSync - startMS);
         const tText = fmt(elapsed);
         const nameFull = ((r.dorsal ? r.dorsal+' ' : '') + (r.name||'—'));
 
@@ -833,6 +852,7 @@
         roundRect(octx, pillX, pillY, pillW, pillH, radius);
         octx.fillStyle = grad; octx.fill();
 
+        // Borde sutil de la pastilla
         octx.save();
         octx.lineWidth = 2;
         octx.strokeStyle = 'rgba(255,255,255,.12)';
@@ -840,7 +860,8 @@
         octx.stroke();
         octx.restore();
 
-        if (isFrozen && mode==='finish'){
+        // Marco naranja/parpadeo si está congelado (META)
+        if (isFrozen){
           const vis = frozenVisualState(r.createdAt);
           if (vis.show){
             octx.save();
@@ -852,6 +873,7 @@
           }
         }
 
+        // Marco verde si está seleccionado (META, no congelado)
         if (!isFrozen && mode==='finish' && selectedId===r.id){
           octx.save();
           octx.lineWidth = OVER_OUTLINE_W;
@@ -881,12 +903,13 @@
         octx.fillStyle='#FFFFFF';
         octx.fillText(nameText, nameX, nameY);
 
+        // Tiempo en celdas fijas (sin vaivén)
         octx.strokeStyle = 'rgba(0,0,0,.55)';
         octx.fillStyle='#FFFFFF';
         drawTimeFixed(octx, leftTimeBlock, nameY, timeBlockW, tText, base, timeStrokeW);
 
-        /* SALIDA overlay (RESTART/CONTINUE) */
-        if(mode==='start' && goBackId===r.id){
+        // RESTART / CONTINUE en SALIDA (fila activa)
+        if(mode==='start' && !isFrozen && goBackId===r.id){
           const clipX = pillX-1;
           const clipY = pillY-1;
           const clipW = pillW+2;
@@ -929,8 +952,8 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'CONTINUE', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        /* META overlay (ON TRACK / FINISH) */
-        if (isFrozen && r.showActions && mode==='finish'){
+        // ON TRACK / FINISH en META (congelados con acciones)
+        if (mode==='finish' && isFrozen && r.showActions){
           const clipX = pillX-1;
           const clipY = pillY-1;
           const clipW = pillW+2;
@@ -973,7 +996,7 @@
           overlayRowHitboxes.push({ kind:'btn', btn:'FINISH', baseId:r.id, x:clipX+halfW,  y:clipY, w:clipW-halfW, h:clipH });
         }
 
-        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen: !!r.frozen && (mode==='finish') });
+        overlayRowHitboxes.push({ kind:'row', baseId:r.id, x:pillX, y:pillY, w:pillW, h:pillH, frozen:isFrozen });
 
         y += (rowH+10) + gap;
       }
